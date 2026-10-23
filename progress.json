@@ -280,8 +280,10 @@
                   "id": "M1-12",
                   "emoji": "🪄",
                   "title": "Remember HUD placement/collapsed state with reset control",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Firefox Developer Edition synthetic HUD test verifies keyboard positioning, retained collapse/placement after reload and reset without queue deletion: https://github.com/sguzman/chat-queue/actions/runs/40039645374. Pointer drag and zoom inspection remain separate UI acceptance gates."
+                  ]
                 }
               ]
             }
