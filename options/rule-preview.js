@@ -10,6 +10,7 @@
   const output=field('preview-output'), feedback=field('rule-message');
   let blocked=true, saving=false, clearArmed=false;
   function print(message){ output.textContent=message; }
+  function resetClear(){clearArmed=false;field('rule-clear').textContent='Clear saved rules';}
   function feedbackText(message){feedback.textContent=message;}
   function enableEditing(){
     const busy=blocked||saving;
@@ -26,6 +27,7 @@
       const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';
       edit.setAttribute('aria-label',`Edit ${rule.id}`);
       edit.addEventListener('click',()=>{
+        resetClear();
         field('rule-id').value=rule.id;field('rule-enabled').checked=rule.enabled;
         field('rule-priority').value=rule.priority;field('rule-phase').value=rule.when.phase;
         field('rule-confidence').value=rule.when.confidence;
@@ -38,7 +40,7 @@
       const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';
       remove.disabled=blocked||saving;
       remove.setAttribute('aria-label',`Remove ${rule.id}`);
-      remove.addEventListener('click',()=>void persist(rules.filter(r=>r.id!==rule.id),'Rule removed'));
+      remove.addEventListener('click',()=>{resetClear();void persist(rules.filter(r=>r.id!==rule.id),'Rule removed');});
       li.append(label,edit,remove);list.append(li);
     }
     enableEditing();
@@ -51,7 +53,7 @@
     try{
       await api.storage.local.set({[store.KEY]:encoded.value});
       rules.splice(0,rules.length,...encoded.value.rules);
-      consumed.length=0;clearArmed=false;
+      consumed.length=0;resetClear();
       print('Saved rule definitions; nothing queued or sent.');
       feedbackText(`${label}. ${rules.length} saved preview rule(s).`);
     }catch{
@@ -66,7 +68,7 @@
       const decoded=store.decode(record?.[store.KEY]);
       if(!decoded.ok){feedbackText(`Cannot edit: ${decoded.error}. Saved data was not overwritten.`);return;}
       rules.splice(0,rules.length,...decoded.rules);
-      consumed.length=0;clearArmed=false;blocked=false;
+      consumed.length=0;resetClear();blocked=false;
       feedbackText(`${rules.length} saved preview rule(s). No rules can send messages.`);
       print('Rule definitions loaded; no queue action taken.');
     }catch{feedbackText('Could not read saved rules. No changes were made.');}
@@ -77,6 +79,7 @@
   });
   field('rule-form').addEventListener('submit',event=>{
     event.preventDefault();if(blocked||saving)return;
+    resetClear();
     const candidate={version:1,id:field('rule-id').value.trim(),enabled:field('rule-enabled').checked,
       priority:Number(field('rule-priority').value),
       when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value},
@@ -84,7 +87,7 @@
         {type:'propose',text:field('rule-text').value}};
     void persist([...rules.filter(r=>r.id!==candidate.id),candidate],`Saved ${candidate.id}`);
   });
-  field('rule-reload').addEventListener('click',()=>void load());
+  field('rule-reload').addEventListener('click',()=>{resetClear();void load();});
   field('rule-clear').addEventListener('click',()=>{
     if(blocked||saving)return;
     if(!clearArmed){clearArmed=true;field('rule-clear').textContent='Confirm clear saved rules';feedbackText('Click Confirm clear saved rules to remove every stored rule.');return;}

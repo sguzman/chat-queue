@@ -56,8 +56,7 @@ async function main(){
   await driver.findElement(By.id('preview-origin')).sendKeys('Restored');
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/not-actionable/);
-  await driver.findElement(By.id('preview-origin')).sendKeys('Fresh');
-  await driver.findElement(By.id('rule-action')).sendKeys('Text');
+  await driver.executeScript('document.getElementById("preview-origin").value="fresh"; document.getElementById("preview-phase").value="failed"; document.getElementById("preview-confidence").value="observed"; document.getElementById("preview-epoch").value="2"; document.getElementById("rule-action").value="propose"; document.getElementById("rule-action").dispatchEvent(new Event("change"));');
   const injection='<img src=x onerror="window.__previewXss=1">';
   await driver.executeScript('document.querySelector("#rule-text").value=arguments[0]',injection);
   await driver.findElement(By.id('rule-add')).click();
@@ -80,6 +79,10 @@ async function main(){
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),10000);
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/pause/);
+  // Arming Clear then editing something else must cancel that confirmation.
+  await driver.findElement(By.id('rule-clear')).click();
+  await driver.findElement(By.css('#rule-list li button[aria-label^="Edit"]')).click();
+  assert.equal(await driver.findElement(By.id('rule-clear')).getText(),'Clear saved rules');
   // Destructive removal is explicitly two-step and cannot silently execute.
   await driver.findElement(By.id('rule-clear')).click();
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1);
@@ -88,6 +91,12 @@ async function main(){
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return /0 saved/.test(document.querySelector("#rule-message").textContent)'),10000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,0);
+  // Corrupt or future-version definitions remain in local storage untouched.
+  await driver.executeScript('sessionStorage.setItem("chatqueue:conditional-rules:v1",JSON.stringify({version:99,rules:[]}))');
+  await driver.navigate().refresh();
+  await driver.wait(async()=>await driver.executeScript('return /unsupported-rule-library/.test(document.querySelector("#rule-message").textContent)'),10000);
+  assert.equal(await driver.findElement(By.id('rule-add')).isEnabled(),false);
+  assert.equal(await driver.executeScript('return JSON.parse(sessionStorage.getItem("chatqueue:conditional-rules:v1")).version'),99);
   console.log('FDE rules sandbox: typed rule preview, replay suppression, restored rejection, XSS inertness, versioned persistence, edit and confirmed delete pass');
  }finally{
   if(driver)await driver.quit();
