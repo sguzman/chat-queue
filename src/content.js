@@ -272,9 +272,11 @@
   }
   async function handleRouteChange() {
     if(!state.initialized)return;
-    const generation=++routeGeneration;
     const newKey=storageKey();
-    if (state.key===newKey){state.routing=false;return;}
+    // Duplicate navigation notices must not invalidate an in-flight
+    // restore after its route key was assigned but before registration ends.
+    if (state.key===newKey)return;
+    const generation=++routeGeneration;
     state.routing=true;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';

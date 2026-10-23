@@ -36,6 +36,14 @@
       return Promise.resolve({ ok: true, tabId: tab.id });
     }
     if (message.action === 'state') {
+      // A stale message from a former SPA route must not recreate a public
+      // tab slot after Firefox invalidated its registration.
+      let senderRoute;
+      try{senderRoute=new URL(sender.url || tab.url).pathname;}catch{
+        return Promise.resolve({ok:false,error:'invalid-route'});
+      }
+      if(!TABS.has(tab.id)||ROUTES.get(tab.id)!==senderRoute)
+        return Promise.resolve({ok:false,error:'route-mismatch'});
       {
         const phase = String(message.phase || 'unknown');
         const prev=TABS.get(tab.id);

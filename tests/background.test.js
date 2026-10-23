@@ -154,3 +154,15 @@ test('tab URL updates revoke route authority even if History API listener is una
   const status=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
   assert.equal(status.tabs.length,0);
 });
+
+
+test('unregistered and stale SPA state updates cannot repopulate the public tab list',async()=>{
+  const {listeners}=create();
+  const old={tab:{id:91,url:'https://chatgpt.com/c/old'},url:'https://chatgpt.com/c/old'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished'},old)).error,'route-mismatch');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/old'},old)).ok,true);
+  listeners.updated(91,{url:'https://chatgpt.com/c/new'});
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished'},old)).error,'route-mismatch');
+  const list=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
+  assert.deepEqual(Array.from(list.tabs),[]);
+});
