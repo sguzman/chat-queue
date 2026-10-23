@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 const src=fs.readFileSync(require.resolve('../src/background.js'),'utf8');
+const signals=fs.readFileSync(require.resolve('../src/signal.js'),'utf8');
 function create() {
   const listeners={};
   const forwards=[];
@@ -11,7 +12,9 @@ function create() {
     tabs:{sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},onRemoved:{addListener:fn=>listeners.removed=fn},onUpdated:{addListener:fn=>listeners.updated=fn}},
     storage:{local:{get:async()=>({allowedExtensionIds:['approved@example.test']})},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
-  vm.runInNewContext(src,{browser});
+  const context=vm.createContext({browser});
+  vm.runInContext(signals,context);
+  vm.runInContext(src,context);
   return {listeners,forwards};
 }
 test('cross-extension API is denied by default unless allowlisted',async()=>{
@@ -40,4 +43,22 @@ test('non-ChatGPT content cannot register as a target',async()=>{
   const {listeners}=create();
   assert.equal(listeners.internal({type:'chat-queue-internal/v1',action:'register'},
     {tab:{id:7,url:'https://example.com/'},url:'https://example.com/'}),undefined);
+});
+test('only the authenticated Chat Signals extension can supply epochs; stale events are rejected',async()=>{
+  const {listeners,forwards}=create();
+  const tab={tab:{id:17,url:'https://chatgpt.com/c/example'},url:'https://chatgpt.com/c/example'};
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register'},tab);
+  const signal={version:1,route:'/c/example',documentToken:'a'.repeat(32),
+    sequence:1,epoch:1,phase:'generating',origin:'fresh',confidence:'observed'};
+  const msg={type:'chat-queue-signal/v1',tabId:17,signal};
+  assert.equal((await listeners.external(msg,{id:'unapproved@example.test'})).error,'not-signal-provider');
+  assert.equal(forwards.length,0);
+  const sender={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external(msg,sender)).ok,true);
+  assert.equal(forwards[0].message.type,'chat-queue-signal-verified/v1');
+  assert.equal((await listeners.external(msg,sender)).error,'stale-signal');
+  assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,epoch:0}},sender)).error,'stale-signal');
+  assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,route:'/c/other'}},sender)).error,'stale-signal');
+  assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,documentToken:'b'.repeat(32)}},sender)).error,'stale-signal');
+  assert.equal((await listeners.external({...msg,tabId:42},sender)).error,'tab-not-registered');
 });

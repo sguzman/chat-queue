@@ -5,12 +5,14 @@
   globalThis.__chatQueuePrototype = true;
   const api = globalThis.browser || globalThis.chrome;
   const core = globalThis.ChatQueueCore;
-  if (!api?.runtime?.sendMessage || !core) return;
+  const contract = globalThis.ChatQueueSignal;
+  if (!api?.runtime?.sendMessage || !core || !contract) return;
   const uid = () => crypto.randomUUID();
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
-    busySeen: false, attempting: null, signal: 'unknown', note: 'Paused', initialized: false,
+    busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
+    trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, saveChain: Promise.resolve() };
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -68,11 +70,13 @@
   const pending = () => state.items.some(item => item.status === 'pending');
   const uncertain = () => state.items.some(item => item.status === 'uncertain');
   const signalFromPage = () => core.validPhase(document.documentElement.dataset.chatSignalsState);
+  const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
+    state.trusted.origin==='fresh'&&Date.now()-state.trustedAt<15000);
   function render() {
     if (state.destroyed) return;
     host.dataset.theme=state.theme;els.theme.value=state.theme;
     els.count.textContent = `${state.items.length} queued`;
-    els.status.textContent = `Signal: ${state.signal} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
+    els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
@@ -164,10 +168,11 @@
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function dispatchOne() {
     if (!state.running || state.attempting || state.awaiting || !pending()) return;
-    if (!core.mayDispatch(state.signal,false,false)) return;
+    if (!freshProvider() || !contract.ready(state.trusted,routeKey())) return;
     const item=state.items.find(e=>e.status==='pending');
     if (!item) return;
     const attemptKey=state.key;
+    const baseline=state.trusted;
     state.attempting=item.id;
     statusNote('Preparing next message');
     let clicked=false;
@@ -176,6 +181,14 @@
       const found=findComposer();editor=found.editor;
       fillComposer(editor,item.text);
       const send=findSend(found.form);
+      // A durable pre-click uncertainty marker makes a browser crash safe:
+      // it must never reopen as an automatically retryable pending item.
+      item.status='uncertain';
+      await save();
+      if (!state.running || state.destroyed || state.key!==attemptKey ||
+          !freshProvider() || state.trusted!==baseline || !send.isConnected ||
+          editorValue(editor).trim()!==item.text.trim())
+        throw new Error('Dispatch context changed; no send attempted');
       // This initiates exactly one send attempt. We never click again after uncertainty.
       send.click(); clicked=true;
       statusNote('Verifying submission');
@@ -183,9 +196,11 @@
       for (let i=0;i<12;i++) {
         await delay(250);
         if (state.destroyed || !state.running || state.key!==attemptKey || !editor.isConnected) break;
-        const phase=signalFromPage();
-        if (core.BUSY.has(phase) && !editorValue(editor).trim()) { accepted=true; break; }
-        if (state.busySeen && !editorValue(editor).trim()) { accepted=true; break; }
+        if (contract.newBusy(state.trusted,baseline) && !editorValue(editor).trim()) {
+          state.waiting={documentToken:baseline.documentToken,route:baseline.route,
+            epoch:state.trusted.epoch,sequence:state.trusted.sequence};
+          accepted=true;break;
+        }
       }
       if(state.key!==attemptKey)throw new Error('Conversation changed during submission');
       if (!accepted) throw new Error('Submission not confirmed; manual review required');
@@ -201,10 +216,9 @@
     } catch(error) {
       if(state.key===attemptKey) {
         state.running=false;
-        if(clicked) {
-          item.status='uncertain';
-          if(!state.items.some(entry=>entry.id===item.id))state.items.unshift(item);
-        }
+        // Pre-click journal is also uncertain if preparation was interrupted;
+        // conservative manual resolution is required in either case.
+        if(!state.items.some(entry=>entry.id===item.id))state.items.unshift(item);
         try{await save();}catch{}
         statusNote(error.message || 'Dispatch failed');
       }
@@ -215,9 +229,8 @@
   }
   function processSignal() {
     if (state.key && state.key!==storageKey()) {void handleRouteChange();return;}
-    const next=signalFromPage();
+    const next=state.trusted?.phase || 'unknown';
     const previous=state.signal;state.signal=next;
-    if (state.awaiting && core.BUSY.has(next)) state.busySeen=true;
     if (state.running && (next==='failed'||next==='limit'||next==='interrupted'||next==='unknown')) {
       // A temporary connection interruption is not an automatic retry.
       if(state.awaiting && state.history[0]?.status==='submitted') {
@@ -227,14 +240,15 @@
       state.running=false;statusNote(`Paused on ${next}`);
     } else if(state.running && state.awaiting && next==='idle' && previous!=='idle'){
       state.running=false;statusNote('Response cancelled; press Start to continue');
-    } else if (state.running && core.completionArrived(next,state.awaiting,state.busySeen)) {
-      state.awaiting=false;state.busySeen=false;
+    } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
+      state.awaiting=false;state.busySeen=false;state.waiting=null;
       if(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted') {
         state.history[0].status='finished';void save();
       }
       statusNote('Response finished; control returned');
-      planNext();
-    } else if (state.running && !state.awaiting && !state.attempting && next!==previous) {
+      if(state.running)planNext();
+    } else if (state.running && !state.awaiting && !state.attempting &&
+               freshProvider() && contract.ready(state.trusted,routeKey()) && next!==previous) {
       planNext();
     }
     if (previous!==next) render();
@@ -243,7 +257,8 @@
   function planNext() {
     if (state.scheduler) clearTimeout(state.scheduler);
     state.scheduler=setTimeout(()=>{state.scheduler=null;
-      if (!state.running || state.awaiting || state.attempting) return;
+      if (!state.running || state.awaiting || state.attempting ||
+          !freshProvider() || !contract.ready(state.trusted,routeKey())) return;
       if (!pending()) {state.running=false;statusNote('Queue completed');return;}
       void dispatchOne();
     },350);
@@ -255,6 +270,7 @@
     if(!state.initialized)return;
     const newKey=storageKey();if (state.key===newKey)return;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
+    state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
     await state.saveChain.catch(()=>{});
@@ -262,7 +278,9 @@
     const stored=await api.storage.local.get(newKey);
     state.items=core.normalizeSaved(stored[newKey]);
     state.history=readHistory(stored[newKey]);
-    state.signal=signalFromPage();state.note='Conversation changed; manually start queue';state.editing=null;
+    state.observedSignal=signalFromPage();state.note='Conversation changed; manually start queue';state.editing=null;
+    // A new route also invalidates the background's Signal document sequence.
+    try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register'});}catch{}
     render();publish();
   }
   async function act(action,payload,local=false) {
@@ -309,12 +327,7 @@
       if (action==='start') {
         if (uncertain())return {ok:false,error:'resolve-uncertain-message'};
         if (!pending() && !state.awaiting)return {ok:false,error:'queue-empty'};
-        if (state.signal==='unknown')return {ok:false,error:'chat-signals-not-ready'};
-        if(state.awaiting && (core.completionArrived(state.signal,true,state.busySeen) || state.signal==='idle')){
-          // Explicitly pressing Start after a known cancellation is consent to
-          // move on; completion is never inferred from cancellation itself.
-          state.awaiting=false;state.busySeen=false;
-        }
+        if (!freshProvider())return {ok:false,error:'authenticated-chat-signals-required'};
         if (core.BLOCKED.has(state.signal))return {ok:false,error:`signal-${state.signal}`};
         state.running=true;statusNote('Waiting for safe control');
         if(!state.awaiting)planNext();return {ok:true};
@@ -343,11 +356,20 @@
     state.theme=['system','light','dark'].includes(next)?next:'system';render();
   });
   api.runtime.onMessage.addListener((message) => {
+    if(message?.type==='chat-queue-signal-verified/v1'){
+      const next=contract.parse({type:contract.TYPE,signal:message.signal});
+      if(!state.initialized||!next||next.route!==routeKey()||
+         !contract.advance(state.trusted,next))return Promise.resolve({ok:false,error:'invalid-signal'});
+      state.trusted=next;state.trustedAt=Date.now();processSignal();
+      return Promise.resolve({ok:true});
+    }
     if (message?.type!=='chat-queue-api/v1') return;
     return act(message.action,message.payload);
   });
   const signalObserver=new MutationObserver(records=>{
-    if (records.some(r=>r.attributeName==='data-chat-signals-state'))processSignal();
+    if (records.some(r=>r.attributeName==='data-chat-signals-state')){
+      state.observedSignal=signalFromPage();render();
+    }
   });
   signalObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-chat-signals-state']});
   window.addEventListener('popstate',()=>void handleRouteChange());
@@ -374,7 +396,7 @@
       state.theme=['system','light','dark'].includes(pref)?pref:'system';
       state.items=core.normalizeSaved(stored[state.key]);
       state.history=readHistory(stored[state.key]);
-      state.signal=signalFromPage();state.initialized=true;
+      state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
       (document.body||document.documentElement).append(host);
       state.note='Paused; press Start';render();publish();
     } catch(error) {

@@ -2,9 +2,11 @@
 (() => {
   'use strict';
   const api = globalThis.browser || globalThis.chrome;
+  const signalContract = globalThis.ChatQueueSignal;
   const PREFIX = 'chat-queue/v1';
   const TABS = new Map();
   const PORTS = new Map();
+  const PROVIDER_TYPE = signalContract.TYPE;
   const notify = (tabId, state) => {
     for (const port of PORTS.keys()) {
       try { port.postMessage({ type: PREFIX, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
@@ -18,7 +20,7 @@
     const tab = sender.tab;
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
-      TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
+      TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0, provider: null });
       return Promise.resolve({ ok: true, tabId: tab.id });
     }
     if (message.action === 'state') {
@@ -29,7 +31,8 @@
           phase: /^(idle|submitted|generating|verifying|finished|interrupted|failed|limit|unknown)$/.test(phase) ? phase : 'unknown',
           size: Number.isInteger(message.size) ? Math.min(100, Math.max(0, message.size)) : 0,
           running: message.running === true,
-          revision: Number.isSafeInteger(message.revision) ? message.revision : 0
+          revision: Number.isSafeInteger(message.revision) ? message.revision : 0,
+          provider: prev?.provider || null
         };
         TABS.set(tab.id,next);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
@@ -58,6 +61,27 @@
   });
 
   api.runtime.onMessageExternal.addListener(async (message, sender) => {
+    if (message?.type===PROVIDER_TYPE) {
+      // Firefox sets sender.id; the page cannot impersonate another extension.
+      if(sender?.id!==signalContract.PROVIDER_ID)return {ok:false,error:'not-signal-provider'};
+      const tabId=message.tabId;
+      if(!Number.isInteger(tabId)||tabId<0||
+         (sender?.tab && sender.tab.id!==tabId))return {ok:false,error:'invalid-tab'};
+      const parsed=signalContract.parse(message);
+      if(!parsed)return {ok:false,error:'invalid-signal'};
+      const slot=TABS.get(tabId);
+      if(!slot)return {ok:false,error:'tab-not-registered'};
+      if(!signalContract.advance(slot.provider,parsed))return {ok:false,error:'stale-signal'};
+      // Reserve this sequence before awaiting the recipient; otherwise two
+      // concurrent provider callbacks can both pass the stale-event check.
+      slot.provider=parsed;
+      // The receiving tab independently checks the exact current route.
+      try {
+        const result=await api.tabs.sendMessage(tabId,{type:'chat-queue-signal-verified/v1',signal:parsed});
+        if(!result?.ok)return {ok:false,error:'consumer-unavailable'};
+      }catch{return {ok:false,error:'consumer-unavailable'};}
+      return {ok:true};
+    }
     if (!message || message.type !== PREFIX) return;
     const requester = sender?.id;
     const config = await api.storage.local.get('allowedExtensionIds');

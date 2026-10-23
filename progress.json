@@ -443,29 +443,37 @@
                   "id": "M3-02",
                   "emoji": "🛡️",
                   "title": "Define authenticated, versioned source-to-consumer signal protocol",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Candidate authenticated Firefox cross-extension consumer and versioned schema: src/signal.js, src/background.js, docs/SIGNAL-CONTRACT.md; provider emission and real FDE pending."
+                  ]
                 },
                 {
                   "id": "M3-03",
                   "emoji": "🔢",
                   "title": "Attribute phase and completion to exact response epoch",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Candidate epoch/sequence gating for a new busy event and a matching later terminal: src/signal.js, src/content.js, tests/signal.test.js; producer and live acceptance pending."
+                  ]
                 },
                 {
                   "id": "M3-04",
                   "emoji": "🪪",
                   "title": "Bind signal identity to currently selected conversation",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Exact route, stable document token and monotonic sequence are checked in consumer: src/signal.js, src/background.js, src/content.js; provider agreement pending."
+                  ]
                 },
                 {
                   "id": "M3-05",
                   "emoji": "⏳",
                   "title": "Distinguish historical restoration from fresh terminal event",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Restored historical completion is ineligible for initial send or automatic advancement: src/signal.js and tests/signal.test.js; real provider acceptance pending."
+                  ]
                 },
                 {
                   "id": "M3-06",
@@ -536,8 +544,10 @@
                   "id": "M3-12",
                   "emoji": "🧪",
                   "title": "Test old completion, missed signals, rerenders and long responses",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Unit negative cases for restored completion, old epoch, wrong route/document and forged sender: tests/signal.test.js and tests/background.test.js; long-response/FDE cases pending."
+                  ]
                 }
               ]
             }
@@ -624,8 +634,10 @@
                   "id": "M4-07",
                   "emoji": "🧾",
                   "title": "Durably journal attempted/accepted/uncertain sends before repetition",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Durable uncertain marker is saved before send click: src/content.js; crash and authenticated browser acceptance pending."
+                  ]
                 },
                 {
                   "id": "M4-08",

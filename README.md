@@ -2,13 +2,14 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not live-verified.** The imported prototype passes nine Node tests and has the first HUD, queue model, permissioned external messaging, and theme selector. It has **not** passed authenticated ChatGPT sending, real Firefox Developer Edition UI, addon-to-addon tests or the required authenticated signal/epoch contract. Do not mistake code presence for acceptance.
+**Status: early development prototype, not live-verified.** The current implementation passes 13 Node tests and has the first HUD, queue model, permissioned external messaging, and theme selector. It has **not** passed authenticated ChatGPT sending, real Firefox Developer Edition UI or addon-to-addon tests. Do not mistake code presence for acceptance.
 
 ## 🧭 Project navigation
 
 - [🗺️ Complete roadmap](ROADMAP.md) — 8 milestones, 16 phases, named features and 96 atomic tasks with acceptance gates.
 - [📊 Progress ledger](progress.json) — canonical machine-readable status and bounded evidence for each task; `npm run progress` prints current percentages.
 - [🏗️ Architecture](docs/ARCHITECTURE.md) — independent ownership, signal flow, identity/epoch contract, UI and queue lifecycle.
+- [📡 Signal contract](docs/SIGNAL-CONTRACT.md) — authenticated consumer envelope, attribution and pending provider work.
 - [🛡️ Security](docs/SECURITY.md) — browser privacy, threat model and single-send guarantees.
 - [🦊 Firefox QA](docs/QA.md) — dedicated profile, synthetic and authenticated acceptance tiers.
 - [🧬 Source provenance](docs/PROVENANCE.md) — what was studied in Jobflick Bridge/Chat Signals.
@@ -25,7 +26,11 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 
 ## 📡 Critical limitation: Chat Signals contract
 
-Chat Signals v0.3.13 currently provides `document.documentElement.dataset.chatSignalsState`; Chat Queue's imported prototype listens to that read-only page attribute. It is **not an authenticated channel and contains no response epoch or route identity**, so it cannot on its own guarantee that a reported completion belongs to the queue's last message. The v1 sender is therefore a research implementation, **not approved for unattended use**. Phase classification stays inside Chat Signals; a future versioned, Firefox-authenticated signal protocol with sequence/epoch identity is a separate milestone and acceptance gate.
+Chat Signals v0.3.13 currently provides `document.documentElement.dataset.chatSignalsState`. This attribute is **not an authenticated channel and contains no response epoch or route identity**. Chat Queue now reads it **for HUD display only**, not for sending or queue advancement.
+
+The fail-closed consumer accepts `chat-queue-signal/v1` only when Firefox authenticates the sender as the Chat Signals extension. It requires a matching route, monotonic sequence, response epoch and fresh event origin; each Send attempt is journaled as uncertain before the click. See [Signal contract](docs/SIGNAL-CONTRACT.md).
+
+**Important: Chat Signals does not yet publish this protocol.** Start therefore refuses with `authenticated-chat-signals-required`. The receiver's tests are not real browser integration acceptance. No changes were made to the Chat Signals repository.
 
 ## 🦊 Disposable Firefox Developer Edition
 

@@ -9,7 +9,8 @@
 ```text
 ChatGPT page UI
   ├── Chat Signals content script (independent observer)
-  │     └── current provisional state attribute on documentElement
+  │     ├── current state attribute on documentElement (display only)
+  │     └── future authenticated extension-to-extension v1 events (not yet produced)
   └── Chat Queue content script (Shadow DOM HUD + active-tab executor)
         ├── queue model/order and scoped durable queue state
         ├── read-only Signal subscription (no transcript reads)
@@ -26,14 +27,14 @@ Firefox Developer Edition is the primary implementation/QA target. Use `backgrou
 
 Chat Signals **currently** (v0.3.13, inspected 2026-10-23) exposes `data-chat-signals-state` on `document.documentElement`. This is a useful prototype compatibility hook, **not an authenticated production API**. Site code can alter the page DOM. A phase-only reading does not identify which response epoch finished, nor establish that the executor's last attempted Send produced that response. Some terminal states may be historical restoration from a previous extension session. Consequently phase-based scheduling is provisional and must not pass the G2/G3 acceptance gate.
 
-Proposed separate-version event envelope from Signal provider (requires separately authorized coordination, not implemented here):
+An authenticated, versioned **consumer** now exists in Chat Queue's background, documented in [SIGNAL-CONTRACT.md](SIGNAL-CONTRACT.md). The corresponding Chat Signals **publisher is not implemented** and requires separately authorized coordination. The candidate envelope contains:
 
 - provider name and schema/version; authenticated Firefox extension sender identity
 - stable scoped conversation identity / document instance token; event sequence
 - response epoch and phase, `fresh`/`restored`, read flag, and evidence confidence
 - terminal reason and transition semantic; no transcript text
 
-The consumer must reject unmatched identity, stale sequence, old completion, unknown version, and missing provider. If Signal provider remains unchanged, the scheduler must conservatively remain disabled for fully automatic consecutive sends. This avoids treating page-controlled `data-*` values as authentication.
+The consumer rejects mismatched routes, stale sequences, old completion, unknown versions, and missing providers. Until the independent publisher is implemented and tested, **all automatic sends remain blocked**. Page-controlled `data-*` values can only update the HUD's unverified observation.
 
 ## Queue storage and lifecycle
 
@@ -47,7 +48,7 @@ A queue item may be pending, attempting, or uncertain. Moving/removing/editing u
 
 Within a single exact ChatGPT composer form, verify the draft is empty, that no known attachments already exist, insert exactly the intended text, verify the resulting value, identify one enabled Send control, then attempt a single Send. **An observed click is not server acceptance**; missing confirmation moves to uncertainty and requires user resolution. Never retry automatically, click a Retry control automatically, navigate conversations, discard an existing draft, or act on a stale tab/route.
 
-The current synthetic implementation checks UI transitions, but authenticated Firefox QA has not been performed; contenteditable/React pathways can differ. Treat local tests as pure behavioral evidence only, not live-site acceptance.
+The current synthetic implementation checks UI transitions, but authenticated Firefox QA has not been performed; contenteditable/React pathways can differ. An `uncertain` item is durably written before the single Send attempt, preventing an extension reload from mistakenly retrying it. Treat local tests as pure behavioral evidence only, not live-site acceptance.
 
 ## HUD and themes
 

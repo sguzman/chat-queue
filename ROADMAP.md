@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 15/96 verified (15%) · █░░░░░░░░░ · 37 implemented awaiting acceptance.**
+**Overall: 15/96 verified (15%) · █░░░░░░░░░ · 43 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -102,10 +102,10 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 **Signal contract**
 
 - [~] `M3-01` 📡 Read current Chat Signals state without copied classification _(implemented; acceptance pending)_
-- [ ] `M3-02` 🛡️ Define authenticated, versioned source-to-consumer signal protocol
-- [ ] `M3-03` 🔢 Attribute phase and completion to exact response epoch
-- [ ] `M3-04` 🪪 Bind signal identity to currently selected conversation
-- [ ] `M3-05` ⏳ Distinguish historical restoration from fresh terminal event
+- [~] `M3-02` 🛡️ Define authenticated, versioned source-to-consumer signal protocol _(implemented; acceptance pending)_
+- [~] `M3-03` 🔢 Attribute phase and completion to exact response epoch _(implemented; acceptance pending)_
+- [~] `M3-04` 🪪 Bind signal identity to currently selected conversation _(implemented; acceptance pending)_
+- [~] `M3-05` ⏳ Distinguish historical restoration from fresh terminal event _(implemented; acceptance pending)_
 - [~] `M3-06` 🔌 Handle absent, outdated or disconnected Chat Signals explicitly _(implemented; acceptance pending)_
 
 **F7 · State-driven scheduling**
@@ -117,9 +117,9 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M3-09` 🔎 Block dispatch in submitted, generating and verifying states
 - [~] `M3-10` 🔌 Pause on interruption, failed, limit or unknown state _(implemented; acceptance pending)_
 - [~] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart _(implemented; acceptance pending)_
-- [ ] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses
+- [~] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses _(implemented; acceptance pending)_
 
-**M3 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 6 implemented but not accepted.
+**M3 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 11 implemented but not accepted.
 
 ### 📮 M4 — Safe message delivery
 
@@ -138,14 +138,14 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **Delivery consistency**
 
-- [ ] `M4-07` 🧾 Durably journal attempted/accepted/uncertain sends before repetition
+- [~] `M4-07` 🧾 Durably journal attempted/accepted/uncertain sends before repetition _(implemented; acceptance pending)_
 - [~] `M4-08` 🧭 Recheck origin route/document across every async boundary _(implemented; acceptance pending)_
 - [~] `M4-09` 🚧 Expose ambiguous submissions for explicit human resolution _(implemented; acceptance pending)_
 - [ ] `M4-10` 👥 Prevent clashes with live user edits and simultaneous API writes
 - [~] `M4-11` 🛑 Refuse automatic resumption after browser or event-page restart _(implemented; acceptance pending)_
 - [ ] `M4-12` 🧪 Test duplicate avoidance, error recovery and wrong-conversation races
 
-**M4 acceptance:** 0/12 verified (0%) · ░░░░░░░░░░ · 8 implemented but not accepted.
+**M4 acceptance:** 0/12 verified (0%) · ░░░░░░░░░░ · 9 implemented but not accepted.
 
 ### 🔌 M5 — External extension API
 
