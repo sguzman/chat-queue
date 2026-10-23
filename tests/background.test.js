@@ -188,3 +188,21 @@ test('Firefox live tab URL overrides stale document sender URL after SPA navigat
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'unknown'},second)).ok,true);
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},second)).error,'route-mismatch');
 });
+
+test('dispatch preflight requires current authenticated provider and exact epoch',async()=>{
+  const {listeners}=create();
+  const tab={tab:{id:64,url:'https://chatgpt.com/c/preflight'},url:'https://chatgpt.com/c/preflight'};
+  const probe=(sequence=1)=>listeners.internal({type:'chat-queue-internal/v1',action:'dispatch-check',
+    route:'/c/preflight',documentToken:'b'.repeat(32),epoch:1,sequence},tab);
+  assert.equal((await probe()).error,'signal-authority-lost');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/preflight'},tab)).ok,true);
+  assert.equal((await probe()).error,'signal-authority-lost');
+  const signal={version:1,route:'/c/preflight',documentToken:'b'.repeat(32),
+    sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+  const provider={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:64,signal},provider)).ok,true);
+  assert.equal((await probe()).ok,true);
+  assert.equal((await probe(2)).error,'signal-authority-lost');
+  listeners.updated(64,{url:'https://chatgpt.com/c/elsewhere'});
+  assert.equal((await probe()).error,'signal-authority-lost');
+});

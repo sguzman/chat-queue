@@ -192,6 +192,12 @@
       // it must never reopen as an automatically retryable pending item.
       item.status='uncertain';
       await save();
+      // Require the event page to still own this authenticated provider
+      // epoch immediately pre-click; a restart invalidates its volatile ledger.
+      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
+        action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
+        epoch:baseline.epoch,sequence:baseline.sequence});
+      if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
       if (!state.running || state.destroyed || state.key!==attemptKey ||storageKey()!==attemptKey ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
           editorValue(editor).trim()!==item.text.trim())

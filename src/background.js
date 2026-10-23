@@ -43,6 +43,20 @@
         return {ok:true,tabId:tab.id};
       });
     }
+    if (message.action === 'dispatch-check') {
+      // The event-page provider ledger is volatile. After restart an old
+      // content-script observation cannot independently authorize Send.
+      const last=SIGNALS.get(tab.id);
+      if(!last || ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id) ||
+         last.documentToken!==message.documentToken ||
+         last.epoch!==message.epoch || last.sequence!==message.sequence ||
+         !signalContract.ready(last,message.route))
+        return Promise.resolve({ok:false,error:'signal-authority-lost'});
+      return currentRoute(sender).then(live=>
+        live===message.route && SIGNALS.get(tab.id)===last &&
+        ROUTES.get(tab.id)===message.route && TABS.has(tab.id)
+          ? {ok:true}:{ok:false,error:'route-or-signal-changed'});
+    }
     if (message.action === 'state') {
       // A stale message from a former SPA route must not recreate a public
       // tab slot after Firefox invalidated its registration.
