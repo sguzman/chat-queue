@@ -1,0 +1,1031 @@
+{
+  "schemaVersion": 2,
+  "updatedOn": "2026-10-23",
+  "platform": "Firefox Developer Edition",
+  "progressPolicy": "Progress is verified atomic tasks / total. Implemented denotes code/doc present but lacks specific acceptance evidence. Never infer live Firefox validation from Node tests; never call implementation alone 100%.",
+  "milestones": [
+    {
+      "id": "M0",
+      "emoji": "🧭",
+      "title": "Foundation & contracts",
+      "phases": [
+        {
+          "id": "F0",
+          "title": "Research & inventory",
+          "features": [
+            {
+              "title": "Repository inspection",
+              "tasks": [
+                {
+                  "id": "M0-01",
+                  "emoji": "📁",
+                  "title": "Confirm independent chat-queue repository and main",
+                  "status": "verified",
+                  "evidence": [
+                    "GitHub repository metadata inspected 2026-10-23"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Reference inspection",
+              "tasks": [
+                {
+                  "id": "M0-02",
+                  "emoji": "🦊",
+                  "title": "Audit Jobflick Bridge Firefox-first repository conventions",
+                  "status": "verified",
+                  "evidence": [
+                    "Jobflick Bridge README, ROADMAP, progress, manifest and QA inspected 2026-10-23"
+                  ]
+                },
+                {
+                  "id": "M0-03",
+                  "emoji": "📡",
+                  "title": "Inspect current Chat Signals published status boundary",
+                  "status": "verified",
+                  "evidence": [
+                    "Chat Signals v0.3.13 content/state/architecture inspected 2026-10-23"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Prototype inventory",
+              "tasks": [
+                {
+                  "id": "M0-04",
+                  "emoji": "🧬",
+                  "title": "Inventory prior unsigned local Chat Queue prototype",
+                  "status": "verified",
+                  "evidence": [
+                    "Local prototype ZIP inspected; baseline Node suite reproduced 2026-10-23"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F1",
+          "title": "Project bootstrap",
+          "features": [
+            {
+              "title": "Documentation",
+              "tasks": [
+                {
+                  "id": "M0-05",
+                  "emoji": "🗺️",
+                  "title": "Publish emoji milestone/phase/feature/task roadmap",
+                  "status": "verified",
+                  "evidence": [
+                    "ROADMAP.md generated from progress.json and checked locally"
+                  ]
+                },
+                {
+                  "id": "M0-06",
+                  "emoji": "🏗️",
+                  "title": "Document independent extension architecture and ownership",
+                  "status": "verified",
+                  "evidence": [
+                    "docs/ARCHITECTURE.md"
+                  ]
+                },
+                {
+                  "id": "M0-07",
+                  "emoji": "🛡️",
+                  "title": "Publish threat model, public privacy rules, and QA acceptance gates",
+                  "status": "verified",
+                  "evidence": [
+                    "docs/SECURITY.md and docs/QA.md"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Runtime foundation",
+              "tasks": [
+                {
+                  "id": "M0-08",
+                  "emoji": "🦊",
+                  "title": "Add Firefox Developer Edition MV3 scaffold with stable Gecko ID",
+                  "status": "implemented",
+                  "evidence": [
+                    "extension manifest exists; actual Firefox load pending"
+                  ]
+                },
+                {
+                  "id": "M0-09",
+                  "emoji": "🧪",
+                  "title": "Provide dependency-free static and unit test baseline",
+                  "status": "verified",
+                  "evidence": [
+                    "Local npm run check: seven Node tests pass 2026-10-23"
+                  ]
+                },
+                {
+                  "id": "M0-10",
+                  "emoji": "🔁",
+                  "title": "Add automated GitHub CI checks on main",
+                  "status": "implemented",
+                  "evidence": [
+                    "Workflow source exists; hosted CI execution pending"
+                  ]
+                },
+                {
+                  "id": "M0-11",
+                  "emoji": "🐟",
+                  "title": "Add isolated FDE QA launcher without profile changes",
+                  "status": "implemented",
+                  "evidence": [
+                    "Fish launcher source added; Linux/FDE execution pending"
+                  ]
+                },
+                {
+                  "id": "M0-12",
+                  "emoji": "🧭",
+                  "title": "Introduce auditable progress status/evidence validator",
+                  "status": "verified",
+                  "evidence": [
+                    "npm run check invokes scripts/progress.mjs --check"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "emoji": "🎨",
+      "title": "HUD, themes & interaction",
+      "phases": [
+        {
+          "id": "F2",
+          "title": "Theme engine",
+          "features": [
+            {
+              "title": "Theme engine",
+              "tasks": [
+                {
+                  "id": "M1-01",
+                  "emoji": "🌓",
+                  "title": "Define isolated semantic HUD tokens for both color schemes",
+                  "status": "implemented",
+                  "evidence": [
+                    "Shadow DOM CSS variables in src/content.js"
+                  ]
+                },
+                {
+                  "id": "M1-02",
+                  "emoji": "🖥️",
+                  "title": "Default to the OS preferred light/dark color scheme",
+                  "status": "implemented",
+                  "evidence": [
+                    "System media query selector in src/content.js; Firefox visual QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-03",
+                  "emoji": "☀️",
+                  "title": "Offer explicit Light override independent of site theme",
+                  "status": "implemented",
+                  "evidence": [
+                    "HUD theme selector and light tokens; browser QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-04",
+                  "emoji": "🌙",
+                  "title": "Offer explicit Dark override independent of site theme",
+                  "status": "implemented",
+                  "evidence": [
+                    "HUD theme selector and dark tokens; browser QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-05",
+                  "emoji": "💾",
+                  "title": "Persist theme preference and sync across open ChatGPT tabs",
+                  "status": "implemented",
+                  "evidence": [
+                    "Local storage settings and storage change listener; Firefox QA pending"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F3",
+          "title": "Accessible queue HUD",
+          "features": [
+            {
+              "title": "HUD surfaces",
+              "tasks": [
+                {
+                  "id": "M1-06",
+                  "emoji": "🪟",
+                  "title": "Display nonintrusive floating panel, collapse and queue count",
+                  "status": "implemented",
+                  "evidence": [
+                    "Shadow DOM HUD in src/content.js; visual QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-07",
+                  "emoji": "✍️",
+                  "title": "Add and edit queued prompts without losing draft input",
+                  "status": "implemented",
+                  "evidence": [
+                    "HUD controls implemented; Firefox keyboard QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-08",
+                  "emoji": "🗑️",
+                  "title": "Remove individual prompts and clear queue safely",
+                  "status": "implemented",
+                  "evidence": [
+                    "Individual delete works; full clear UX pending"
+                  ]
+                },
+                {
+                  "id": "M1-09",
+                  "emoji": "🔀",
+                  "title": "Drag/drop reorder with predictable insertion boundaries",
+                  "status": "implemented",
+                  "evidence": [
+                    "Drop handler exists; real Firefox drag/drop QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-10",
+                  "emoji": "⌨️",
+                  "title": "Provide keyboard-only reorder and usable focus behavior",
+                  "status": "implemented",
+                  "evidence": [
+                    "Up/down controls exist; full keyboard and screen-reader QA pending"
+                  ]
+                },
+                {
+                  "id": "M1-11",
+                  "emoji": "♿",
+                  "title": "Verify contrast, spacing, small viewports, zoom, reduced motion",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M1-12",
+                  "emoji": "🪄",
+                  "title": "Remember HUD placement/collapsed state with reset control",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "emoji": "📦",
+      "title": "Queue model & persistence",
+      "phases": [
+        {
+          "id": "F4",
+          "title": "Queue domain",
+          "features": [
+            {
+              "title": "Queue domain",
+              "tasks": [
+                {
+                  "id": "M2-01",
+                  "emoji": "📚",
+                  "title": "Define stable item IDs, bounded text and valid states",
+                  "status": "verified",
+                  "evidence": [
+                    "src/core.js with Node test coverage of invalid/oversized items"
+                  ]
+                },
+                {
+                  "id": "M2-02",
+                  "emoji": "🔢",
+                  "title": "Preserve exact order under move up/down and reorder operations",
+                  "status": "verified",
+                  "evidence": [
+                    "tests/core.test.js ordering test passed 2026-10-23"
+                  ]
+                },
+                {
+                  "id": "M2-03",
+                  "emoji": "✏️",
+                  "title": "Support queue edits during generation, lock only dispatch item",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js act() gates; adversarial QA pending"
+                  ]
+                },
+                {
+                  "id": "M2-04",
+                  "emoji": "🧮",
+                  "title": "Reject invalid permutation, duplicate IDs and oversized queues",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js validation; systematic tests pending"
+                  ]
+                },
+                {
+                  "id": "M2-05",
+                  "emoji": "🧾",
+                  "title": "Provide bounded sent-history inspection and manual requeue",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js history widget; Firefox QA pending"
+                  ]
+                },
+                {
+                  "id": "M2-06",
+                  "emoji": "🔏",
+                  "title": "Version persisted state, validate and migrate safely",
+                  "status": "implemented",
+                  "evidence": [
+                    "v1 saved format/normalizer; migrations pending"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F5",
+          "title": "Persistence & identity",
+          "features": [
+            {
+              "title": "Persistence and identity",
+              "tasks": [
+                {
+                  "id": "M2-07",
+                  "emoji": "💾",
+                  "title": "Persist queued items before treating changes as committed",
+                  "status": "implemented",
+                  "evidence": [
+                    "storage.local save chain; crash and quota QA pending"
+                  ]
+                },
+                {
+                  "id": "M2-08",
+                  "emoji": "🧭",
+                  "title": "Isolate queues by stable exact conversation identity",
+                  "status": "implemented",
+                  "evidence": [
+                    "tab+pathname provisional; restart/routing QA pending"
+                  ]
+                },
+                {
+                  "id": "M2-09",
+                  "emoji": "🔀",
+                  "title": "Define explicit new-chat and history.pushState handling",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M2-10",
+                  "emoji": "🗂️",
+                  "title": "Recover orphaned queues after tab ID or browser restart changes",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M2-11",
+                  "emoji": "🧷",
+                  "title": "Resolve same-conversation multi-tab ownership deterministically",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M2-12",
+                  "emoji": "🧹",
+                  "title": "Offer user-controlled retention, export, import and deletion",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "emoji": "📡",
+      "title": "Signal integration & scheduler",
+      "phases": [
+        {
+          "id": "F6",
+          "title": "Chat Signals contract",
+          "features": [
+            {
+              "title": "Signal contract",
+              "tasks": [
+                {
+                  "id": "M3-01",
+                  "emoji": "📡",
+                  "title": "Read current Chat Signals state without copied classification",
+                  "status": "implemented",
+                  "evidence": [
+                    "data-chat-signals-state observer in src/content.js"
+                  ]
+                },
+                {
+                  "id": "M3-02",
+                  "emoji": "🛡️",
+                  "title": "Define authenticated, versioned source-to-consumer signal protocol",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M3-03",
+                  "emoji": "🔢",
+                  "title": "Attribute phase and completion to exact response epoch",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M3-04",
+                  "emoji": "🪪",
+                  "title": "Bind signal identity to currently selected conversation",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M3-05",
+                  "emoji": "⏳",
+                  "title": "Distinguish historical restoration from fresh terminal event",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M3-06",
+                  "emoji": "🔌",
+                  "title": "Handle absent, outdated or disconnected Chat Signals explicitly",
+                  "status": "implemented",
+                  "evidence": [
+                    "unknown defaults/Start gate; tests pending"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F7",
+          "title": "State-driven scheduling",
+          "features": [
+            {
+              "title": "Scheduler",
+              "tasks": [
+                {
+                  "id": "M3-07",
+                  "emoji": "▶️",
+                  "title": "Run only after deliberate user Start or permitted API authorization",
+                  "status": "implemented",
+                  "evidence": [
+                    "HUD Start and runtime API; Firefox QA pending"
+                  ]
+                },
+                {
+                  "id": "M3-08",
+                  "emoji": "⏭️",
+                  "title": "Advance only after attributable confirmed response completion",
+                  "status": "implemented",
+                  "evidence": [
+                    "busy-seen + finished provisional; epoch handshake pending"
+                  ]
+                },
+                {
+                  "id": "M3-09",
+                  "emoji": "🔎",
+                  "title": "Block dispatch in submitted, generating and verifying states",
+                  "status": "verified",
+                  "evidence": [
+                    "core.mayDispatch unit tests in Node suite"
+                  ]
+                },
+                {
+                  "id": "M3-10",
+                  "emoji": "🔌",
+                  "title": "Pause on interruption, failed, limit or unknown state",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js processSignal; browser QA pending"
+                  ]
+                },
+                {
+                  "id": "M3-11",
+                  "emoji": "🛑",
+                  "title": "Honor user cancellation and manual pause without auto restart",
+                  "status": "implemented",
+                  "evidence": [
+                    "Pause and idle logic; browser QA pending"
+                  ]
+                },
+                {
+                  "id": "M3-12",
+                  "emoji": "🧪",
+                  "title": "Test old completion, missed signals, rerenders and long responses",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "emoji": "📮",
+      "title": "Safe message delivery",
+      "phases": [
+        {
+          "id": "F8",
+          "title": "ChatGPT composer adapter",
+          "features": [
+            {
+              "title": "Composer adapter",
+              "tasks": [
+                {
+                  "id": "M4-01",
+                  "emoji": "🎯",
+                  "title": "Locate exactly one current ChatGPT composer and Send control",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js findComposer/findSend; real site QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-02",
+                  "emoji": "✉️",
+                  "title": "Reject occupied drafts and existing attachments without mutation",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js draft and file-input guard; QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-03",
+                  "emoji": "🧷",
+                  "title": "Insert exact prompt without invoking unrelated editors",
+                  "status": "implemented",
+                  "evidence": [
+                    "fillComposer implementation; React/FDE QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-04",
+                  "emoji": "🔎",
+                  "title": "Verify prepared text and enabled Send at dispatch time",
+                  "status": "implemented",
+                  "evidence": [
+                    "local exact-text postcondition in src/content.js"
+                  ]
+                },
+                {
+                  "id": "M4-05",
+                  "emoji": "👆",
+                  "title": "Attempt one Send click, never blindly retry",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js dispatchOne; browser acceptance pending"
+                  ]
+                },
+                {
+                  "id": "M4-06",
+                  "emoji": "🧪",
+                  "title": "Verify real ProseMirror/React behavior in authenticated FDE",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F9",
+          "title": "Delivery consistency",
+          "features": [
+            {
+              "title": "Delivery consistency",
+              "tasks": [
+                {
+                  "id": "M4-07",
+                  "emoji": "🧾",
+                  "title": "Durably journal attempted/accepted/uncertain sends before repetition",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M4-08",
+                  "emoji": "🧭",
+                  "title": "Recheck origin route/document across every async boundary",
+                  "status": "implemented",
+                  "evidence": [
+                    "route guard exists; adversarial navigation QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-09",
+                  "emoji": "🚧",
+                  "title": "Expose ambiguous submissions for explicit human resolution",
+                  "status": "implemented",
+                  "evidence": [
+                    "uncertain item state + Retry; browser QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-10",
+                  "emoji": "👥",
+                  "title": "Prevent clashes with live user edits and simultaneous API writes",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M4-11",
+                  "emoji": "🛑",
+                  "title": "Refuse automatic resumption after browser or event-page restart",
+                  "status": "implemented",
+                  "evidence": [
+                    "running not persisted; event-page QA pending"
+                  ]
+                },
+                {
+                  "id": "M4-12",
+                  "emoji": "🧪",
+                  "title": "Test duplicate avoidance, error recovery and wrong-conversation races",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "emoji": "🔌",
+      "title": "External extension API",
+      "phases": [
+        {
+          "id": "F10",
+          "title": "Message transport",
+          "features": [
+            {
+              "title": "External transport",
+              "tasks": [
+                {
+                  "id": "M5-01",
+                  "emoji": "🔌",
+                  "title": "Expose versioned Firefox external message actions",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/background.js chat-queue/v1; native FDE QA pending"
+                  ]
+                },
+                {
+                  "id": "M5-02",
+                  "emoji": "🔒",
+                  "title": "Deny unknown extensions by default with exact-ID allowlist",
+                  "status": "verified",
+                  "evidence": [
+                    "tests/background.test.js access-denied test passed 2026-10-23"
+                  ]
+                },
+                {
+                  "id": "M5-03",
+                  "emoji": "👁️",
+                  "title": "Offer read-only status, tab discovery and subscription events",
+                  "status": "implemented",
+                  "evidence": [
+                    "API.md and runtime external listener; restart tests pending"
+                  ]
+                },
+                {
+                  "id": "M5-04",
+                  "emoji": "✍️",
+                  "title": "Support validated enqueue/update/move/remove/reorder commands",
+                  "status": "implemented",
+                  "evidence": [
+                    "src/content.js act() exposed through background; QA pending"
+                  ]
+                },
+                {
+                  "id": "M5-05",
+                  "emoji": "🧪",
+                  "title": "Run real add-on-to-add-on messaging in Firefox Developer Edition",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M5-06",
+                  "emoji": "♻️",
+                  "title": "Recover tab registry after event-page shutdown",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F11",
+          "title": "API security & compatibility",
+          "features": [
+            {
+              "title": "Contract hardening",
+              "tasks": [
+                {
+                  "id": "M5-07",
+                  "emoji": "🎫",
+                  "title": "Separate read, append, edit, control and content-disclosure scopes",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M5-08",
+                  "emoji": "⏱️",
+                  "title": "Add bounded API request sizes, replay guard, mutation revisions",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M5-09",
+                  "emoji": "🏷️",
+                  "title": "Version response/event schemas and document compatibility guarantees",
+                  "status": "implemented",
+                  "evidence": [
+                    "API.md v1 exists; public contract audit pending"
+                  ]
+                },
+                {
+                  "id": "M5-10",
+                  "emoji": "🛡️",
+                  "title": "Protect prompts from unapproved page scripts and extension principals",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M5-11",
+                  "emoji": "📋",
+                  "title": "Expose capability negotiation and safe feature detection",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M5-12",
+                  "emoji": "🧪",
+                  "title": "Fuzz malformed payloads, unload, revocation and concurrent callers",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "emoji": "🧠",
+      "title": "Conditional queue workflows",
+      "phases": [
+        {
+          "id": "F12",
+          "title": "Rule design",
+          "features": [
+            {
+              "title": "Rule schema",
+              "tasks": [
+                {
+                  "id": "M6-01",
+                  "emoji": "🧠",
+                  "title": "Define typed declarative condition schema without eval",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-02",
+                  "emoji": "✅",
+                  "title": "Support successful completed-response branches",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-03",
+                  "emoji": "⚠️",
+                  "title": "Support failure/interruption/limit branches and recoveries",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-04",
+                  "emoji": "⏰",
+                  "title": "Support bounded deadlines and state duration predicates",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-05",
+                  "emoji": "🔗",
+                  "title": "Support dependencies, explicit priorities and skip conditions",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-06",
+                  "emoji": "📝",
+                  "title": "Offer visual rule editor and non-destructive dry run",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F13",
+          "title": "Rule execution",
+          "features": [
+            {
+              "title": "Conditional engine",
+              "tasks": [
+                {
+                  "id": "M6-07",
+                  "emoji": "🧮",
+                  "title": "Evaluate conditions deterministically once per signal epoch",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-08",
+                  "emoji": "🔁",
+                  "title": "Reject cycles, unbounded loops and silent auto-retry",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-09",
+                  "emoji": "🔐",
+                  "title": "Require explicit user policy for sensitive retries and sends",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-10",
+                  "emoji": "📬",
+                  "title": "Emit auditable outcomes without recording response text",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-11",
+                  "emoji": "🔌",
+                  "title": "Expose rule CRUD, evaluation and notifications in a versioned API",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M6-12",
+                  "emoji": "🧪",
+                  "title": "Cover success/error/limit/recovery and stale-state adversarial cases",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "emoji": "🦊",
+      "title": "Firefox QA & release",
+      "phases": [
+        {
+          "id": "F14",
+          "title": "Browser acceptance",
+          "features": [
+            {
+              "title": "Firefox QA",
+              "tasks": [
+                {
+                  "id": "M7-01",
+                  "emoji": "🦊",
+                  "title": "Load and unload actual production extension in isolated FDE",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-02",
+                  "emoji": "🧪",
+                  "title": "Use synthetic ChatGPT UI fixtures in automated FDE WebDriver",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-03",
+                  "emoji": "🤝",
+                  "title": "Verify Chat Signals and Chat Queue coexist without DOM races",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-04",
+                  "emoji": "💬",
+                  "title": "Verify actual authenticated ChatGPT send, completion and retry",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-05",
+                  "emoji": "🧭",
+                  "title": "Test navigation, restarts, 16-tab workloads and hidden tabs",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-06",
+                  "emoji": "🪄",
+                  "title": "Test System/Light/Dark HUD, keyboard and accessibility in FDE",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F15",
+          "title": "Release discipline",
+          "features": [
+            {
+              "title": "Release discipline",
+              "tasks": [
+                {
+                  "id": "M7-07",
+                  "emoji": "🔬",
+                  "title": "Add dependency-free CI syntax/behavior checks and Mozilla lint",
+                  "status": "implemented",
+                  "evidence": [
+                    ".github workflow defined; hosted run pending"
+                  ]
+                },
+                {
+                  "id": "M7-08",
+                  "emoji": "📦",
+                  "title": "Produce reproducible unsigned QA add-on package from extension directory",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-09",
+                  "emoji": "🔒",
+                  "title": "Audit permissions, CSP, storage, private data and supply chain",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-10",
+                  "emoji": "📚",
+                  "title": "Publish installation, API, QA and recovery documentation",
+                  "status": "implemented",
+                  "evidence": [
+                    "README/API/QA drafts exist; final release acceptance pending"
+                  ]
+                },
+                {
+                  "id": "M7-11",
+                  "emoji": "🪪",
+                  "title": "Establish Mozilla unlisted signing path without profile changes",
+                  "status": "planned",
+                  "evidence": []
+                },
+                {
+                  "id": "M7-12",
+                  "emoji": "🏷️",
+                  "title": "Tag SemVer release only after all safety and FDE gates pass",
+                  "status": "planned",
+                  "evidence": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat Queue preferences</title>
+<style>
+:root{color-scheme:light;--bg:#f6f8fa;--fg:#172537;--surface:#fff;--border:#9eafbf;--focus:#1773bb;--muted:#4c6074}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]):not([data-theme="dark"]){color-scheme:dark;--bg:#181b20;--fg:#f2f4f7;--surface:#252a31;--border:#667485;--focus:#86b6e8;--muted:#bfcedf}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#181b20;--fg:#f2f4f7;--surface:#252a31;--border:#667485;--focus:#86b6e8;--muted:#bfcedf}
+*{box-sizing:border-box}body{font:16px/1.5 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:650px;margin:40px auto;padding:0 20px}
+textarea{display:block;width:100%;min-height:180px;background:var(--surface);color:inherit;border:1px solid var(--border);border-radius:8px;padding:12px;font:inherit}
+button,select{font:inherit;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:inherit;cursor:pointer}button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
+</style></head><body>
+<h1>Chat Queue preferences</h1>
+<label for="theme">HUD appearance</label><select id="theme"><option value="system">System (default)</option><option value="light">Light</option><option value="dark">Dark</option></select>
+<p class="note">System follows your desktop light/dark preference. The choice is shared between the queue HUD and this preferences page.</p>
+<h2>Extension API permissions</h2>
+<p>No other extension can read or modify queued messages unless you approve its <strong>exact Firefox extension ID</strong>. The current v1 API grants approved extensions both read and write access, including the ability to start the queue. Only approve extensions you trust.</p>
+<label for="ids">Allowed extension IDs, one per line</label><textarea id="ids" spellcheck="false" placeholder="my-extension@example.test"></textarea>
+<p><button type="button" id="save">Save permissions</button> <output id="message" role="status"></output></p>
+<p>API namespace: <code>chat-queue/v1</code>. Add-on ID: <code>chat-queue@sguzman.github</code>.</p>
+<script src="options.js"></script></body></html>

@@ -1,0 +1,58 @@
+# 🏗️ Chat Queue architecture
+
+## Ownership and independence
+
+- **Chat Signals** owns observation and inference of ChatGPT reply phases and conversation identity. Its [current state model](https://github.com/sguzman/chat-signals/blob/main/docs/STATE-MODEL.md) explicitly separates `submitted`, `generating`, `verifying`, `finished`, `interrupted`, `failed`, `limit`, `idle` and `unknown` with evidence limits. Chat Queue must not reimplement that classifier or patch that repository to hide queue defects.
+- **Chat Queue** owns only message storage, local queue ordering, scheduling policy, guarded text entry, HUD presentation, settings and API permissions.
+- **Calling extensions** may request explicit operations through the versioned extension API if permitted. They must not receive implicit authority to read every prompt merely by being installed.
+
+```text
+ChatGPT page UI
+  ├── Chat Signals content script (independent observer)
+  │     └── current provisional state attribute on documentElement
+  └── Chat Queue content script (Shadow DOM HUD + active-tab executor)
+        ├── queue model/order and scoped durable queue state
+        ├── read-only Signal subscription (no transcript reads)
+        ├── single serialized message dispatcher
+        └── extension internal messages ⇄ Firefox event-page background
+                                                ├── storage.local metadata, ACL
+                                                └── onMessageExternal/onConnectExternal
+                                                       ⇄ approved extensions
+```
+
+Firefox Developer Edition is the primary implementation/QA target. Use `background.scripts` for Firefox event pages; do not silently test Chromium and call it Firefox acceptance. ChatGPT host scope only. No Native Messaging, shell access, remote service, telemetry, or permission to access all browser tabs.
+
+## Event attribution
+
+Chat Signals **currently** (v0.3.13, inspected 2026-10-23) exposes `data-chat-signals-state` on `document.documentElement`. This is a useful prototype compatibility hook, **not an authenticated production API**. Site code can alter the page DOM. A phase-only reading does not identify which response epoch finished, nor establish that the executor's last attempted Send produced that response. Some terminal states may be historical restoration from a previous extension session. Consequently phase-based scheduling is provisional and must not pass the G2/G3 acceptance gate.
+
+Proposed separate-version event envelope from Signal provider (requires separately authorized coordination, not implemented here):
+
+- provider name and schema/version; authenticated Firefox extension sender identity
+- stable scoped conversation identity / document instance token; event sequence
+- response epoch and phase, `fresh`/`restored`, read flag, and evidence confidence
+- terminal reason and transition semantic; no transcript text
+
+The consumer must reject unmatched identity, stale sequence, old completion, unknown version, and missing provider. If Signal provider remains unchanged, the scheduler must conservatively remain disabled for fully automatic consecutive sends. This avoids treating page-controlled `data-*` values as authentication.
+
+## Queue storage and lifecycle
+
+The prototype persists bounded prompt text inside `browser.storage.local`, keyed by Firefox tab ID and current page path. It never uses cloud sync. This permits recovery on ordinary tab reload but **does not** reliably recover when tab IDs change after restart, or deduplicate independent queues in two tabs opened on the same conversation. Future storage schema separates stable conversation scope from transient tab ownership and stores explicit attempt journals. It requires a conscious migration; do not silently merge similarly named chats.
+
+The executor's `running` state is volatile. Installing or reloading an extension, switching conversation, or restarting Firefox cannot resume automatic sends silently. An exception must be an explicit user-granted policy with rigorous idempotency and live acceptance.
+
+A queue item may be pending, attempting, or uncertain. Moving/removing/editing unrelated pending items while the model generates is allowed. A dispatch in flight freezes mutating actions briefly; a durable per-item transaction and cross-caller revision protocol are planned.
+
+## Composer adapter
+
+Within a single exact ChatGPT composer form, verify the draft is empty, that no known attachments already exist, insert exactly the intended text, verify the resulting value, identify one enabled Send control, then attempt a single Send. **An observed click is not server acceptance**; missing confirmation moves to uncertainty and requires user resolution. Never retry automatically, click a Retry control automatically, navigate conversations, discard an existing draft, or act on a stale tab/route.
+
+The current synthetic implementation checks UI transitions, but authenticated Firefox QA has not been performed; contenteditable/React pathways can differ. Treat local tests as pure behavioral evidence only, not live-site acceptance.
+
+## HUD and themes
+
+The panel is a Shadow DOM surface fixed near the lower-right, independently styled from ChatGPT. Its settings selector has exactly `System`, `Light`, and `Dark`; `System` is the default and follows `prefers-color-scheme`, including mid-session changes via CSS. Overrides use a host-scoped `data-theme` and semantic CSS variables. The choice is local and shared across ChatGPT tabs through `storage.onChanged`. The theme cannot rewrite ChatGPT's site styling. Accessible focus rings, Atkinson Hyperlegible preference with system fallback, reduced motion, and bounded viewport sizing are required. Real FDE visual/keyboard QA remains open.
+
+## API
+
+See [API.md](../API.md). The current API is `chat-queue/v1`, with explicit external extension allowlist, bounded item text and a few typed verbs. **v1 allowlisting presently grants read and write together**; per-operation permissions and revocation are planned and must be tested before rich API release. Never expose queue contents through DOM attributes, tab titles or diagnostic logs.
