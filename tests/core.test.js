@@ -24,3 +24,14 @@ test('malformed and overlength messages rejected',()=>{
   assert.throws(()=>q.makeItem('a','!!!'));
   assert.deepEqual(q.normalizeSaved({items:[{id:'aaaaaaaa',text:'hi'},{id:'aaaaaaaa',text:'dup'},{id:'bbbbbbbb',text:''}]}),[{id:'aaaaaaaa',text:'hi',status:'pending'}]);
 });
+
+test('exact permutation rejects duplicates, foreign IDs, truncation and excessive queues',()=>{
+  const valid=items.map(x=>x.id);
+  assert.equal(q.exactPermutation(items,[valid[2],valid[0],valid[1]]),true);
+  for(const bad of [null,[],[valid[0],valid[0],valid[1]],[valid[0],valid[1],'foreignxx'],[valid[0],valid[1]],[valid[0],valid[1],null]])
+    assert.equal(q.exactPermutation(items,bad),false);
+  assert.equal(q.exactPermutation([{...items[0]},{...items[0]}],[items[0].id,items[0].id]),false);
+  const oversized=Array.from({length:q.MAX_ITEMS+1},(_,i)=>({id:'x'+i}));
+  assert.equal(q.exactPermutation(oversized,oversized.map(x=>x.id)),false);
+  assert.deepEqual(items.map(x=>x.id),valid,'validation must not mutate queue items');
+});
