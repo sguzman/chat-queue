@@ -388,7 +388,7 @@
       if (action==='reorder') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
         const ids=payload?.ids;
-        if(!Array.isArray(ids)||ids.length!==state.items.length||new Set(ids).size!==ids.length||!ids.every(id=>state.items.some(i=>i.id===id)))return {ok:false,error:'invalid-order'};
+        if(!core.exactPermutation(state.items,ids))return {ok:false,error:'invalid-order'};
         state.items=ids.map(id=>state.items.find(i=>i.id===id));await save();render();return {ok:true};
       }
       if (action==='move') {
