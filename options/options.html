@@ -27,6 +27,8 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="rule-priority">Priority (0–1000)</label><input type="number" id="rule-priority" min="0" max="1000" step="1" value="10" required>
 <label for="rule-phase">When response state is</label><select id="rule-phase"><option value="finished">Finished</option><option value="failed">Failed</option><option value="interrupted">Connection interrupted</option><option value="limit">Conversation limit</option></select>
 <label for="rule-confidence">Required confidence</label><select id="rule-confidence"><option value="any">Any known confidence</option><option value="observed">Observed</option><option value="inferred">Inferred</option></select>
+<label for="rule-min-duration">Minimum simulated state duration (ms, optional)</label><input id="rule-min-duration" type="number" min="0" max="3600000" step="1" placeholder="No minimum">
+<label for="rule-max-duration">Maximum simulated state duration (ms, optional)</label><input id="rule-max-duration" type="number" min="0" max="3600000" step="1" placeholder="No maximum">
 <label for="rule-action">Then propose</label><select id="rule-action"><option value="propose">Text for manual review</option><option value="pause">Pause (preview only)</option></select>
 <label for="rule-text">Proposed text</label><textarea id="rule-text" class="short" maxlength="24000">Synthetic follow-up</textarea>
 <label for="rule-enabled"><input type="checkbox" id="rule-enabled" checked> Enabled</label>
@@ -40,6 +42,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="preview-confidence">Simulated confidence</label><select id="preview-confidence"><option value="observed">Observed</option><option value="inferred">Inferred</option><option value="unknown">Unknown</option></select>
 <label for="preview-origin">Simulated origin</label><select id="preview-origin"><option value="fresh">Fresh</option><option value="restored">Restored historical snapshot</option></select>
 <label for="preview-epoch">Simulated response epoch</label><input id="preview-epoch" type="number" min="0" max="1000000" value="1" required>
+<label for="preview-duration">Simulated duration in current state (ms, optional)</label><input id="preview-duration" type="number" min="0" max="3600000" step="1" placeholder="Unspecified">
 <p><button type="submit">Preview rule decision</button> <button type="button" id="preview-reset">Reset replay history</button></p>
 <pre id="preview-output" aria-live="polite" role="status">No preview yet.</pre>
 </form>
