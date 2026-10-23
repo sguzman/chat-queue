@@ -12,6 +12,12 @@
   const SIGNALS = new Map();
   // Separate route registry: never exposed through the public extension API.
   const ROUTES = new Map();
+  // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
+  // page: a restarted page must re-validate the provider before reacquiring.
+  const OWNERS = new Map();
+  function releaseOwner(tabId){
+    for(const [route,id] of OWNERS)if(id===tabId)OWNERS.delete(route);
+  }
   const PORTS = new Map();
   // Invalidates pending authorization reads when Options changes the ACL.
   let grantRevision=0;
@@ -40,6 +46,7 @@
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
       return currentRoute(sender).then(live=>{
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
+        releaseOwner(tab.id);
         ROUTES.set(tab.id,message.route);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
         SIGNALS.delete(tab.id);
@@ -55,10 +62,18 @@
          last.epoch!==message.epoch || last.sequence!==message.sequence ||
          !signalContract.ready(last,message.route))
         return Promise.resolve({ok:false,error:'signal-authority-lost'});
-      return currentRoute(sender).then(live=>
-        live===message.route && SIGNALS.get(tab.id)===last &&
-        ROUTES.get(tab.id)===message.route && TABS.has(tab.id)
-          ? {ok:true}:{ok:false,error:'route-or-signal-changed'});
+      return currentRoute(sender).then(live=>{
+        if(live!==message.route || SIGNALS.get(tab.id)!==last ||
+           ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id))
+          return {ok:false,error:'route-or-signal-changed'};
+        const owner=OWNERS.get(message.route);
+        if(owner!==undefined&&owner!==tab.id)
+          return {ok:false,error:'conversation-owned-by-another-tab'};
+        // This check/claim is synchronous after the asynchronous route check,
+        // so competing tabs cannot both reserve the same route.
+        OWNERS.set(message.route,tab.id);
+        return {ok:true};
+      });
     }
     if (message.action === 'state') {
       // Delayed state publication from the previous SPA route cannot recreate
@@ -77,6 +92,7 @@
           revision: Number.isSafeInteger(message.revision) ? message.revision : 0
         };
         TABS.set(tab.id,next);
+        if(!next.running)releaseOwner(tab.id);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
         return {ok:true};
       });
@@ -178,6 +194,7 @@
 
   function invalidate(tabId){
     if(!ROUTES.has(tabId))return;
+    releaseOwner(tabId);
     ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);
     notify(tabId,null);
   }
