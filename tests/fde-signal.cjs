@@ -33,7 +33,9 @@ function prepareQueue(dir,source){
   const contentPath=path.join(dir,'src/content.js');
   const original=fs.readFileSync(contentPath,'utf8');
   assert.equal(original.split("attachShadow({mode:'closed'})").length,2);
-  fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})"));
+  fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})")
+    .replace("if(!response?.ok)throw new Error('Registration unavailable');",
+      "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}"));
   // Only QA origin allowlist changes; production background is otherwise intact.
   const bgPath=path.join(dir,'src/background.js');
   let bg=fs.readFileSync(bgPath,'utf8');
@@ -87,8 +89,13 @@ async function main(){
     assert.equal(await driver.installAddon(qdir,true),queueId);
     assert.equal(await driver.installAddon(pdir,true),signalId);
     await driver.get(`http://127.0.0.1:${server.address().port}/c/synthetic`);
-    await driver.wait(async()=>await driver.executeScript(
-      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    try {
+      await driver.wait(async()=>await driver.executeScript(
+        `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    } catch(error) {
+      const diag=await driver.executeScript('return {path:location.pathname,providerReady:document.documentElement.dataset.qaSignalProviderReady||null,queueRoot:!!document.querySelector("#chat-queue-extension-root"),queueHud:!!document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("run"),registerFailure:document.documentElement.dataset.qaRegisterFailure||null}');
+      throw new Error('synthetic dual add-on registration gate: '+JSON.stringify(diag)+'; '+error.message);
+    }
     const input=await driver.executeScript(`return ${hud('draft')}`);
     const add=await driver.executeScript(`return ${hud('add')}`);
     await input.sendKeys('Synthetic queued A');await add.click();
