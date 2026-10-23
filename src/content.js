@@ -13,7 +13,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
+    editing: null, collapsed: false, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -61,10 +61,10 @@
   panel.innerHTML = `<header class="top"><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
     <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted</summary><div id="history" class="history"></div></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
-    <div class="footrow"><button id="add">Add to queue</button><button id="run" class="primary">Start</button></div>
+    <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','theme','status','body','items','history','draft','add','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','theme','status','body','items','history','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   const button = (label, title, fn, disabled=false) => {
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
@@ -79,6 +79,8 @@
     els.count.textContent = `${state.items.length} queued`;
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
+    els.clear.textContent=state.clearArmed ? 'Confirm clear' : 'Clear';
+    els.clear.disabled=!state.items.length||Boolean(state.attempting);
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
     els.body.hidden = state.collapsed;
@@ -131,6 +133,7 @@
     void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,revision:state.revision}).catch(()=>{});
   }
   function save() {
+    state.clearArmed=false;
     state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20)};
     state.saveChain=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
     state.saveChain.catch(()=>{state.running=false;statusNote('Could not save queue; paused');});
@@ -278,6 +281,7 @@
     if (state.key===newKey)return;
     const generation=++routeGeneration;
     state.routing=true;
+    state.clearArmed=false;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -362,6 +366,20 @@
   els.add.addEventListener('click',async()=>{
     const response=await act('enqueue',{text:els.draft.value},true);
     if(response.ok)els.draft.value='';else statusNote(response.error);
+  });
+  els.clear.addEventListener('click',async()=>{
+    if(state.attempting||!state.items.length)return;
+    if(!state.clearArmed){
+      state.clearArmed=true;
+      statusNote('Press Confirm clear to remove every queued message');
+      return;
+    }
+    state.clearArmed=false;
+    // Stop scheduled next-item dispatch before emptying the queue.
+    if(state.running)await act('pause',null,true);
+    const response=await act('clear',null,true);
+    if(!response.ok)statusNote(response.error);
+    else statusNote('Queue cleared');
   });
   els.run.addEventListener('click',async()=>{
     const response=await act(state.running?'pause':'start',null,true);

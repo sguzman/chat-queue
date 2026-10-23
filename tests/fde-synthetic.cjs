@@ -90,6 +90,17 @@ async function main(){
     await start.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Verify individual deletion, then require two separate clicks to clear.
+    const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
+    await del.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),5000);
+    const clear=await driver.executeScript(`return ${jsEl('clear')}`);
+    await clear.click();
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
+    await clear.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, persistence, reorder, theme and forged-page-Signal fail-closed behavior pass');
   }finally{
