@@ -197,6 +197,12 @@ async function main(){
   }
   assert.equal((await command({type:'chat-queue/v1',action:'reorder',tabId,payload:{ids:[second.id,itemId]}})).ok,true);
   assert.deepEqual(await orderOf(),[second.id,itemId]);
+  assert.equal((await command({type:'chat-queue/v1',action:'move',tabId,payload:{id:itemId,beforeId:second.id}})).ok,true);
+  assert.deepEqual(await orderOf(),[itemId,second.id]);
+  for(const payload of [{id:'foreign-id',beforeId:second.id},{id:itemId,beforeId:'foreign-id'},{id:itemId,beforeId:itemId}]){
+    assert.equal((await command({type:'chat-queue/v1',action:'move',tabId,payload})).error,'invalid-order');
+    assert.deepEqual(await orderOf(),[itemId,second.id]);
+  }
   assert.equal((await command({type:'chat-queue/v1',action:'remove',tabId,payload:{id:second.id}})).ok,true);
   assert.deepEqual(await orderOf(),[itemId]);
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
