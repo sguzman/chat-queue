@@ -127,9 +127,9 @@
                   "id": "M0-10",
                   "emoji": "🔁",
                   "title": "Add automated GitHub CI checks on main",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Workflow source exists; hosted CI execution pending"
+                    "GitHub Actions static-and-unit succeeded on main: https://github.com/sguzman/chat-queue/actions/runs/40023673230"
                   ]
                 },
                 {
@@ -172,9 +172,9 @@
                   "id": "M1-01",
                   "emoji": "🌓",
                   "title": "Define isolated semantic HUD tokens for both color schemes",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Shadow DOM CSS variables in src/content.js"
+                    "HUD semantic CSS variable tests: tests/theme.test.js; npm run check passed 2026-10-23; visual FDE QA is separate"
                   ]
                 },
                 {

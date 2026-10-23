@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not live-verified.** The imported prototype passes seven pure Node tests and has the first HUD, queue model, permissioned external messaging, and theme selector. It has **not** passed authenticated ChatGPT sending, real Firefox Developer Edition UI, addon-to-addon tests or the required authenticated signal/epoch contract. Do not mistake code presence for acceptance.
+**Status: early development prototype, not live-verified.** The imported prototype passes nine Node tests and has the first HUD, queue model, permissioned external messaging, and theme selector. It has **not** passed authenticated ChatGPT sending, real Firefox Developer Edition UI, addon-to-addon tests or the required authenticated signal/epoch contract. Do not mistake code presence for acceptance.
 
 ## 🧭 Project navigation
 
