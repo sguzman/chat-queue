@@ -136,9 +136,9 @@
                   "id": "M0-11",
                   "emoji": "🐟",
                   "title": "Add isolated FDE QA launcher without profile changes",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Fish launcher source added; Linux/FDE execution pending"
+                    "Path-scoped GitHub Actions Linux Fish test invokes the actual QA launcher under disposable HOME/XDG_DATA_HOME with a fake Firefox executable; verifies private profile permissions, exact --no-remote/--profile flags, untouched personal-profile marker and refusal of symlinked root/profile. https://github.com/sguzman/chat-queue/actions/runs/40042036909. No real personal browser was launched."
                   ]
                 },
                 {
@@ -409,8 +409,10 @@
                   "id": "M2-11",
                   "emoji": "🧷",
                   "title": "Resolve same-conversation multi-tab ownership deterministically",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Pure background race tests prove one route owner across two authenticated synthetic tabs, release on tab close and no release while paused but awaiting. Actual disposable Firefox Developer Edition two-addon synthetic test rejects the second tab before filling its composer, retains ownership during paused generation, and permits explicitly started takeover only after verified completion. https://github.com/sguzman/chat-queue/actions/runs/40042415793. Real Chat Signals publisher and authenticated ChatGPT remain pending."
+                  ]
                 },
                 {
                   "id": "M2-12",

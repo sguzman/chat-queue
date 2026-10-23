@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 32 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 46 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -86,3 +86,11 @@ The `fde-rules.cjs` fixture uses a synthetic same-origin sessionStorage-backed s
 ## 🎨 HUD placement persistence
 
 The synthetic headless Firefox Developer Edition HUD suite now exercises keyboard header movement, a retained position and collapsed flag after reload, and a reset that restores the default corner without clearing queued messages. Pointer drag uses bounded pointer capture in the production content script; a real pointer-drag and high-zoom visual/layout acceptance remain separate unverified gates. No browser profile preferences are changed.
+
+## 🐟 Isolated Fish launcher regression
+
+A path-scoped GitHub Actions workflow tests `scripts/qa-firefox-developer.fish` with a fake `firefox-developer-edition` executable under disposable HOME and XDG_DATA_HOME. It checks profile permissions 0700, explicit isolated `--no-remote --profile` arguments, untouched personal-profile marker, and refusal to use symlinked QA directories. No real browser or existing user profile is opened in this test. See [launcher CI](https://github.com/sguzman/chat-queue/actions/runs/40042036909).
+
+## 🧷 Same-conversation two-tab ownership regression
+
+Headless Firefox Developer Edition with two separate QA add-ons opens two tabs to the same synthetic conversation. One tab dispatches and awaits an assistant response; the other tab must be denied before editor mutation, even when the first tab is manually paused. After a confirmed terminal event and separate deliberate Start, the second tab can dispatch once. This tests the volatile route lease, pause/awaiting distinction, and no-unintended-Send behavior; it does **not** validate the real Chat Signals publisher or authenticated ChatGPT. See [two-tab CI](https://github.com/sguzman/chat-queue/actions/runs/40042415793).

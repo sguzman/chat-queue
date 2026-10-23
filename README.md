@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 44 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 46 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -77,3 +77,7 @@ The Options rule editor now stores up to 32 validated, versioned rule definition
 ## 🎨 HUD placement and collapse
 
 The floating queue HUD supports pointer dragging on the header without intercepting its controls, keyboard movement when the header is focused (arrow keys, or Shift+arrow for a larger step), and Home to reset position. A **Reset queue position** button also expands the panel and returns to the default corner. Only bounded right/bottom coordinates and a collapsed flag are stored under `chatqueue:ui:v1` in Firefox local extension storage; these preferences are shared across the extension's ChatGPT tabs. Viewport resizing clamps the panel to the visible area. The HUD never changes browser preferences or navigates the page.
+
+## 🧷 Same-conversation dispatch ownership
+
+Two Firefox tabs may display the same ChatGPT conversation, but only one queue may hold its volatile exact-route dispatch lease at a time. The owner is reserved before any composer mutation and rechecked immediately before Send. A second tab is refused without touching its draft or sending; pausing an owner while its response is still pending **does not** release the lease. A confirmed completion after pause, tab close, or route departure permits a later explicit Start in another tab. This prevents competing queue dispatch in the synthetic Firefox test; it is not proof of authenticated ChatGPT behavior or a substitute for the real Chat Signals publisher.
