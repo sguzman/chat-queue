@@ -180,7 +180,7 @@
   function statusNote(message) { state.note = message; render();publish(); }
   function publish() {
     if (state.tabId == null || state.destroyed) return;
-    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,revision:state.revision}).catch(()=>{});
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision}).catch(()=>{});
   }
   function save() {
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
