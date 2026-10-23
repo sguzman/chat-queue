@@ -8,12 +8,14 @@
   const contract = globalThis.ChatQueueSignal;
   if (!api?.runtime?.sendMessage || !core || !contract) return;
   const uid = () => crypto.randomUUID();
+  const UI_KEY='chatqueue:ui:v1';
+  const uiValid=x=>x?.version===1&&Number.isSafeInteger(x.right)&&x.right>=0&&x.right<=10000&&Number.isSafeInteger(x.bottom)&&x.bottom>=0&&x.bottom<=10000&&typeof x.collapsed==='boolean';
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, clearArmed: false, theme: 'system', hudRight: 20, hudBottom: 84, destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -33,7 +35,8 @@
     :host([data-theme="dark"]){color-scheme:dark;--panel:#202329;--text:#f6f7fb;--border:#526075;--header:#282e38;--status:#1b2027;--item:#2b3039;--button:#394553;--button-hover:#526278;--button-border:#637488;--muted:#bfcedf;--input:#151a20;--accent:#abcff5;--accent-text:#172430;--focus:#86b6e8;--shadow:#0008;--warning:#efac74}
     *,*::before,*::after{box-sizing:border-box}
     .panel{background:var(--panel);color:var(--text);font:13px/1.45 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;border:1px solid var(--border);border-radius:13px;box-shadow:0 12px 34px var(--shadow);overflow:hidden;max-height:min(65vh,680px);display:flex;flex-direction:column}
-    .top{display:flex;align-items:center;gap:8px;padding:11px 12px;background:var(--header);border-bottom:1px solid var(--border);cursor:grab;touch-action:none}.top:active{cursor:grabbing}.top:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+    .top{display:flex;align-items:center;gap:8px;padding:11px 12px;background:var(--header);border-bottom:1px solid var(--border);touch-action:none;user-select:none;cursor:grab}
+    .top:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
     .top strong{font-size:14px;letter-spacing:.01em;flex:1}.small{font-size:11px;color:var(--muted)}
     .status{padding:8px 12px;color:var(--muted);background:var(--status);border-bottom:1px solid var(--border)}
     .items{overflow:auto;max-height:260px;padding:8px;display:flex;flex-direction:column;gap:7px}
@@ -58,7 +61,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.setAttribute('aria-label', 'Chat Queue');
-  panel.innerHTML = `<header class="top" tabindex="0" aria-label="Move Chat Queue with arrow keys" title="Drag or use arrow keys to move"><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset HUD position and expand" aria-label="Reset HUD position and expand">Reset</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
+  panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
     <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted</summary><div id="history" class="history"></div></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
@@ -68,32 +71,46 @@
   const button = (label, title, fn, disabled=false) => {
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
-  // Layout is browser-local, never tied to a particular conversation or prompt.
-  const HUD_KEY='chatqueue:hud:v1';
-  const layoutNumber=n=>Number.isFinite(n)&&n>=0&&n<=100000?n:null;
-  function applyLayout(){
-    const width=Math.max(0,host.getBoundingClientRect().width||370);
-    const height=Math.max(0,host.getBoundingClientRect().height||200);
-    const maxRight=Math.max(8,window.innerWidth-width-8);
-    const maxBottom=Math.max(8,window.innerHeight-height-8);
-    state.hudRight=Math.round(Math.min(Math.max(8,state.hudRight),maxRight));
-    state.hudBottom=Math.round(Math.min(Math.max(8,state.hudBottom),maxBottom));
-    host.style.right=state.hudRight+'px';host.style.bottom=state.hudBottom+'px';
-  }
-  function acceptLayout(value){
-    if(!value||value.version!==1)return;
-    const right=layoutNumber(value.right),bottom=layoutNumber(value.bottom);
-    if(right===null||bottom===null||typeof value.collapsed!=='boolean')return;
-    state.hudRight=right;state.hudBottom=bottom;state.collapsed=value.collapsed;
-    applyLayout();render();
-  }
-  async function saveLayout(){
-    try{await api.storage.local.set({[HUD_KEY]:{version:1,right:state.hudRight,bottom:state.hudBottom,collapsed:state.collapsed}});}
-    catch{statusNote('Could not save HUD layout');}
-  }
   const pending = () => state.items.some(item => item.status === 'pending');
   const uncertain = () => state.items.some(item => item.status === 'uncertain');
   const signalFromPage = () => core.validPhase(document.documentElement.dataset.chatSignalsState);
+  const header=panel.querySelector('.top');
+  function place(){
+    const rect=host.getBoundingClientRect();
+    const x=Math.min(Math.max(0,state.position.right),Math.max(0,innerWidth-(rect.width||370)));
+    const y=Math.min(Math.max(0,state.position.bottom),Math.max(0,innerHeight-(rect.height||150)));
+    host.style.right=`${x}px`;host.style.bottom=`${y}px`;
+    return {right:Math.round(x),bottom:Math.round(y)};
+  }
+  function saveLayout(){
+    state.position=place();
+    void api.storage.local.set({[UI_KEY]:{version:1,...state.position,collapsed:state.collapsed}})
+      .catch(()=>statusNote('Could not save HUD placement'));
+  }
+  let dragging=null;
+  header.addEventListener('pointerdown',event=>{
+    if(event.button!==0||event.target?.closest?.('button,select')||!state.initialized)return;
+    dragging={id:event.pointerId,x:event.clientX,y:event.clientY,...state.position,moved:false};
+    try{header.setPointerCapture(event.pointerId);}catch{dragging=null;}
+  });
+  header.addEventListener('pointermove',event=>{
+    if(!dragging||event.pointerId!==dragging.id)return;
+    dragging.moved=true;
+    state.position={right:dragging.right+dragging.x-event.clientX,bottom:dragging.bottom+dragging.y-event.clientY};
+    state.position=place();
+  });
+  function endDrag(event){if(dragging&&event.pointerId===dragging.id){const didMove=dragging.moved;dragging=null;if(didMove)saveLayout();}}
+  header.addEventListener('pointerup',endDrag);
+  header.addEventListener('pointercancel',endDrag);
+  header.addEventListener('keydown',event=>{
+    if(event.target!==header||!state.initialized)return;
+    const delta=event.shiftKey?32:12;
+    const move={ArrowLeft:[delta,0],ArrowRight:[-delta,0],ArrowUp:[0,delta],ArrowDown:[0,-delta]}[event.key];
+    if(move){event.preventDefault();state.position={right:state.position.right+move[0],bottom:state.position.bottom+move[1]};saveLayout();}
+    else if(event.key==='Home'){event.preventDefault();state.position={right:20,bottom:84};saveLayout();}
+  });
+  window.addEventListener('resize',()=>place());
+
   const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
     state.trusted.origin==='fresh'&&Date.now()-state.trustedAt<15000);
   function render() {
@@ -108,6 +125,7 @@
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
     els.body.hidden = state.collapsed;
     els.status.hidden = state.collapsed;
+    place();
     els.items.replaceChildren();
     if (!state.items.length) {
       const empty=document.createElement('div');empty.className='empty';empty.textContent='No queued messages.';els.items.append(empty);
@@ -215,8 +233,8 @@
       // it must never reopen as an automatically retryable pending item.
       item.status='uncertain';
       await save();
-      // A Firefox event-page restart discards its authenticated provider
-      // ledger. Require current background authority immediately pre-click.
+      // Require the event page to still own this authenticated provider
+      // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
@@ -305,8 +323,8 @@
   async function handleRouteChange() {
     if(!state.initialized)return;
     const newKey=storageKey();
-    // A duplicate navigation notification while registration is awaiting must
-    // not invalidate the in-flight restore just because state.key was assigned.
+    // Duplicate navigation notices must not invalidate an in-flight
+    // restore after its route key was assigned but before registration ends.
     if (state.key===newKey)return;
     const generation=++routeGeneration;
     state.routing=true;
@@ -396,6 +414,20 @@
     const response=await act('enqueue',{text:els.draft.value},true);
     if(response.ok)els.draft.value='';else statusNote(response.error);
   });
+  // Confirm clear must require consecutive intent. Any unrelated click
+  // cancels an armed confirmation, including clicks outside the HUD.
+  shadow.addEventListener('click',event=>{
+    if(state.clearArmed&&event.target!==els.clear){
+      state.clearArmed=false;
+      queueMicrotask(()=>render());
+    }
+  },true);
+  document.addEventListener('click',event=>{
+    if(state.clearArmed&&!host.contains(event.target)){
+      state.clearArmed=false;
+      render();
+    }
+  },true);
   els.clear.addEventListener('click',async()=>{
     if(state.attempting||!state.items.length)return;
     if(!state.clearArmed){
@@ -404,7 +436,7 @@
       return;
     }
     state.clearArmed=false;
-    // Also cancel scheduled next-item dispatch before emptying the queue.
+    // Stop scheduled next-item dispatch before emptying the queue.
     if(state.running)await act('pause',null,true);
     const response=await act('clear',null,true);
     if(!response.ok)statusNote(response.error);
@@ -414,40 +446,8 @@
     const response=await act(state.running?'pause':'start',null,true);
     if(!response.ok)statusNote(response.error);
   });
-  els.toggle.addEventListener('click',()=>{state.collapsed=!state.collapsed;render();applyLayout();void saveLayout();});
-  els.reset.addEventListener('click',()=>{
-    state.hudRight=20;state.hudBottom=84;state.collapsed=false;
-    render();applyLayout();void saveLayout();
-  });
-  const header=shadow.querySelector('.top');
-  header.addEventListener('keydown',event=>{
-    if(event.target!==header)return;
-    const deltas={ArrowLeft:[16,0],ArrowRight:[-16,0],ArrowUp:[0,16],ArrowDown:[0,-16]};
-    const d=deltas[event.key];if(!d)return;
-    event.preventDefault();event.stopPropagation();
-    state.hudRight+=d[0];state.hudBottom+=d[1];applyLayout();void saveLayout();
-  });
-  let drag=null;
-  header.addEventListener('pointerdown',event=>{
-    if(event.button!==0||event.target?.closest?.('button,select,textarea,input,a'))return;
-    drag={id:event.pointerId,x:event.clientX,y:event.clientY,right:state.hudRight,bottom:state.hudBottom,moved:false};
-    header.setPointerCapture(event.pointerId);
-  });
-  header.addEventListener('pointermove',event=>{
-    if(!drag||event.pointerId!==drag.id)return;
-    const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
-    if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;
-    if(!drag.moved)return;
-    state.hudRight=drag.right-dx;state.hudBottom=drag.bottom-dy;applyLayout();
-  });
-  function endDrag(event){
-    if(!drag||event.pointerId!==drag.id)return;
-    const moved=drag.moved;drag=null;
-    if(header.hasPointerCapture?.(event.pointerId))header.releasePointerCapture(event.pointerId);
-    if(moved)void saveLayout();
-  }
-  header.addEventListener('pointerup',endDrag);
-  header.addEventListener('pointercancel',endDrag);
+  els.toggle.addEventListener('click',()=>{state.collapsed=!state.collapsed;render();saveLayout();});
+  els.reset.addEventListener('click',()=>{state.collapsed=false;state.position={right:20,bottom:84};render();saveLayout();});
   els.theme.addEventListener('change',async()=>{
     const next=els.theme.value;
     if(!['system','light','dark'].includes(next))return;
@@ -456,10 +456,14 @@
   });
   api.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
-    if(changes[HUD_KEY])acceptLayout(changes[HUD_KEY].newValue);
-    if(!changes['chatqueue:settings:v1'])return;
-    const next=changes['chatqueue:settings:v1'].newValue?.theme;
-    state.theme=['system','light','dark'].includes(next)?next:'system';render();
+    if(changes['chatqueue:settings:v1']){
+      const next=changes['chatqueue:settings:v1'].newValue?.theme;
+      state.theme=['system','light','dark'].includes(next)?next:'system';
+    }
+    if(changes[UI_KEY]&&uiValid(changes[UI_KEY].newValue)){
+      const ui=changes[UI_KEY].newValue;state.position={right:ui.right,bottom:ui.bottom};state.collapsed=ui.collapsed;
+    }
+    render();
   });
   api.runtime.onMessage.addListener((message) => {
     if(message?.type==='chat-queue-route-changed/v1'){
@@ -493,10 +497,6 @@
   window.addEventListener('popstate',()=>void handleRouteChange());
   window.addEventListener('hashchange',()=>void handleRouteChange());
   window.addEventListener('pageshow',()=>void handleRouteChange());
-  // Destructive Clear is armed only until the next unrelated click, even outside Shadow DOM.
-  document.addEventListener('click',event=>{
-    if(state.clearArmed&&!event.composedPath().includes(els.clear)){state.clearArmed=false;render();}
-  });
   document.addEventListener('click',event=>{
     if(!event.target?.closest?.('a[href]'))return;
     for(const ms of [0,150,650]) setTimeout(()=>{
@@ -513,17 +513,16 @@
       const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});
       if(!response?.ok)throw new Error('Registration unavailable');
       state.tabId=response.tabId;state.key=storageKey();state.keyRoute=routeKey();
-      const stored=await api.storage.local.get([state.key,'chatqueue:settings:v1',HUD_KEY]);
+      const stored=await api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY]);
       const pref=stored['chatqueue:settings:v1']?.theme;
       state.theme=['system','light','dark'].includes(pref)?pref:'system';
+      const ui=uiValid(stored[UI_KEY])?stored[UI_KEY]:{right:20,bottom:84,collapsed:false};
+      state.position={right:ui.right,bottom:ui.bottom};state.collapsed=ui.collapsed;
       state.items=core.normalizeSaved(stored[state.key]);
       state.history=readHistory(stored[state.key]);
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
-      const hud=stored[HUD_KEY];if(hud?.version===1&&typeof hud.collapsed==='boolean'){
-        state.hudRight=layoutNumber(hud.right)??20;state.hudBottom=layoutNumber(hud.bottom)??84;state.collapsed=hud.collapsed;
-      }
       (document.body||document.documentElement).append(host);
-      state.note='Paused; press Start';render();applyLayout();publish();
+      state.note='Paused; press Start';render();publish();
       if(state.key!==storageKey())void handleRouteChange();
     } catch(error) {
       state.destroyed=true;signalObserver.disconnect();clearInterval(routeWatch);
