@@ -171,6 +171,11 @@ async function main(){
     // A later ready event must not revive an uncertain attempt by itself.
     await emit('idle',3,11);
     assert.equal(await driver.executeScript('return window.__sent.length'),3);
+    const draftBefore=await driver.executeScript("return document.getElementById('prompt-textarea').innerText");
+    assert.equal(draftBefore,'Synthetic unsent D','Blocked preflight retains prepared draft for user review');
+    // A user must inspect/clear the occupied composer; the extension will
+    // never replace it automatically on Retry after an uncertain attempt.
+    await driver.executeScript("const el=document.getElementById('prompt-textarea');el.textContent='';el.dispatchEvent(new Event('input',{bubbles:true}))");
     const retry=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
     assert.equal(await retry.getText(),'Retry');
     await retry.click(); // explicit manual decision, never background retry
