@@ -56,3 +56,23 @@ test('bounded replay history and malformed shape fail closed',()=>{
   assert.equal(rules.evaluate([],null).error,'invalid-event');
   assert.equal(rules.evaluate([r('ok','finished')],e('generating')).reason,'not-actionable');
 });
+test('bounded duration predicates require explicit simulated state duration',()=>{
+  const timed={...r('timed','interrupted','pause',50),when:{phase:'interrupted',minDurationMs:5000,maxDurationMs:8000}};
+  const fallback=r('fallback','interrupted','propose',10);
+  assert.equal(rules.evaluate([timed,fallback],e('interrupted')).decision.ruleId,'fallback');
+  assert.equal(rules.evaluate([timed,fallback],e('interrupted'),[],{stateDurationMs:4999}).decision.ruleId,'fallback');
+  assert.equal(rules.evaluate([timed,fallback],e('interrupted'),[],{stateDurationMs:5000}).decision.ruleId,'timed');
+  assert.equal(rules.evaluate([timed,fallback],e('interrupted'),[],{stateDurationMs:8000}).decision.ruleId,'timed');
+  assert.equal(rules.evaluate([timed,fallback],e('interrupted'),[],{stateDurationMs:8001}).decision.ruleId,'fallback');
+});
+test('duration filter validates integer bounds, order and context with no implicit wall clock',()=>{
+  const base=r('a','finished');
+  for(const bad of [NaN,-1,3600001,1.5,'5000',null]){
+    assert.equal(rules.normalize([{...base,when:{phase:'finished',minDurationMs:bad}}]).error,'invalid-rule');
+  }
+  assert.equal(rules.normalize([{...base,when:{phase:'finished',minDurationMs:11,maxDurationMs:10}}]).error,'invalid-rule');
+  for(const bad of [{stateDurationMs:-1},{stateDurationMs:3600001},{stateDurationMs:'5000'},{text:'forged'},null]){
+    assert.equal(rules.evaluate([base],e(),[],bad).error,'invalid-context');
+  }
+  assert.equal(rules.evaluate([base],e()).decision.ruleId,'a');
+});

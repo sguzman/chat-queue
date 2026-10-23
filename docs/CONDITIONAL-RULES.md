@@ -34,3 +34,9 @@ The Options editor can add, replace, load, edit, remove and clear stored declara
 After reloading Options, rule definitions return; simulated event replay history deliberately does not. Unknown future schema versions, malformed records and unreadable storage stop edits without silently migrating or deleting user data. Clearing all definitions requires two clicks. The external `rules` scope remains a pure caller-supplied evaluation API and cannot read this local library. **Saved does not mean enabled for automatic execution.**
 
 Synthetic Firefox Developer Edition QA must verify save → reload → edit → reload → two-step clear → reload, including that reload triggers no queue action. A future, separate acceptance gate must cover concurrent Options windows and storage errors before rule execution is even considered.
+
+## ⏱️ Optional duration-filter previews
+
+A rule may specify `when.minDurationMs` and/or `when.maxDurationMs`, bounded integer values from 0 to 3,600,000 (one hour), with minimum no greater than maximum. The preview function accepts an optional fourth argument, `{stateDurationMs: integer}`, supplied explicitly by the caller. A time-filtered rule **does not match** without duration evidence; boundary values match. Untimed rules retain their prior behavior. Invalid types, unknown fields and inconsistent ranges fail closed.
+
+These are **synthetic-duration predicates**, not timers, scheduled deadlines or verified ChatGPT state durations. This evaluator does not authenticate timing data, read a clock, monitor the ChatGPT page, enqueue anything or click Send. Production adoption requires an authenticated monotonic transition clock, suspension/recovery handling and explicit user policy. No automatic retry behavior was introduced.
