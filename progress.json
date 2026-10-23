@@ -273,8 +273,10 @@
                   "id": "M1-11",
                   "emoji": "♿",
                   "title": "Verify contrast, spacing, small viewports, zoom, reduced motion",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Actual disposable Firefox Developer Edition synthetic HUD test checks 175% page zoom, narrow window, in-viewport geometry, >=8px header padding, resolved light/dark foreground/background contrast >=4.5:1, and true reduced-motion preference. CI https://github.com/sguzman/chat-queue/actions/runs/40040305092. This does not certify authenticated ChatGPT visuals or a screen-reader audit."
+                  ]
                 },
                 {
                   "id": "M1-12",
