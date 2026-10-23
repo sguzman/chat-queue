@@ -128,10 +128,13 @@ async function main(){
       colors.push(await driver.executeScript(`const x=getComputedStyle(document.querySelector('#chat-queue-extension-root'));
         return [x.getPropertyValue('--panel').trim(),x.getPropertyValue('--text').trim()];`));
     }
-    const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+    const expandHex=hex=>{
+      assert.match(hex,/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i);
+      return hex.length===4?'#'+Array.from(hex.slice(1),ch=>ch+ch).join(''):hex;
+    };
+    const rgb=value=>{const hex=expandHex(value);return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);};
     const lum=hex=>rgb(hex).reduce((sum,value,i)=>sum+value*[.2126,.7152,.0722][i],0);
     for(const [bg,fg] of colors){
-      assert.match(bg,/^#[0-9a-f]{6}$/i);assert.match(fg,/^#[0-9a-f]{6}$/i);
       const a=lum(bg),b=lum(fg);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${bg}/${fg} contrast`);
     }
     await driver.executeScript('document.documentElement.style.zoom="1";window.dispatchEvent(new Event("resize"))');
