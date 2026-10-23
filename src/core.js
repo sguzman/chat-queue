@@ -47,7 +47,7 @@
     return value.items.slice(0, MAX_ITEMS).filter(item => {
       if (!item || !validText(item.text) || typeof item.id !== 'string' || !/^[a-z0-9-]{8,80}$/.test(item.id) || seen.has(item.id)) return false;
       seen.add(item.id); return true;
-    }).map(item => ({ id: item.id, text: item.text, status: item.status === 'uncertain' ? 'uncertain' : 'pending' }));
+    }).map(item => ({ id: item.id, text: item.text, status: item.status === 'pending' ? 'pending' : 'uncertain' }));
   }
   function mayDispatch(phase, waitingForCompletion, busySeen) {
     phase = validPhase(phase);
