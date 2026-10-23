@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 36/96 verified (37%) · ███░░░░░░░ · 42 implemented awaiting acceptance.**
+**Overall: 37/96 verified (38%) · ███░░░░░░░ · 41 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -80,7 +80,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M2-03` ✏️ Support queue edits during generation, lock only dispatch item
 - [x] `M2-04` 🧮 Reject invalid permutation, duplicate IDs and oversized queues
 - [~] `M2-05` 🧾 Provide bounded sent-history inspection and manual requeue _(implemented; acceptance pending)_
-- [~] `M2-06` 🔏 Version persisted state, validate and migrate safely _(implemented; acceptance pending)_
+- [x] `M2-06` 🔏 Version persisted state, validate and migrate safely
 
 **F5 · Persistence & identity**
 
@@ -93,7 +93,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [ ] `M2-11` 🧷 Resolve same-conversation multi-tab ownership deterministically
 - [ ] `M2-12` 🧹 Offer user-controlled retention, export, import and deletion
 
-**M2 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 5 implemented but not accepted.
+**M2 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 4 implemented but not accepted.
 
 ### 📡 M3 — Signal integration & scheduler
 

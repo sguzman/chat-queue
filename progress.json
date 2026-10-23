@@ -355,9 +355,9 @@
                   "id": "M2-06",
                   "emoji": "🔏",
                   "title": "Version persisted state, validate and migrate safely",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "v1 saved format/normalizer; migrations pending"
+                    "Versioned v1 queue records, recognizable versionless legacy records and unfamiliar future schemas have fail-closed decoding. Actual headless Firefox Developer Edition test seeds a future schema v99 record, rejects an edit and confirms it remains blocked after reload; a separate versionless legacy record accepts an explicit edit and survives reload in v1. No Send. CI https://github.com/sguzman/chat-queue/actions/runs/40041423191. No guarantee of migrations for unseen schemas."
                   ]
                 }
               ]
