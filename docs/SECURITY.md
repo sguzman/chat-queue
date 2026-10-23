@@ -30,3 +30,7 @@ The Options rule editor stores user-authored proposal text under `chatqueue:cond
 ## Asynchronous external permission revocation
 
 The event page keeps a volatile ACL revision counter. A pending external grant read is invalidated whenever Options changes the grant record; this also closes any discovery port not permitted by the new record. For private prompt reads (`status`), a second check after the forwarded content-script reply ensures an earlier authorization cannot leak prompt text following a revocation. A mutation which was already delivered cannot be undone: returning its true result is safer than falsely suggesting it did not happen and inviting a duplicate retry. Node adversarial tests cover a deferred status response and a deferred event-port registration. These are not a substitute for live browser revocation races.
+
+## Fail-closed historical message statuses
+
+Queue storage may contain a previous version's incomplete or unfamiliar item status after a crash or interrupted update. The v1 loader now treats only the explicit `pending` value as automatically dispatchable; `uncertain`, missing, `submitted`, `sent`, and unrecognized status labels load as `uncertain`. The message body and ID remain available for deliberate manual resolution, but the queue cannot silently reinterpret a historical in-flight attempt as a new unsent prompt. Pure unit tests cover this behavior. This does **not** establish a complete migration protocol for future incompatible queue record versions, which remains an open acceptance task.
