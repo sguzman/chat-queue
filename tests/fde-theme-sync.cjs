@@ -20,7 +20,7 @@ async function main(){
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-themes-'));
   const root=path.resolve(__dirname,'..');
   const server=http.createServer((request,response)=>{response.writeHead(200,{'content-type':'text/html; charset=utf-8'});response.end(page);});
-  let driver;
+  let driver,stage='startup';
   try{
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
@@ -41,18 +41,22 @@ async function main(){
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
     const addon=await driver.installAddon(temp,true);
     const origin=`http://127.0.0.1:${server.address().port}`;
+    stage='first-navigation';
     await driver.get(`${origin}/c/theme-first`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('theme')})`),15000);
     assert.equal(await driver.executeScript(`return ${get('theme')}.value`),'system');
     const first=await driver.getWindowHandle();
     await driver.executeScript(`const el=${get('draft')};el.value='';el.textContent='Synthetic queued prompt';el.dispatchEvent(new Event('input',{bubbles:true}));`);
     await driver.executeScript(`return ${get('add')}.click()`);
+    stage='first-enqueue';
     await driver.wait(async()=>await driver.executeScript(`return ${get('count')}.textContent==='1 queued'`),5000);
     await driver.executeScript(`const el=${get('theme')};el.value='dark';el.dispatchEvent(new Event('change',{bubbles:true}));`);
     await driver.wait(async()=>await driver.executeScript(`return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='dark'`),5000);
     await driver.switchTo().newWindow('tab');
+    stage='second-navigation';
     await driver.get(`${origin}/c/theme-second`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('theme')})`),15000);
+    stage='second-initial-dark';
     await driver.wait(async()=>await driver.executeScript(`return ${get('theme')}.value==='dark'`),7000);
     assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
     const second=await driver.getWindowHandle();
@@ -60,6 +64,7 @@ async function main(){
     await driver.executeScript(`const el=${get('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}));`);
     await driver.wait(async()=>await driver.executeScript(`return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='light'`),5000);
     await driver.switchTo().window(second);
+    stage='second-live-light';
     await driver.wait(async()=>await driver.executeScript(`return ${get('theme')}.value==='light'`),7000);
     assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
     await driver.switchTo().window(first);
@@ -67,6 +72,9 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(addon);
     console.log('FDE themes: system default, shared live light/dark preference, independent conversation queues and no Send');
+  }catch(error){
+    console.error('FDE theme-sync stage:',stage,'reason:',error.message);
+    throw error;
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
