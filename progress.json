@@ -192,7 +192,7 @@
                   "title": "Offer explicit Light override independent of site theme",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE Light override and distinct semantic tokens: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
+                    "Actual headless Firefox Developer Edition Light override and distinct semantic tokens: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
                   ]
                 },
                 {
@@ -201,7 +201,7 @@
                   "title": "Offer explicit Dark override independent of site theme",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE Dark override persisted on reload: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
+                    "Actual headless Firefox Developer Edition Dark override, persisted on reload: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
                   ]
                 },
                 {
@@ -248,7 +248,7 @@
                   "title": "Remove individual prompts and clear queue safely",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE individual Delete, two-click Confirm clear and zero Send: https://github.com/sguzman/chat-queue/actions/runs/40034686806"
+                    "Synthetic FDE individual Delete, two-step Confirm clear, empty count and zero Send: https://github.com/sguzman/chat-queue/actions/runs/40034686806"
                   ]
                 },
                 {
@@ -266,7 +266,7 @@
                   "title": "Provide keyboard-only reorder and usable focus behavior",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE keyboard Enter reorder and collapse/expand: https://github.com/sguzman/chat-queue/actions/runs/40034491399 (full assistive-technology audit remains M1-11)"
+                    "Headless Firefox Developer Edition keyboard Enter reorders queue and collapses/expands HUD: https://github.com/sguzman/chat-queue/actions/runs/40034491399 (full screen-reader/contrast audit remains separate M1-11)"
                   ]
                 },
                 {
@@ -725,7 +725,7 @@
                   "title": "Offer read-only status, tab discovery and subscription events",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE independent API client metadata, status, subscription and revocation: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
+                    "Actual Firefox independent extension verifies limited metadata, status, event subscription and revocation: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {
@@ -743,7 +743,7 @@
                   "title": "Run real add-on-to-add-on messaging in Firefox Developer Edition",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE independent add-on sender identity, API, Signal messaging: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
+                    "Actual Firefox Developer Edition dual-addon sender identity, scoped API requests and Signal transport: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {
@@ -770,7 +770,7 @@
                   "title": "Separate read, append, edit, control and content-disclosure scopes",
                   "status": "verified",
                   "evidence": [
-                    "Actual FDE read/edit/append scoped grants and revocation: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
+                    "Actual Firefox scoped client denies unauthorized verbs, then permits explicit read/edit grants and revokes port: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {
@@ -836,22 +836,28 @@
                   "id": "M6-01",
                   "emoji": "🧠",
                   "title": "Define typed declarative condition schema without eval",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Pure schema, typed validation and rejection of code-like fields passed 32 Node tests and Firefox CI: https://github.com/sguzman/chat-queue/actions/runs/40036012429"
+                  ]
                 },
                 {
                   "id": "M6-02",
                   "emoji": "✅",
                   "title": "Support successful completed-response branches",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Preview-only evaluator matches a fresh finished response; no conditional dispatch acceptance: src/rules.js and tests/rules.test.js"
+                  ]
                 },
                 {
                   "id": "M6-03",
                   "emoji": "⚠️",
                   "title": "Support failure/interruption/limit branches and recoveries",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Preview-only failure, interruption and limit phase selection. Recovery orchestration is not implemented: src/rules.js"
+                  ]
                 },
                 {
                   "id": "M6-04",
@@ -871,8 +877,10 @@
                   "id": "M6-06",
                   "emoji": "📝",
                   "title": "Offer visual rule editor and non-destructive dry run",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Visual temporary rules editor and event dry run passed synthetic Firefox, but real privileged options context, persistence and full accessibility remain open: https://github.com/sguzman/chat-queue/actions/runs/40036012429"
+                  ]
                 }
               ]
             }
@@ -889,22 +897,28 @@
                   "id": "M6-07",
                   "emoji": "🧮",
                   "title": "Evaluate conditions deterministically once per signal epoch",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Pure evaluator suppresses repeat phase/epoch keys; once-per-whole-response policy needs integration: src/rules.js"
+                  ]
                 },
                 {
                   "id": "M6-08",
                   "emoji": "🔁",
                   "title": "Reject cycles, unbounded loops and silent auto-retry",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Preview-only type system excludes recursive actions and no auto-retry is wired; full cycle/retry policies pending: src/rules.js"
+                  ]
                 },
                 {
                   "id": "M6-09",
                   "emoji": "🔐",
                   "title": "Require explicit user policy for sensitive retries and sends",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js"
+                  ]
                 },
                 {
                   "id": "M6-10",
@@ -924,8 +938,10 @@
                   "id": "M6-12",
                   "emoji": "🧪",
                   "title": "Cover success/error/limit/recovery and stale-state adversarial cases",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js"
+                  ]
                 }
               ]
             }

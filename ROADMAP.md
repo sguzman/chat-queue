@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 26/96 verified (27%) · ██░░░░░░░░ · 40 implemented awaiting acceptance.**
+**Overall: 27/96 verified (28%) · ██░░░░░░░░ · 47 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -179,25 +179,25 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **Rule schema**
 
-- [ ] `M6-01` 🧠 Define typed declarative condition schema without eval
-- [ ] `M6-02` ✅ Support successful completed-response branches
-- [ ] `M6-03` ⚠️ Support failure/interruption/limit branches and recoveries
+- [x] `M6-01` 🧠 Define typed declarative condition schema without eval
+- [~] `M6-02` ✅ Support successful completed-response branches _(implemented; acceptance pending)_
+- [~] `M6-03` ⚠️ Support failure/interruption/limit branches and recoveries _(implemented; acceptance pending)_
 - [ ] `M6-04` ⏰ Support bounded deadlines and state duration predicates
 - [ ] `M6-05` 🔗 Support dependencies, explicit priorities and skip conditions
-- [ ] `M6-06` 📝 Offer visual rule editor and non-destructive dry run
+- [~] `M6-06` 📝 Offer visual rule editor and non-destructive dry run _(implemented; acceptance pending)_
 
 **F13 · Rule execution**
 
 **Conditional engine**
 
-- [ ] `M6-07` 🧮 Evaluate conditions deterministically once per signal epoch
-- [ ] `M6-08` 🔁 Reject cycles, unbounded loops and silent auto-retry
-- [ ] `M6-09` 🔐 Require explicit user policy for sensitive retries and sends
+- [~] `M6-07` 🧮 Evaluate conditions deterministically once per signal epoch _(implemented; acceptance pending)_
+- [~] `M6-08` 🔁 Reject cycles, unbounded loops and silent auto-retry _(implemented; acceptance pending)_
+- [~] `M6-09` 🔐 Require explicit user policy for sensitive retries and sends _(implemented; acceptance pending)_
 - [ ] `M6-10` 📬 Emit auditable outcomes without recording response text
 - [ ] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API
-- [ ] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases
+- [~] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases _(implemented; acceptance pending)_
 
-**M6 acceptance:** 0/12 verified (0%) · ░░░░░░░░░░ · 0 implemented but not accepted.
+**M6 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 7 implemented but not accepted.
 
 ### 🦊 M7 — Firefox QA & release
 

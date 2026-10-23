@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 23 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 32 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -14,7 +14,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## 🔌 Independent scoped API client fixture
 
-`tests/fde-api.cjs` boots headless Firefox Developer Edition with the production queue background/content logic and an independent temporary client add-on. A QA-only grant bootstrap is added to the temporary queue manifest; no production permission bypass, user profile, authenticated account, or real ChatGPT Send is used. It asserts `discover,append` capabilities, metadata-only listing, forbidden `status`/`start`/`remove`, a successful synthetic enqueue, successful event-port subscription, immediate subscription disconnection after QA-only grant revocation, and subsequent unauthorised requests. This exercises actual Firefox sender identity and `browser.storage.local` events. The independent FDE add-on acceptance path passed in [run 40034372239](https://github.com/sguzman/chat-queue/actions/runs/40034372239). Full Options UX, event-page restart and malicious multi-client browser tests remain unaccepted.
+`tests/fde-api.cjs` boots headless Firefox Developer Edition with the production queue background/content logic and an independent temporary client add-on. A QA-only grant bootstrap is added to the temporary queue manifest; no production permission bypass, user profile, authenticated account, or real ChatGPT Send is used. It asserts `discover,append` capabilities, metadata-only listing, forbidden `status`/`start`/`remove`, a successful synthetic enqueue, successful event-port subscription, immediate subscription disconnection after QA-only grant revocation, and subsequent unauthorised requests. This exercises actual Firefox sender identity and `browser.storage.local` events. The independent add-on acceptance path passed in https://github.com/sguzman/chat-queue/actions/runs/40034372239. Full Options UX, event-page restart and malicious multi-client browser tests remain unaccepted.
 
 ## Dedicated QA launch
 
@@ -38,13 +38,13 @@ Do not install the unsigned prototype into a personal browser for automatic send
 | Restored/historical `finished` | No falsely attributed response | Candidate consumer and Node regression; producer/FDE pending |
 | Reply interrupted/failed/limited | Pause; no blind retry | Prototype implementation only |
 | Existing draft or attachment | Remains untouched | Prototype adapter only; not live tested |
-| Navigation to another conversation | No misrouted send | Synthetic Firefox pushState/replaceState, return and no-send accepted in run 40034372239; authenticated live navigation pending |
+| Navigation to another conversation | No misrouted send | Synthetic Firefox pushState/replaceState, route return and no-send passed in run 40034372239; authenticated live navigation pending |
 | Two tabs same conversation | Deterministic ownership | Not implemented |
 | Same tab after browser restart | No automatic resumption | Volatile run flag; real restart untested |
 | Synthetic cross-extension caller denied | No queue contents disclosed | Node tests pass |
-| Approved caller revocation | Immediate denial on new calls | Actual disposable FDE scoped API client and revocation passed in run 40034372239 |
+| Approved caller revocation | Immediate denial on new calls | Code present; FDE port tests pending |
 | Three themes and system preference | Legible HUD and preferences persist | CSS/selector implementation only |
-| User keyboard-only drag alternative | Reorder without mouse | Firefox Enter-driven reorder/collapse passed in run 40034491399; full screen-reader acceptance pending |
+| User keyboard-only drag alternative | Reorder without mouse | Buttons implemented; FDE QA pending |
 | Consecutive queued messages | Exactly once, ordered after matching response | Not live tested |
 
 Mark a gate complete only with test output or reproducible authenticated FDE results. Preserve negative counterexamples when fixing live regressions. The user should not be treated as the project's automated test harness.
@@ -59,4 +59,8 @@ In synthetic FDE, a deliberate read/edit grant allows an approved extension to r
 
 ## 🌓 Keyboard, themes and guarded clearing
 
-Actual headless Firefox Developer Edition verifies keyboard Enter on queue Up/Down and collapse/expand, distinct Light/Dark semantic tokens, the System selector, and the Dark preference retained across reload ([run 40034491399](https://github.com/sguzman/chat-queue/actions/runs/40034491399)). Individual Delete followed by two separate Clear confirmation clicks preserves the queue after the first click, removes entries on confirmation, and never clicks Send ([run 40034686806](https://github.com/sguzman/chat-queue/actions/runs/40034686806)). These are **synthetic browser behavior** gates, not authenticated ChatGPT sending or a full assistive-technology audit.
+Actual headless Firefox Developer Edition verifies Up/Down keyboard Enter, collapse/expand keyboard Enter, distinct Light/Dark semantic tokens, System choice and dark preference retained across reload ([run 40034491399](https://github.com/sguzman/chat-queue/actions/runs/40034491399)). Individual Delete followed by two separate Clear confirmation clicks preserves the first-click queue, empties it on confirmation and never clicks Send ([run 40034686806](https://github.com/sguzman/chat-queue/actions/runs/40034686806)). These are synthetic browser behavior gates, **not** a screen-reader audit or authenticated sending acceptance.
+
+## 🧠 Conditional sandbox acceptance
+
+[Actual headless Firefox Developer Edition CI run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429) serves the production options HTML, rule evaluator and sandbox script through a disposable localhost fixture with a harmless browser.storage stub. It verifies a typed pause proposal, replay suppression, historical/restored rejection, inert rendering of HTML-like text, and the absence of persisted rules after reload. There is **no account login, prompt queue API access or Send path** in the sandbox. Opening the real privileged Firefox options tab and implementing authorized rule execution are still unaccepted separate gates.
