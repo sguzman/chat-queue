@@ -336,9 +336,9 @@
                   "id": "M2-04",
                   "emoji": "🧮",
                   "title": "Reject invalid permutation, duplicate IDs and oversized queues",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js validation; systematic tests pending"
+                    "Pure model tests reject duplicate, foreign, incomplete, invalid, and above-capacity permutations; real headless Firefox Developer Edition cross-extension test rejects malformed reorder without queue mutation, accepts a valid reorder, and preserves no Send actions. https://github.com/sguzman/chat-queue/actions/runs/40040769120. Synthetic fixture, not authenticated ChatGPT."
                   ]
                 },
                 {
