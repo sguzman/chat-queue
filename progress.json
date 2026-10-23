@@ -190,18 +190,18 @@
                   "id": "M1-03",
                   "emoji": "☀️",
                   "title": "Offer explicit Light override independent of site theme",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "HUD theme selector and light tokens; browser QA pending"
+                    "Actual FDE Light override and distinct semantic tokens: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
                   ]
                 },
                 {
                   "id": "M1-04",
                   "emoji": "🌙",
                   "title": "Offer explicit Dark override independent of site theme",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "HUD theme selector and dark tokens; browser QA pending"
+                    "Actual FDE Dark override persisted on reload: https://github.com/sguzman/chat-queue/actions/runs/40034491399"
                   ]
                 },
                 {
@@ -246,9 +246,9 @@
                   "id": "M1-08",
                   "emoji": "🗑️",
                   "title": "Remove individual prompts and clear queue safely",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Individual delete works; full clear UX pending"
+                    "Actual FDE individual Delete, two-click Confirm clear and zero Send: https://github.com/sguzman/chat-queue/actions/runs/40034686806"
                   ]
                 },
                 {
@@ -264,9 +264,9 @@
                   "id": "M1-10",
                   "emoji": "⌨️",
                   "title": "Provide keyboard-only reorder and usable focus behavior",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Up/down controls exist; full keyboard and screen-reader QA pending"
+                    "Actual FDE keyboard Enter reorder and collapse/expand: https://github.com/sguzman/chat-queue/actions/runs/40034491399 (full assistive-technology audit remains M1-11)"
                   ]
                 },
                 {
@@ -723,9 +723,9 @@
                   "id": "M5-03",
                   "emoji": "👁️",
                   "title": "Offer read-only status, tab discovery and subscription events",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "API.md and runtime external listener; restart tests pending"
+                    "Actual FDE independent API client metadata, status, subscription and revocation: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {
@@ -741,9 +741,9 @@
                   "id": "M5-05",
                   "emoji": "🧪",
                   "title": "Run real add-on-to-add-on messaging in Firefox Developer Edition",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "tests/fde-api.cjs real Firefox dual-addon test present; CI acceptance result pending"
+                    "Actual FDE independent add-on sender identity, API, Signal messaging: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {
@@ -768,9 +768,9 @@
                   "id": "M5-07",
                   "emoji": "🎫",
                   "title": "Separate read, append, edit, control and content-disclosure scopes",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/grants.js and scoped Options UI; Node scope/revocation tests pass, external client FDE acceptance pending"
+                    "Actual FDE read/edit/append scoped grants and revocation: https://github.com/sguzman/chat-queue/actions/runs/40034372239"
                   ]
                 },
                 {

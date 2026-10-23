@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 19/96 verified (19%) · █░░░░░░░░░ · 47 implemented awaiting acceptance.**
+**Overall: 26/96 verified (27%) · ██░░░░░░░░ · 40 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -51,8 +51,8 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [x] `M1-01` 🌓 Define isolated semantic HUD tokens for both color schemes
 - [~] `M1-02` 🖥️ Default to the OS preferred light/dark color scheme _(implemented; acceptance pending)_
-- [~] `M1-03` ☀️ Offer explicit Light override independent of site theme _(implemented; acceptance pending)_
-- [~] `M1-04` 🌙 Offer explicit Dark override independent of site theme _(implemented; acceptance pending)_
+- [x] `M1-03` ☀️ Offer explicit Light override independent of site theme
+- [x] `M1-04` 🌙 Offer explicit Dark override independent of site theme
 - [~] `M1-05` 💾 Persist theme preference and sync across open ChatGPT tabs _(implemented; acceptance pending)_
 
 **F3 · Accessible queue HUD**
@@ -61,13 +61,13 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [~] `M1-06` 🪟 Display nonintrusive floating panel, collapse and queue count _(implemented; acceptance pending)_
 - [~] `M1-07` ✍️ Add and edit queued prompts without losing draft input _(implemented; acceptance pending)_
-- [~] `M1-08` 🗑️ Remove individual prompts and clear queue safely _(implemented; acceptance pending)_
+- [x] `M1-08` 🗑️ Remove individual prompts and clear queue safely
 - [~] `M1-09` 🔀 Drag/drop reorder with predictable insertion boundaries _(implemented; acceptance pending)_
-- [~] `M1-10` ⌨️ Provide keyboard-only reorder and usable focus behavior _(implemented; acceptance pending)_
+- [x] `M1-10` ⌨️ Provide keyboard-only reorder and usable focus behavior
 - [ ] `M1-11` ♿ Verify contrast, spacing, small viewports, zoom, reduced motion
 - [ ] `M1-12` 🪄 Remember HUD placement/collapsed state with reset control
 
-**M1 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 9 implemented but not accepted.
+**M1 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 5 implemented but not accepted.
 
 ### 📦 M2 — Queue model & persistence
 
@@ -155,23 +155,23 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [~] `M5-01` 🔌 Expose versioned Firefox external message actions _(implemented; acceptance pending)_
 - [x] `M5-02` 🔒 Deny unknown extensions by default with exact-ID allowlist
-- [~] `M5-03` 👁️ Offer read-only status, tab discovery and subscription events _(implemented; acceptance pending)_
+- [x] `M5-03` 👁️ Offer read-only status, tab discovery and subscription events
 - [~] `M5-04` ✍️ Support validated enqueue/update/move/remove/reorder commands _(implemented; acceptance pending)_
-- [~] `M5-05` 🧪 Run real add-on-to-add-on messaging in Firefox Developer Edition _(implemented; acceptance pending)_
+- [x] `M5-05` 🧪 Run real add-on-to-add-on messaging in Firefox Developer Edition
 - [ ] `M5-06` ♻️ Recover tab registry after event-page shutdown
 
 **F11 · API security & compatibility**
 
 **Contract hardening**
 
-- [~] `M5-07` 🎫 Separate read, append, edit, control and content-disclosure scopes _(implemented; acceptance pending)_
+- [x] `M5-07` 🎫 Separate read, append, edit, control and content-disclosure scopes
 - [~] `M5-08` ⏱️ Add bounded API request sizes, replay guard, mutation revisions _(implemented; acceptance pending)_
 - [~] `M5-09` 🏷️ Version response/event schemas and document compatibility guarantees _(implemented; acceptance pending)_
 - [ ] `M5-10` 🛡️ Protect prompts from unapproved page scripts and extension principals
 - [~] `M5-11` 📋 Expose capability negotiation and safe feature detection _(implemented; acceptance pending)_
 - [ ] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers
 
-**M5 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 8 implemented but not accepted.
+**M5 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 5 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
