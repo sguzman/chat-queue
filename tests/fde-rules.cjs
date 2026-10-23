@@ -44,10 +44,15 @@ async function main(){
   await driver.findElement(By.id('rule-id')).sendKeys('synthetic-rule');
   await driver.findElement(By.id('rule-phase')).sendKeys('Failed');
   await driver.findElement(By.id('rule-action')).sendKeys('Pause');
+  await driver.findElement(By.id('rule-min-duration')).sendKeys('5000');
+  await driver.findElement(By.id('rule-max-duration')).sendKeys('8000');
   await driver.findElement(By.id('rule-add')).click();
   await driver.wait(async()=>/1 saved preview rule/.test(await driver.findElement(By.id('rule-message')).getText()),7000);
   assert.equal(await driver.findElement(By.css('#rule-list li')).getText().then(x=>x.includes('synthetic-rule')),true);
   await driver.findElement(By.id('preview-phase')).sendKeys('Failed');
+  await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
+  assert.match(await driver.findElement(By.id('preview-output')).getText(),/no-match/);
+  await driver.findElement(By.id('preview-duration')).sendKeys('6000');
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/Would propose pausing/);
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
@@ -69,10 +74,12 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),15000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/synthetic-rule/);
+  assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/5000 ms/);
   // No rules evaluate by themselves after refresh, even with saved proposals.
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/no queue action/i);
   // Change a saved rule after reload and verify its durable action changes.
   await driver.findElement(By.css('#rule-list li button[aria-label^="Edit"]')).click();
+  assert.equal(await driver.findElement(By.id('rule-min-duration')).getAttribute('value'),'5000');
   await driver.findElement(By.id('rule-action')).sendKeys('Pause');
   await driver.findElement(By.id('rule-add')).click();
   await driver.wait(async()=>/Saved synthetic-rule/.test(await driver.findElement(By.id('rule-message')).getText()),5000);
