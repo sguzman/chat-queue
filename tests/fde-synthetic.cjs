@@ -111,7 +111,7 @@ async function main(){
     // Firefox geometry at a constrained desktop viewport and 175% page zoom.
     const oldRect=await driver.manage().window().getRect();
     await driver.manage().window().setRect({width:440,height:640});
-    await driver.executeScript('document.documentElement.style.zoom="1.75"');
+    await driver.executeScript('document.documentElement.style.zoom="1.75";window.dispatchEvent(new Event("resize"))');
     const geometry=await driver.executeScript(`const host=document.querySelector('#chat-queue-extension-root');
       const rect=host.getBoundingClientRect(); const top=host.shadowRoot.querySelector('.top');
       return {x:rect.left,y:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight,
@@ -134,7 +134,7 @@ async function main(){
       assert.match(bg,/^#[0-9a-f]{6}$/i);assert.match(fg,/^#[0-9a-f]{6}$/i);
       const a=lum(bg),b=lum(fg);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${bg}/${fg} contrast`);
     }
-    await driver.executeScript('document.documentElement.style.zoom="1"');
+    await driver.executeScript('document.documentElement.style.zoom="1";window.dispatchEvent(new Event("resize"))');
     await driver.manage().window().setRect(oldRect);
     // Verify individual deletion, then require two separate clicks to clear.
     const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
