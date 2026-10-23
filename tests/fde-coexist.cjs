@@ -73,6 +73,9 @@ async function main(){
       document.documentElement.hasAttribute('data-chat-signals-state')`),20000);
     const phase=await driver.executeScript('return document.documentElement.dataset.chatSignalsState');
     assert.match(phase,/^(idle|submitted|generating|verifying|finished|interrupted|failed|limit|unknown)$/);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes(arguments[0])`,
+      'Signal: '+phase+' (unverified)'),10000);
     const input=await driver.executeScript(`return ${hud('draft')}`);
     await input.sendKeys('Harmless synthetic coexistence prompt');
     await (await driver.executeScript(`return ${hud('add')}`)).click();
