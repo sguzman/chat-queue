@@ -22,3 +22,7 @@
 Unlike Jobflick Bridge, Chat Queue has no native code execution capability or general filesystem read permission. Its principal irreversible side effect is **sending an unintended message** to ChatGPT, potentially in the wrong conversation or while an existing draft was being edited. Extension crashes can also disturb page layout or focus. Browser profile isolation prevents most accidental damage to daily browsing; it does **not** change the fact that the authenticated ChatGPT account may send real content from a QA profile.
 
 **Approved testing sequence:** static unit tests → synthetically served browser UI in disposable FDE → integrated Chat Signals + Chat Queue in isolated FDE → authenticated ChatGPT with innocuous generated test prompts → multi-tab/rerender/restart/error testing → personal profile candidate. Do not ask the user to perform routine manual QA; automation should cover repeatable tests and require at most a one-time authentication/setup when technically necessary.
+
+## Locally saved rule definitions
+
+The Options rule editor stores user-authored proposal text under `chatqueue:conditional-rules:v1` in Firefox local extension storage after deliberate changes. It is subject to the same local-profile privacy threat as queued prompts. The external `rules` scope does not disclose or mutate these definitions; rule previews are made from caller-provided input only. Unknown storage schema versions are preserved unread and edits are blocked. There is no automatic execution, listener on real conversations, or telemetry.

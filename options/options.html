@@ -21,7 +21,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <p>API namespace: <code>chat-queue/v1</code>. Add-on ID: <code>chat-queue@sguzman.github</code>.</p>
 <section id="rule-sandbox" aria-label="Conditional rule sandbox">
 <h2>Conditional rule sandbox (simulation only)</h2>
-<p class="note">Propose a response or pause based on a simulated Signal event. This prototype does not save rules, read conversations, change a queue, or click Send.</p>
+<p class="note">Propose a response or pause based on a simulated Signal event. Rules are saved only in this Firefox profile. Saving does not activate any rule, read conversations, change a queue, or click Send.</p>
 <form id="rule-form">
 <label for="rule-id">Rule identifier</label><input id="rule-id" required value="example-rule" maxlength="64" spellcheck="false">
 <label for="rule-priority">Priority (0–1000)</label><input type="number" id="rule-priority" min="0" max="1000" step="1" value="10" required>
@@ -32,7 +32,8 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="rule-enabled"><input type="checkbox" id="rule-enabled" checked> Enabled</label>
 <p><button id="rule-add" type="submit">Add or replace rule</button> <output role="status" id="rule-message"></output></p>
 </form>
-<ul id="rule-list" aria-label="Rules in current sandbox"></ul>
+<p><button type="button" id="rule-reload">Reload saved rules</button> <button type="button" id="rule-clear" aria-label="Clear all saved rules">Clear saved rules</button></p>
+<ul id="rule-list" aria-label="Saved preview rules"></ul>
 <form id="preview-form">
 <h3>Simulate one response event</h3>
 <label for="preview-phase">Simulated response state</label><select id="preview-phase"><option value="finished">Finished</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="limit">Limit</option></select>
@@ -43,5 +44,5 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <pre id="preview-output" aria-live="polite" role="status">No preview yet.</pre>
 </form>
 </section>
-<script src="../src/signal.js"></script><script src="../src/rules.js"></script><script src="rule-preview.js"></script>
+<script src="../src/signal.js"></script><script src="../src/rules.js"></script><script src="../src/rule-store.js"></script><script src="rule-preview.js"></script>
 <script src="options.js"></script></body></html>

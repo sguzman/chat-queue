@@ -1,6 +1,6 @@
 # 🧠 Conditional rules - preview-only v1
 
-This experimental **pure rule evaluator** is deliberately not connected to the HUD, browser storage, dispatch scheduler, or public extension API. It does not read ChatGPT messages, observe the DOM, enqueue content or click Send. It can only validate typed input and return a proposed action. Real Chat Signals event publication and user-authorized conditional execution remain separate roadmap gates.
+The **pure rule evaluator** remains independent of ChatGPT state, the HUD and the dispatch scheduler. A separate Options-only library now persists validated *rule definitions* to Firefox `storage.local` after deliberate user edits. Rules do not execute, read chats, observe the DOM, enqueue content or click Send. The evaluator remains preview-only, and the external API evaluates only caller-supplied synthetic input. Real Chat Signals event publication and user-authorized conditional execution remain separate roadmap gates.
 
 ## Declarative format
 
@@ -27,6 +27,10 @@ At most one enabled matching rule wins per phase/response event. The evaluator r
 
 This version has no timers, state-duration predicates, rule dependencies, recursive actions, network requests, persistent audit trail or automatic execution. Those are intentionally unimplemented, and the source's unit tests should not be presented as Firefox/HUD acceptance. The actual use of the rules module will require user-visible permission controls, a dry-run editor, persistence, exact origin bindings, and adverse lifecycle tests before any conditional queue action can be enabled.
 
-## Preferences-page simulator
+## 🗂️ Local definition library (preview-only)
 
-The Firefox preferences page includes a temporary visual sandbox for entering multiple rules and simulating fresh/restored status events. The form uses the **production** pure evaluator, including priority and replay suppression. Its rule list exists only in memory; reloading the page discards it. All preview text is rendered with `textContent`, never HTML injection. No browser queue API, ChatGPT page, prompt composer, storage writes or Send action is exposed by the simulator. Automated Firefox acceptance runs the production scripts on a synthetic localhost preferences document, without private accounts or browser-profile changes. This is still not live conditional dispatch acceptance.
+The Options editor can add, replace, load, edit, remove and clear stored declarative definitions. Storage key: `chatqueue:conditional-rules:v1` with `{version:1,rules:[...]}`. The pure storage adapter accepts only the documented schema, normalizes priority order, and enforces a bounded record size (800,000 UTF-16 code units) and the engine's 32-rule / 24,000-character limits. No rule definition is synchronized to cloud storage, sent to another extension automatically, or connected to a real signal listener.
+
+After reloading Options, rule definitions return; simulated event replay history deliberately does not. Unknown future schema versions, malformed records and unreadable storage stop edits without silently migrating or deleting user data. Clearing all definitions requires two clicks. The external `rules` scope remains a pure caller-supplied evaluation API and cannot read this local library. **Saved does not mean enabled for automatic execution.**
+
+Synthetic Firefox Developer Edition QA must verify save → reload → edit → reload → two-step clear → reload, including that reload triggers no queue action. A future, separate acceptance gate must cover concurrent Options windows and storage errors before rule execution is even considered.

@@ -9,12 +9,17 @@ const http=require('node:http');
 const {Builder,By}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 const root=path.resolve(__dirname,'..');
-const STUB=`<script>window.browser={storage:{local:{get:async()=>({}),set:async()=>{},remove:async()=>{}},onChanged:{addListener:()=>{}}}}</script>`;
+const STUB=`<script>window.browser={storage:{local:{
+ get:async k=>({[k]:JSON.parse(sessionStorage.getItem(k)||'null') ?? undefined}),
+ set:async value=>{for(const [k,v] of Object.entries(value))sessionStorage.setItem(k,JSON.stringify(v));},
+ remove:async k=>sessionStorage.removeItem(k)
+ },onChanged:{addListener:()=>{}}}}</script>`;
 const files={
  '/options/rule-preview.js':{name:'options/rule-preview.js',mime:'application/javascript'},
  '/options/options.js':{name:'options/options.js',mime:'application/javascript'},
  '/src/signal.js':{name:'src/signal.js',mime:'application/javascript'},
- '/src/rules.js':{name:'src/rules.js',mime:'application/javascript'}
+ '/src/rules.js':{name:'src/rules.js',mime:'application/javascript'},
+ '/src/rule-store.js':{name:'src/rule-store.js',mime:'application/javascript'}
 };
 async function main(){
  const binary=process.env.FDE_BINARY;
@@ -40,7 +45,7 @@ async function main(){
   await driver.findElement(By.id('rule-phase')).sendKeys('Failed');
   await driver.findElement(By.id('rule-action')).sendKeys('Pause');
   await driver.findElement(By.id('rule-add')).click();
-  assert.match(await driver.findElement(By.id('rule-message')).getText(),/1 temporary rule/);
+  await driver.wait(async()=>/1 saved preview rule/.test(await driver.findElement(By.id('rule-message')).getText()),7000);
   assert.equal(await driver.findElement(By.css('#rule-list li')).getText().then(x=>x.includes('synthetic-rule')),true);
   await driver.findElement(By.id('preview-phase')).sendKeys('Failed');
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
@@ -51,9 +56,8 @@ async function main(){
   await driver.findElement(By.id('preview-origin')).sendKeys('Restored');
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/not-actionable/);
-  await driver.executeScript("document.getElementById('preview-origin').value='fresh'");
-  await driver.executeScript("document.getElementById('rule-action').value='propose';document.getElementById('rule-action').dispatchEvent(new Event('change',{bubbles:true}))");
-  assert.equal(await driver.executeScript("return document.getElementById('preview-origin').value"),'fresh');
+  await driver.findElement(By.id('preview-origin')).sendKeys('Fresh');
+  await driver.findElement(By.id('rule-action')).sendKeys('Text');
   const injection='<img src=x onerror="window.__previewXss=1">';
   await driver.executeScript('document.querySelector("#rule-text").value=arguments[0]',injection);
   await driver.findElement(By.id('rule-add')).click();
@@ -63,8 +67,27 @@ async function main(){
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/onerror/);
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return Boolean(window.ChatQueueRules && document.querySelector("#rule-form"))'),15000);
-  assert.equal((await driver.findElements(By.css('#rule-list li'))).length,0,'Preview rules must not persist on reload');
-  console.log('FDE rules sandbox: typed rule preview, replay suppression, restored rejection, XSS inertness, non-persistence pass');
+  assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
+  assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/synthetic-rule/);
+  // No rules evaluate by themselves after refresh, even with saved proposals.
+  assert.match(await driver.findElement(By.id('preview-output')).getText(),/no queue action/i);
+  // Change a saved rule after reload and verify its durable action changes.
+  await driver.findElement(By.css('#rule-list li button[aria-label^="Edit"]')).click();
+  await driver.findElement(By.id('rule-action')).sendKeys('Pause');
+  await driver.findElement(By.id('rule-add')).click();
+  await driver.wait(async()=>/Saved synthetic-rule/.test(await driver.findElement(By.id('rule-message')).getText()),5000);
+  await driver.navigate().refresh();
+  await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),10000);
+  assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/pause/);
+  // Destructive removal is explicitly two-step and cannot silently execute.
+  await driver.findElement(By.id('rule-clear')).click();
+  assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1);
+  await driver.findElement(By.id('rule-clear')).click();
+  await driver.wait(async()=>0===(await driver.findElements(By.css('#rule-list li'))).length,5000);
+  await driver.navigate().refresh();
+  await driver.wait(async()=>await driver.executeScript('return /0 saved/.test(document.querySelector("#rule-message").textContent)'),10000);
+  assert.equal((await driver.findElements(By.css('#rule-list li'))).length,0);
+  console.log('FDE rules sandbox: typed rule preview, replay suppression, restored rejection, XSS inertness, versioned persistence, edit and confirmed delete pass');
  }finally{
   if(driver)await driver.quit();
   await new Promise(resolve=>server.close(resolve));
