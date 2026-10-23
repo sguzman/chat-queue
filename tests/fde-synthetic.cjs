@@ -108,6 +108,34 @@ async function main(){
     await start.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Firefox geometry at a constrained desktop viewport and 175% page zoom.
+    const oldRect=await driver.manage().window().getRect();
+    await driver.manage().window().setRect({width:440,height:640});
+    await driver.executeScript('document.documentElement.style.zoom="1.75"');
+    const geometry=await driver.executeScript(`const host=document.querySelector('#chat-queue-extension-root');
+      const rect=host.getBoundingClientRect(); const top=host.shadowRoot.querySelector('.top');
+      return {x:rect.left,y:rect.top,right:rect.right,bottom:rect.bottom,w:innerWidth,h:innerHeight,
+      topPadding:parseFloat(getComputedStyle(top).paddingLeft)};`);
+    assert.ok(geometry.w>0&&geometry.h>0);
+    assert.ok(geometry.x>=-1&&geometry.right<=geometry.w+1,JSON.stringify(geometry));
+    assert.ok(geometry.y>=-1&&geometry.bottom<=geometry.h+1,JSON.stringify(geometry));
+    assert.ok(geometry.topPadding>=8,'Header needs usable padding at zoom');
+    // The resolved light and dark foreground/background pairs must keep body
+    // text legible at a WCAG-like 4.5:1 contrast threshold.
+    const colors=[];
+    for(const themeValue of ['light','dark']){
+      await driver.executeScript(`const h=document.querySelector('#chat-queue-extension-root');h.dataset.theme=arguments[0];`,themeValue);
+      colors.push(await driver.executeScript(`const x=getComputedStyle(document.querySelector('#chat-queue-extension-root'));
+        return [x.getPropertyValue('--panel').trim(),x.getPropertyValue('--text').trim()];`));
+    }
+    const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+    const lum=hex=>rgb(hex).reduce((sum,value,i)=>sum+value*[.2126,.7152,.0722][i],0);
+    for(const [bg,fg] of colors){
+      assert.match(bg,/^#[0-9a-f]{6}$/i);assert.match(fg,/^#[0-9a-f]{6}$/i);
+      const a=lum(bg),b=lum(fg);assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${bg}/${fg} contrast`);
+    }
+    await driver.executeScript('document.documentElement.style.zoom="1"');
+    await driver.manage().window().setRect(oldRect);
     // Verify individual deletion, then require two separate clicks to clear.
     const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
     await del.click();
@@ -120,7 +148,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(id);
-    console.log('FDE synthetic: HUD, keyboard placement/collapse persistence, reorder, theme and spoofed-Signal fail-closed behavior pass');
+    console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
