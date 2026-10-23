@@ -877,9 +877,9 @@
                   "id": "M6-06",
                   "emoji": "📝",
                   "title": "Offer visual rule editor and non-destructive dry run",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Visual temporary rules editor and event dry run passed synthetic Firefox, but real privileged options context, persistence and full accessibility remain open: https://github.com/sguzman/chat-queue/actions/runs/40036012429"
+                    "Real headless Firefox Developer Edition served the production rule editor and rules modules with isolated storage fixture; tested dry-run, persistence across reloads, edit and two-click clearing without Send. GitHub Actions: https://github.com/sguzman/chat-queue/actions/runs/40038729574. Privileged options storage and conditional execution remain separate gates."
                   ]
                 }
               ]
@@ -933,7 +933,7 @@
                   "title": "Expose rule CRUD, evaluation and notifications in a versioned API",
                   "status": "implemented",
                   "evidence": [
-                    "Pure versioned external rules evaluation added with separate rules grant; rule persistence/CRUD and notifications remain unimplemented: src/background.js, src/grants.js, API.md and https://github.com/sguzman/chat-queue/actions/runs/40037217649"
+                    "Versioned external preview evaluation is scoped and Firefox-tested; Options-only local rule save/edit/remove does not yet expose rule CRUD to external callers and no live notifications are implemented: src/background.js, src/grants.js, options/rule-preview.js, API.md. https://github.com/sguzman/chat-queue/actions/runs/40038729574"
                   ]
                 },
                 {
