@@ -323,9 +323,9 @@
                   "id": "M2-03",
                   "emoji": "✏️",
                   "title": "Support queue edits during generation, lock only dispatch item",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js act() gates; adversarial QA pending"
+                    "Actual FDE synthetic provider holds response epoch while queue receives new message and moves it ahead of an older message; exact send order A, C, B with no duplicate: https://github.com/sguzman/chat-queue/actions/runs/40036243322"
                   ]
                 },
                 {

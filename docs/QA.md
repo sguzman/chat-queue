@@ -64,3 +64,7 @@ Actual headless Firefox Developer Edition verifies Up/Down keyboard Enter, colla
 ## 🧠 Conditional sandbox acceptance
 
 [Actual headless Firefox Developer Edition CI run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429) serves the production options HTML, rule evaluator and sandbox script through a disposable localhost fixture with a harmless browser.storage stub. It verifies a typed pause proposal, replay suppression, historical/restored rejection, inert rendering of HTML-like text, and the absence of persisted rules after reload. There is **no account login, prompt queue API access or Send path** in the sandbox. Opening the real privileged Firefox options tab and implementing authorized rule execution are still unaccepted separate gates.
+
+## 📦 In-flight queue editing acceptance
+
+[Firefox Developer Edition run 40036243322](https://github.com/sguzman/chat-queue/actions/runs/40036243322) verifies the queue can add a new message during a synthetic response-generation epoch, reorder the two pending messages with the HUD, and dispatch them **A → C → B**, each only after a correctly attributed synthetic provider completion. This does not prove live ChatGPT editor behavior or an actual Chat Signals publisher.
