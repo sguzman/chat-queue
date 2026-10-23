@@ -98,6 +98,12 @@ async function main(){
     await clear.click();
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
+    // An unrelated ChatGPT page click must disarm the destructive action.
+    await driver.executeScript("document.querySelector('main').click()");
+    assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Clear');
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    await clear.click();
+    assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
     await clear.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);

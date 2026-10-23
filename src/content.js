@@ -373,6 +373,20 @@
     const response=await act('enqueue',{text:els.draft.value},true);
     if(response.ok)els.draft.value='';else statusNote(response.error);
   });
+  // Confirm clear must require consecutive intent. Any unrelated click
+  // cancels an armed confirmation, including clicks outside the HUD.
+  shadow.addEventListener('click',event=>{
+    if(state.clearArmed&&event.target!==els.clear){
+      state.clearArmed=false;
+      queueMicrotask(()=>render());
+    }
+  },true);
+  document.addEventListener('click',event=>{
+    if(state.clearArmed&&!host.contains(event.target)){
+      state.clearArmed=false;
+      render();
+    }
+  },true);
   els.clear.addEventListener('click',async()=>{
     if(state.attempting||!state.items.length)return;
     if(!state.clearArmed){
