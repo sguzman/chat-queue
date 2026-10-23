@@ -168,10 +168,22 @@ async function main(){
       'Lost provider authorization must prevent the fourth Send');
     const uncertain=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item')?.textContent||''");
     assert.match(uncertain,/uncertain/i,'Interrupted attempt must not requeue an unverified submission');
-    // Even a later ready event cannot revive a paused uncertain attempt.
+    // A later ready event must not revive an uncertain attempt by itself.
     await emit('idle',3,11);
     assert.equal(await driver.executeScript('return window.__sent.length'),3);
-    console.log('Headless FDE cross-extension Signal fixture: reorder, three ordered sends, lost preflight authority blocks fourth Send');
+    const retry=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
+    assert.equal(await retry.getText(),'Retry');
+    await retry.click(); // explicit manual decision, never background retry
+    assert.equal(await driver.executeScript('return window.__sent.length'),3);
+    await start.click(); // explicit user Start after resolving uncertainty
+    await waitSends(4);
+    await emit('generating',4,12);
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',4,13,'inferred');
+    await waitNote('Queue completed');
+    assert.deepEqual(await driver.executeScript('return window.__sent'),
+      ['Synthetic queued A','Synthetic queued C','Synthetic queued B','Synthetic unsent D']);
+    console.log('Headless FDE synthetic Signal: in-flight reorder, preflight denial, manual Retry + Start authorize one later send');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
