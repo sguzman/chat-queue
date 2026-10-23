@@ -192,8 +192,8 @@
       // it must never reopen as an automatically retryable pending item.
       item.status='uncertain';
       await save();
-      // Require the event page to still own this authenticated provider
-      // epoch immediately pre-click; a restart invalidates its volatile ledger.
+      // A Firefox event-page restart discards its authenticated provider
+      // ledger. Require current background authority immediately pre-click.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
@@ -282,8 +282,8 @@
   async function handleRouteChange() {
     if(!state.initialized)return;
     const newKey=storageKey();
-    // Duplicate navigation notices must not invalidate an in-flight
-    // restore after its route key was assigned but before registration ends.
+    // A duplicate navigation notification while registration is awaiting must
+    // not invalidate the in-flight restore just because state.key was assigned.
     if (state.key===newKey)return;
     const generation=++routeGeneration;
     state.routing=true;
@@ -373,20 +373,6 @@
     const response=await act('enqueue',{text:els.draft.value},true);
     if(response.ok)els.draft.value='';else statusNote(response.error);
   });
-  // Confirm clear must require consecutive intent. Any unrelated click
-  // cancels an armed confirmation, including clicks outside the HUD.
-  shadow.addEventListener('click',event=>{
-    if(state.clearArmed&&event.target!==els.clear){
-      state.clearArmed=false;
-      queueMicrotask(()=>render());
-    }
-  },true);
-  document.addEventListener('click',event=>{
-    if(state.clearArmed&&!host.contains(event.target)){
-      state.clearArmed=false;
-      render();
-    }
-  },true);
   els.clear.addEventListener('click',async()=>{
     if(state.attempting||!state.items.length)return;
     if(!state.clearArmed){
@@ -395,7 +381,7 @@
       return;
     }
     state.clearArmed=false;
-    // Stop scheduled next-item dispatch before emptying the queue.
+    // Also cancel scheduled next-item dispatch before emptying the queue.
     if(state.running)await act('pause',null,true);
     const response=await act('clear',null,true);
     if(!response.ok)statusNote(response.error);
