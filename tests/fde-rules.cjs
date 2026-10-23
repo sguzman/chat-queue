@@ -51,8 +51,9 @@ async function main(){
   await driver.findElement(By.id('preview-origin')).sendKeys('Restored');
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/not-actionable/);
-  await driver.findElement(By.id('preview-origin')).sendKeys('Fresh');
-  await driver.findElement(By.id('rule-action')).sendKeys('Text');
+  await driver.executeScript("document.getElementById('preview-origin').value='fresh'");
+  await driver.executeScript("document.getElementById('rule-action').value='propose';document.getElementById('rule-action').dispatchEvent(new Event('change',{bubbles:true}))");
+  assert.equal(await driver.executeScript("return document.getElementById('preview-origin').value"),'fresh');
   const injection='<img src=x onerror="window.__previewXss=1">';
   await driver.executeScript('document.querySelector("#rule-text").value=arguments[0]',injection);
   await driver.findElement(By.id('rule-add')).click();
