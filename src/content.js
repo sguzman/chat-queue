@@ -392,6 +392,14 @@
     }
   });
   signalObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-chat-signals-state']});
+  // ChatGPT can use history.pushState without popstate, clicks or DOM changes.
+  // Sample only pathname, never transcript/DOM. Browser throttling is harmless:
+  // every dispatch and API mutation independently rechecks the current route.
+  const routeWatch=setInterval(()=>{
+    if(state.initialized&&!state.destroyed&&routeKey()!==state.keyRoute){
+      state.keyRoute=routeKey();void handleRouteChange();
+    }
+  },1000);
   window.addEventListener('popstate',()=>void handleRouteChange());
   window.addEventListener('hashchange',()=>void handleRouteChange());
   window.addEventListener('pageshow',()=>void handleRouteChange());
@@ -403,7 +411,7 @@
   },{passive:true});
   window.addEventListener('pagehide',()=>{
     state.running=false;state.destroyed=true;
-    signalObserver.disconnect();
+    signalObserver.disconnect();clearInterval(routeWatch);
     if(state.scheduler)clearTimeout(state.scheduler);
   },{once:true});
   (async()=>{
@@ -421,7 +429,7 @@
       state.note='Paused; press Start';render();publish();
       if(state.key!==storageKey())void handleRouteChange();
     } catch(error) {
-      state.destroyed=true;signalObserver.disconnect();
+      state.destroyed=true;signalObserver.disconnect();clearInterval(routeWatch);
       // Do not inject a broken HUD or a partial queue.
     }
   })();
