@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 15/96 verified (15%) · █░░░░░░░░░ · 45 implemented awaiting acceptance.**
+**Overall: 15/96 verified (15%) · █░░░░░░░░░ · 46 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -206,7 +206,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 **Firefox QA**
 
 - [~] `M7-01` 🦊 Load and unload actual production extension in isolated FDE _(implemented; acceptance pending)_
-- [ ] `M7-02` 🧪 Use synthetic ChatGPT UI fixtures in automated FDE WebDriver
+- [~] `M7-02` 🧪 Use synthetic ChatGPT UI fixtures in automated FDE WebDriver _(implemented; acceptance pending)_
 - [ ] `M7-03` 🤝 Verify Chat Signals and Chat Queue coexist without DOM races
 - [ ] `M7-04` 💬 Verify actual authenticated ChatGPT send, completion and retry
 - [ ] `M7-05` 🧭 Test navigation, restarts, 16-tab workloads and hidden tabs
@@ -223,7 +223,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [ ] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 0/12 verified (0%) · ░░░░░░░░░░ · 4 implemented but not accepted.
+**M7 acceptance:** 0/12 verified (0%) · ░░░░░░░░░░ · 5 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 

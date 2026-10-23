@@ -48,3 +48,7 @@ jobs:
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-smoke.cjs
+      - name: Headless FDE synthetic queue HUD and fail-closed test
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-synthetic.cjs

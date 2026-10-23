@@ -56,6 +56,11 @@ test('only the authenticated Chat Signals extension can supply epochs; stale eve
   const sender={id:'chat-signals@sguzman.github'};
   assert.equal((await listeners.external(msg,sender)).ok,true);
   assert.equal(forwards[0].message.type,'chat-queue-signal-verified/v1');
+  const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
+  assert.equal(listed.ok,true);
+  assert.equal('provider' in listed.tabs[0],false);
+  assert.equal(JSON.stringify(listed).includes(signal.documentToken),false);
+  assert.equal(JSON.stringify(listed).includes(signal.route),false);
   assert.equal((await listeners.external(msg,sender)).error,'stale-signal');
   assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,epoch:0}},sender)).error,'stale-signal');
   assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,route:'/c/other'}},sender)).error,'stale-signal');

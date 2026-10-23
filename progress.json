@@ -947,8 +947,10 @@
                   "id": "M7-02",
                   "emoji": "🧪",
                   "title": "Use synthetic ChatGPT UI fixtures in automated FDE WebDriver",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "QA-only localhost manifest and isolated mock background exercise the production queue HUD code through headless Firefox Developer Edition in tests/fde-synthetic.cjs; CI acceptance pending."
+                  ]
                 },
                 {
                   "id": "M7-03",

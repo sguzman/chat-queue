@@ -5,6 +5,9 @@
   const signalContract = globalThis.ChatQueueSignal;
   const PREFIX = 'chat-queue/v1';
   const TABS = new Map();
+  // Authenticated provider envelopes never enter public tab metadata, API
+  // snapshots, subscription events or persistent browser storage.
+  const SIGNALS = new Map();
   const PORTS = new Map();
   const PROVIDER_TYPE = signalContract.TYPE;
   const notify = (tabId, state) => {
@@ -20,7 +23,8 @@
     const tab = sender.tab;
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
-      TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0, provider: null });
+      TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
+      SIGNALS.delete(tab.id);
       return Promise.resolve({ ok: true, tabId: tab.id });
     }
     if (message.action === 'state') {
@@ -31,8 +35,7 @@
           phase: /^(idle|submitted|generating|verifying|finished|interrupted|failed|limit|unknown)$/.test(phase) ? phase : 'unknown',
           size: Number.isInteger(message.size) ? Math.min(100, Math.max(0, message.size)) : 0,
           running: message.running === true,
-          revision: Number.isSafeInteger(message.revision) ? message.revision : 0,
-          provider: prev?.provider || null
+          revision: Number.isSafeInteger(message.revision) ? message.revision : 0
         };
         TABS.set(tab.id,next);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
@@ -71,10 +74,10 @@
       if(!parsed)return {ok:false,error:'invalid-signal'};
       const slot=TABS.get(tabId);
       if(!slot)return {ok:false,error:'tab-not-registered'};
-      if(!signalContract.advance(slot.provider,parsed))return {ok:false,error:'stale-signal'};
+      if(!signalContract.advance(SIGNALS.get(tabId),parsed))return {ok:false,error:'stale-signal'};
       // Reserve this sequence before awaiting the recipient; otherwise two
       // concurrent provider callbacks can both pass the stale-event check.
-      slot.provider=parsed;
+      SIGNALS.set(tabId,parsed);
       // The receiving tab independently checks the exact current route.
       try {
         const result=await api.tabs.sendMessage(tabId,{type:'chat-queue-signal-verified/v1',signal:parsed});
@@ -102,12 +105,15 @@
       });
     } catch {
       TABS.delete(message.tabId);
+      SIGNALS.delete(message.tabId);
       return { ok: false, error: 'tab-unavailable' };
     }
   });
 
-  api.tabs.onRemoved.addListener(tabId => {TABS.delete(tabId);notify(tabId,null);});
+  api.tabs.onRemoved.addListener(tabId => {TABS.delete(tabId);SIGNALS.delete(tabId);notify(tabId,null);});
   api.tabs.onUpdated.addListener((tabId, change) => {
-    if (change.url && !change.url.startsWith('https://chatgpt.com/')) TABS.delete(tabId);
+    if (change.url && !change.url.startsWith('https://chatgpt.com/')) {
+      TABS.delete(tabId);SIGNALS.delete(tabId);
+    }
   });
 })();
