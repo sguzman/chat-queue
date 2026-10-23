@@ -865,8 +865,11 @@
                   "id": "M6-04",
                   "emoji": "⏰",
                   "title": "Support bounded deadlines and state duration predicates",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Pure rules engine supports minDurationMs/maxDurationMs, explicit bounded synthetic stateDurationMs input, negative range/type tests; CI https://github.com/sguzman/chat-queue/actions/runs/40039969389 (static-and-unit only; full FDE run was blocked by unrelated viewport test).",
+                    "Preview-only options form, scoped rules API and Firefox fixtures: real FDE acceptance pending; no timers, authenticated state clock, automatic dispatch, or deadline scheduler."
+                  ]
                 },
                 {
                   "id": "M6-05",
