@@ -49,3 +49,16 @@ test('unknown persisted states fail closed as uncertain, without automatic retry
   assert.deepEqual(restored.map(x=>x.id),saved.items.map(x=>x.id));
   assert.equal(saved.items[1].status,'submitted','source state is not mutated');
 });
+
+test('unrecognized future queue schemas are explicitly read-only; legacy records remain readable',()=>{
+  assert.deepEqual(q.savedRecordSupport(undefined),{ok:true});
+  assert.deepEqual(q.savedRecordSupport({version:1,items:[]}),{ok:true});
+  assert.deepEqual(q.savedRecordSupport({items:[{id:'aaaaaaaa',text:'legacy'}]}),{ok:true});
+  for(const bad of [{version:2,items:[]},{version:'1',items:[]},{version:1,items:null},[],42,'bad']){
+    assert.deepEqual(q.savedRecordSupport(bad),{ok:false,error:'unsupported-saved-queue'});
+  }
+  // Inspecting malformed records must never write to or mutate them.
+  const future={version:2,items:[{id:'aaaaaaaa',text:'keep this',status:'pending'}]};
+  q.savedRecordSupport(future);
+  assert.equal(future.items[0].text,'keep this');
+});
