@@ -37,7 +37,7 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | `enqueue` | `{text}` | Append a pending message; returns `id` |
 | `update` | `{id,text}` | Update pending message text |
 | `reorder` | `{ids: [...]}` | Replace exact ordering with a permutation of all item IDs |
-| `move` | `{id,beforeId}` | Move an item immediately before another ID; `beforeId:null` appends |
+| `move` | `{id,beforeId}` | Move an existing item before another existing ID, or append with `beforeId:null`; unknown IDs and self-moves return `invalid-order` without changing the queue |
 | `remove` | `{id}` | Remove a pending item |
 | `clear` | None | Clear pending queue |
 | `start` | None | Start or resume conservatively gated sending |
