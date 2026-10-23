@@ -4,7 +4,7 @@
 
 All cross-extension access is denied unless the exact caller extension ID is explicitly granted the necessary **independent scopes** in Chat Queue's Options page. Firefox's verified `sender.id` is authoritative, never a client-supplied ID. The request protocol remains `chat-queue/v1`; its permission storage uses `chatqueue:api-grants:v2`.
 
-Each line in Options is `exact-extension-id | scope,scope`. Allowed scopes are `discover` (metadata and events), `read` (private prompt text and history), `append` (new pending message), `edit` (update, remove, reorder and explicit uncertain-item resolution), and `control` (Start/Pause). An ID with `append` only cannot list tabs, read prompts, or start dispatch. An ID with only `discover` cannot read prompt bodies. The user must choose the minimum needed scopes; no implicit read/write grants.
+Each line in Options is `exact-extension-id | scope,scope`. Allowed scopes are `discover` (metadata and events), `read` (private prompt text and history), `append` (new pending message), `edit` (update, remove, reorder and explicit uncertain-item resolution), `control` (Start/Pause), and `rules` (pure conditional preview, no live data or actions). An ID with `append` only cannot list tabs, read prompts, or start dispatch. An ID with only `discover` cannot read prompt bodies. The user must choose the minimum needed scopes; no implicit read/write grants.
 
 **Migration:** the legacy `allowedExtensionIds` broad allowlist is now ignored. Existing clients must be manually reauthorized in Options with v2 scopes. No silent migration grants unrestricted access. A grant is permission to call the API, not an indication that sending is safe or that Chat Signals integration is live.
 
@@ -31,6 +31,7 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | Action | `payload` | Behavior |
 | --- | --- | --- |
 | `capabilities` | None, no `tabId` | Report exact granted scopes (requires at least one grant) |
+| `previewRules` | `{rules,signal,consumedKeys?:[]}`, no `tabId` | Evaluate caller-provided synthetic rules and event only; no queue interactions |
 | `listTabs` | None, no `tabId` | Discover registered content-script tabs |
 | `status` | None | Read active queue, history and state |
 | `enqueue` | `{text}` | Append a pending message; returns `id` |
@@ -71,9 +72,10 @@ A subscription requires the `discover` grant and is disconnected if that scope i
 | `append` | `enqueue` | No response text; controls submitted new text |
 | `edit` | `update`, `remove`, `reorder`, `move`, `clear`, `resolve` | No unsolicited prompt reads |
 | `control` | `start`, `pause` | No; sending can have external side effects |
+| `rules` | `previewRules` | No; accepts only caller-provided simulated data |
 
 API schemas remain experimental pending live FDE acceptance. Only one extension scope check is implemented per request; automatic retry/replay-safe mutation IDs, content redaction for errors, and browser event-page restart resilience are still open milestones.
 
-## Future conditional message contract (NOT implemented)
+## Preview-only conditional message contract (no dispatch)
 
-A later v2 revision may expose rules such as `when: {phase:'finished'}`, `when:{phase:'failed'}`, or `when:{phase:'interrupted',minDurationMs:5000}`. They will be evaluated per response epoch and scoped conversation, with policy-specific action caps, priority and manual approval for risky retries. **Do not** interpret v1 message fields as executable predicates. No content-based success evaluation currently exists.
+The separately granted `previewRules` request accepts caller-supplied typed rules and Signal-shaped **simulated** events and returns a proposed decision. It does not read current Chat Signals provider events, conversation text, queue state, or browser storage. No automatic or manual Send is available through this action. Future versions may expose rules such as `when: {phase:'finished'}`, `when:{phase:'failed'}`, or `when:{phase:'interrupted',minDurationMs:5000}`. They will be evaluated per response epoch and scoped conversation, with policy-specific action caps, priority and manual approval for risky retries. **Do not** interpret v1 message fields as executable predicates. No content-based success evaluation currently exists.

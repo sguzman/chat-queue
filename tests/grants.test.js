@@ -22,3 +22,11 @@ test('granted scope strings are validated and unknown scopes discarded',()=>{
   assert.equal(g.ACTION_SCOPE.start,'control');
   assert.equal(g.ACTION_SCOPE.enqueue,'append');
 });
+
+test('rules-only preview grant cannot access queued prompts or dispatch',()=>{
+  const policy={version:2,grants:{'sandbox@example.test':['rules']}};
+  assert.equal(g.has(policy,'sandbox@example.test','rules'),true);
+  for(const scope of ['discover','read','append','edit','control'])
+    assert.equal(g.has(policy,'sandbox@example.test',scope),false);
+  assert.equal(g.ACTION_SCOPE.previewRules,'rules');
+});

@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const src=fs.readFileSync(require.resolve('../src/background.js'),'utf8');
 const signals=fs.readFileSync(require.resolve('../src/signal.js'),'utf8');
 const grants=fs.readFileSync(require.resolve('../src/grants.js'),'utf8');
+const rules=fs.readFileSync(require.resolve('../src/rules.js'),'utf8');
 function create() {
   const listeners={};
   const forwards=[];
@@ -12,7 +13,8 @@ function create() {
   const state={'chatqueue:api-grants:v2':{version:2,grants:{
     'approved@example.test':['discover','read','append','edit','control'],
     'observer@example.test':['discover'],
-    'poster@example.test':['append']}}};
+    'poster@example.test':['append'],
+    'sandbox@example.test':['rules']}}};
   const browser={
     runtime:{onMessage:{addListener:fn=>listeners.internal=(message,sender)=>{
       if(sender?.tab&&!liveUrls.has(sender.tab.id))liveUrls.set(sender.tab.id,sender.tab.url);
@@ -30,8 +32,9 @@ function create() {
   const context=vm.createContext({browser,URL});
   vm.runInContext(signals,context);
   vm.runInContext(grants,context);
+  vm.runInContext(rules,context);
   vm.runInContext(src,context);
-  return {listeners,forwards,state};
+  return {listeners,forwards,state,context};
 }
 test('cross-extension API is denied by default unless allowlisted',async()=>{
   const {listeners}=create();
@@ -166,7 +169,6 @@ test('tab URL updates revoke route authority even if History API listener is una
   assert.equal(status.tabs.length,0);
 });
 
-
 test('unregistered and stale SPA state updates cannot repopulate the public tab list',async()=>{
   const {listeners}=create();
   const old={tab:{id:91,url:'https://chatgpt.com/c/old'},url:'https://chatgpt.com/c/old'};
@@ -205,4 +207,26 @@ test('dispatch preflight requires current authenticated provider and exact epoch
   assert.equal((await probe(2)).error,'signal-authority-lost');
   listeners.updated(64,{url:'https://chatgpt.com/c/elsewhere'});
   assert.equal((await probe()).error,'signal-authority-lost');
+});
+
+test('rules-only external client can preview synthetics but cannot enumerate or send',async()=>{
+  const {listeners,forwards,context}=create();
+  // Firefox deserializes extension messages into the receiver's realm.
+  // The Node VM fixture must model that rather than passing outer-realm objects.
+  const inReceiver=value=>vm.runInContext('JSON.parse('+JSON.stringify(JSON.stringify(value))+')',context);
+  const sender={id:'sandbox@example.test'};
+  const signal={version:1,route:'/c/synthetic',documentToken:'a'.repeat(32),
+    sequence:1,epoch:1,phase:'failed',origin:'fresh',confidence:'observed'};
+  const rule={version:1,id:'halt',enabled:true,priority:1,when:{phase:'failed'},then:{type:'pause'}};
+  const preview=await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[rule],signal}}),sender);
+  assert.equal(preview.ok,true);assert.equal(preview.decision.action.type,'pause');
+  assert.equal(preview.decision.approvalRequired,true);
+  assert.equal((await listeners.external({type:'chat-queue/v1',action:'listTabs'},sender)).error,'forbidden-scope');
+  assert.equal((await listeners.external({type:'chat-queue/v1',action:'start',tabId:1},sender)).error,'forbidden-scope');
+  assert.equal((await listeners.external({type:'chat-queue/v1',action:'status',tabId:1},sender)).error,'forbidden-scope');
+  assert.equal((await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',payload:{rules:[{...rule,eval:'danger'}],signal}}),sender)).error,'invalid-rule');
+  assert.equal((await listeners.external({type:'chat-queue/v1',action:'previewRules',payload:{rules:[rule],signal}},
+    {id:'poster@example.test'})).error,'forbidden-scope');
+  assert.equal(forwards.length,0,'pure previews must not contact any queue tab');
 });

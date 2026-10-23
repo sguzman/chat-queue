@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "A local, Signal-gated message queue and HUD for ChatGPT.",
   "permissions": ["storage"],
-  "background": { "scripts": ["src/signal.js", "src/grants.js", "src/background.js"] },
+  "background": { "scripts": ["src/signal.js", "src/grants.js", "src/rules.js", "src/background.js"] },
   "options_ui": { "page": "options/options.html", "open_in_tab": true },
   "content_scripts": [{
     "matches": ["https://chatgpt.com/*"],

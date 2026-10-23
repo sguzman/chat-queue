@@ -6,7 +6,7 @@
   const output=document.getElementById('message');
   const THEMES=new Set(['system','light','dark']);
   const GRANTS='chatqueue:api-grants:v2';
-  const SCOPES=new Set(['discover','read','append','edit','control']);
+  const SCOPES=new Set(['discover','read','append','edit','control','rules']);
   const ID=/^[a-zA-Z0-9_.@-]{4,160}$/;
   api.storage.local.get(['allowedExtensionIds',GRANTS,'chatqueue:settings:v1']).then(data=>{
     const grants=data[GRANTS]?.version===2?data[GRANTS].grants:null;

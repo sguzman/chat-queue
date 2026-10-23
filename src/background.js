@@ -4,6 +4,7 @@
   const api = globalThis.browser || globalThis.chrome;
   const signalContract = globalThis.ChatQueueSignal;
   const grants = globalThis.ChatQueueGrants;
+  const rulesEngine = globalThis.ChatQueueRules;
   const PREFIX = 'chat-queue/v1';
   const TABS = new Map();
   // Authenticated provider envelopes never enter public tab metadata, API
@@ -13,8 +14,8 @@
   const ROUTES = new Map();
   const PORTS = new Map();
   const PROVIDER_TYPE = signalContract.TYPE;
-  // History API navigation can leave sender.url at the original document URL.
-  // Query only the browser-owned current tab and compare origins; no tab sweep.
+  // On History API transitions sender.url may still identify the originally
+  // loaded document. Verify the browser-owned live tab instead.
   async function currentRoute(sender) {
     try {
       const current=await api.tabs.get(sender.tab.id);
@@ -44,8 +45,8 @@
       });
     }
     if (message.action === 'dispatch-check') {
-      // The event-page provider ledger is volatile. After restart an old
-      // content-script observation cannot independently authorize Send.
+      // A restarted event page has no provider registration. A previously
+      // observed content-script Signal cannot authorize a new Send by itself.
       const last=SIGNALS.get(tab.id);
       if(!last || ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id) ||
          last.documentToken!==message.documentToken ||
@@ -58,8 +59,8 @@
           ? {ok:true}:{ok:false,error:'route-or-signal-changed'});
     }
     if (message.action === 'state') {
-      // A stale message from a former SPA route must not recreate a public
-      // tab slot after Firefox invalidated its registration.
+      // Delayed state publication from the previous SPA route cannot recreate
+      // its tab entry or advertise stale queue controls to API clients.
       const registered=ROUTES.get(tab.id);
       if(!TABS.has(tab.id)||!registered)return Promise.resolve({ok:false,error:'route-mismatch'});
       return currentRoute(sender).then(live=>{
@@ -135,6 +136,14 @@
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
       return {ok:false,error:'forbidden-scope'};
+    if (message.action === 'previewRules') {
+      // Caller-supplied synthetic data only. Never reads a live chat, persists
+      // rules, publishes provider identity or changes the dispatch scheduler.
+      const p=message.payload;
+      if(!p||typeof p!=='object')return {ok:false,error:'invalid-preview'};
+      const response=rulesEngine?.evaluate(p.rules,p.signal,p.consumedKeys??[]);
+      return response||{ok:false,error:'rules-engine-unavailable'};
+    }
     if (message.action === 'listTabs') {
       return { ok: true, tabs: Array.from(TABS, ([tabId, status]) => ({ tabId, ...status })) };
     }
@@ -170,7 +179,4 @@
       }}catch{}
     }
   });
-  // ChatGPT's SPA changes paths through History API without popstate or reload.
-  // Firefox delivers this only for the explicitly scoped ChatGPT host.
-
 })();

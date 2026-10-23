@@ -2,11 +2,12 @@
 (function(root){
   'use strict';
   const KEY='chatqueue:api-grants:v2';
-  const SCOPES=Object.freeze(['discover','read','append','edit','control']);
+  const SCOPES=Object.freeze(['discover','read','append','edit','control','rules']);
   const SCOPE_SET=new Set(SCOPES);
   const ACTION_SCOPE=Object.freeze({
     listTabs:'discover',status:'read',enqueue:'append',update:'edit',move:'edit',
-    reorder:'edit',remove:'edit',clear:'edit',resolve:'edit',start:'control',pause:'control'
+    reorder:'edit',remove:'edit',clear:'edit',resolve:'edit',start:'control',pause:'control',
+    previewRules:'rules'
   });
   const validId=id=>typeof id==='string'&&/^[a-zA-Z0-9_.@-]{4,160}$/.test(id);
   function parse(record){
