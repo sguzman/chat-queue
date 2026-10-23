@@ -11,7 +11,7 @@ const firefox=require('selenium-webdriver/firefox');
 const queueId='chat-queue-api-qa@sguzman.github';
 const clientId='queue-api-client-qa@sguzman.github';
 const grantsKey='chatqueue:api-grants:v2';
-const initialPolicy={version:2,grants:{[clientId]:['discover','append']}};
+const initialPolicy={version:2,grants:{[clientId]:['discover','append','rules']}};
 const html=`<!doctype html><html><head><meta charset="utf-8"><title>API fixture</title></head><body>
 <main><form><div id="prompt-textarea" role="textbox" contenteditable="true"></div>
 <button type="button" data-testid="send-button" onclick="window.__sent++">Send</button></form></main>
@@ -115,7 +115,16 @@ async function main(){
    return driver.executeScript('return window.__apiResults.find(x=>x.nonce===arguments[0]).result',id);
   };
   let result=await command({type:'chat-queue/v1',action:'capabilities'});
-  assert.equal(result.ok,true);assert.deepEqual(result.scopes,['discover','append']);
+  assert.equal(result.ok,true);assert.deepEqual(result.scopes,['discover','append','rules']);
+  const syntheticSignal={version:1,route:'/c/synthetic',documentToken:'a'.repeat(32),
+    sequence:1,epoch:1,phase:'failed',origin:'fresh',confidence:'observed'};
+  const syntheticRule={version:1,id:'pause-on-error',enabled:true,priority:40,
+    when:{phase:'failed'},then:{type:'pause'}};
+  result=await command({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[syntheticRule],signal:syntheticSignal}});
+  assert.equal(result.ok,true);assert.equal(result.decision.ruleId,'pause-on-error');
+  assert.equal(result.decision.approvalRequired,true);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.ok,true);assert.equal(result.tabs.length,1);
   const tabId=result.tabs[0].tabId;
@@ -134,6 +143,10 @@ async function main(){
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
   await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
   // The fallback must detect Firefox URL change events when History API updates the route.
+  stage='scoped-rules-revocation';
+  const scopedPreview=await command({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[syntheticRule],signal:syntheticSignal}});
+  assert.equal(scopedPreview.error,'forbidden-scope','Removing rules scope revokes preview');
   stage='pre-navigation-snapshot';
   const beforeNavigation=await command({type:'chat-queue/v1',action:'status',tabId});
   assert.equal(beforeNavigation.ok,true);
@@ -184,7 +197,7 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.error,'unauthorized');
   assert.equal(await driver.executeScript('return window.__sent'),0);
-  console.log('FDE scoped API: grants/revocation, optimistic conflict protection, real pushState/replaceState isolation, no Send');
+  console.log('FDE scoped API: rules preview, grant revocation, optimistic edits, SPA routing and no Send');
  }catch(error){
   throw new Error('FDE API stage '+stage+': '+error.message);
  }finally{
