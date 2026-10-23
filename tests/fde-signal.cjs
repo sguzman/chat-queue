@@ -35,7 +35,11 @@ function prepareQueue(dir,source){
   assert.equal(original.split("attachShadow({mode:'closed'})").length,2);
   fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
-      "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}"));
+      "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
+    .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
+      "document.documentElement.dataset.qaQueueRuntime=String(!!api?.runtime?.sendMessage)+','+String(!!core)+','+String(!!contract);if (!api?.runtime?.sendMessage || !core || !contract) return;")
+    .replace("state.destroyed=true;signalObserver.disconnect();",
+      "document.documentElement.dataset.qaRegisterFailure=String(error?.message||'unknown');state.destroyed=true;signalObserver.disconnect();"));
   // Only QA origin allowlist changes; production background is otherwise intact.
   const bgPath=path.join(dir,'src/background.js');
   let bg=fs.readFileSync(bgPath,'utf8');
@@ -93,7 +97,7 @@ async function main(){
       await driver.wait(async()=>await driver.executeScript(
         `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
     } catch(error) {
-      const diag=await driver.executeScript('return {path:location.pathname,providerReady:document.documentElement.dataset.qaSignalProviderReady||null,queueRoot:!!document.querySelector("#chat-queue-extension-root"),queueHud:!!document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("run"),registerFailure:document.documentElement.dataset.qaRegisterFailure||null}');
+      const diag=await driver.executeScript('return {path:location.pathname,providerReady:document.documentElement.dataset.qaSignalProviderReady||null,queueRoot:!!document.querySelector("#chat-queue-extension-root"),queueHud:!!document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("run"),registerFailure:document.documentElement.dataset.qaRegisterFailure||null,queueRuntime:document.documentElement.dataset.qaQueueRuntime||null}');
       throw new Error('synthetic dual add-on registration gate: '+JSON.stringify(diag)+'; '+error.message);
     }
     const input=await driver.executeScript(`return ${hud('draft')}`);
