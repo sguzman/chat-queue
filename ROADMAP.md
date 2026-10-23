@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 29/96 verified (30%) · ███░░░░░░░ · 45 implemented awaiting acceptance.**
+**Overall: 30/96 verified (31%) · ███░░░░░░░ · 45 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -168,10 +168,10 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M5-08` ⏱️ Add bounded API request sizes, replay guard, mutation revisions _(implemented; acceptance pending)_
 - [~] `M5-09` 🏷️ Version response/event schemas and document compatibility guarantees _(implemented; acceptance pending)_
 - [ ] `M5-10` 🛡️ Protect prompts from unapproved page scripts and extension principals
-- [~] `M5-11` 📋 Expose capability negotiation and safe feature detection _(implemented; acceptance pending)_
+- [x] `M5-11` 📋 Expose capability negotiation and safe feature detection
 - [ ] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers
 
-**M5 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 5 implemented but not accepted.
+**M5 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 4 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
@@ -194,10 +194,10 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M6-08` 🔁 Reject cycles, unbounded loops and silent auto-retry _(implemented; acceptance pending)_
 - [~] `M6-09` 🔐 Require explicit user policy for sensitive retries and sends _(implemented; acceptance pending)_
 - [ ] `M6-10` 📬 Emit auditable outcomes without recording response text
-- [ ] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API
+- [~] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API _(implemented; acceptance pending)_
 - [~] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases _(implemented; acceptance pending)_
 
-**M6 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 7 implemented but not accepted.
+**M6 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 8 implemented but not accepted.
 
 ### 🦊 M7 — Firefox QA & release
 

@@ -63,3 +63,7 @@ The synthetic Firefox Developer Edition two-add-on test now covers adding and re
 ## 🛡️ Uncertain sends and deliberate recovery
 
 When the background loses a synthetic authenticated Signal registry at the pre-send check, the queue preserves the draft and an uncertain item. A later idle Signal never retries it; explicit user clearing of the occupied composer, **Retry**, and **Start** are required. Actual headless Firefox Developer Edition verifies this sequence in [run 40036722480](https://github.com/sguzman/chat-queue/actions/runs/40036722480). This is fault injection, not a demonstrated real event-page restart. The HUD also disarms Clear confirmation when the user clicks elsewhere.
+
+## 🔌 Independent rules-preview permission
+
+An approved Firefox extension may now request the separate `rules` scope and call `chat-queue/v1` → `previewRules` with its **own synthetic event and typed rule data**. No provider event, conversation content, or queued prompt is read; nothing is persisted or sent. The [independent Firefox client acceptance run](https://github.com/sguzman/chat-queue/actions/runs/40037217649) verifies isolated scope, typed decisions, and immediate denial after revocation. Rule CRUD, event notifications and activated policies are not implemented; see [API.md](API.md).

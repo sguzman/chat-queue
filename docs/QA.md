@@ -74,3 +74,7 @@ Actual headless Firefox Developer Edition verifies Up/Down keyboard Enter, colla
 [Real headless Firefox Developer Edition CI run 40036722480](https://github.com/sguzman/chat-queue/actions/runs/40036722480) uses a **QA-only injected loss of the background Signal registry**, while the production queue code remains unchanged. The test verifies the blocked Send never fires, the prepared draft remains in the editor for user review, the queue item is uncertain and not restarted by a later ready Signal, and only deliberate clearing of that draft followed by **Retry** and **Start** permits one later Send. This is simulated event-page state loss, **not** a genuine Firefox background restart or authenticated ChatGPT acceptance.
 
 The same CI suite verifies an armed **Confirm clear** action is cancelled by an unrelated page click; a later Clear click therefore starts a new two-step confirmation instead of deleting messages.
+
+## 🔌 Scoped conditional-preview API
+
+[Firefox Developer Edition CI 40037217649](https://github.com/sguzman/chat-queue/actions/runs/40037217649) installs a synthetic second extension, grants a `rules` permission independently from all queue read/send scopes, successfully previews a caller-supplied synthetic failure/pause rule, then revokes the `rules` scope and observes `forbidden-scope` on the same request. The receiver accepts only strict typed declarative input; no queue tab receives a preview or Send. Full rule CRUD, user activation and provider events remain separate gates.

@@ -802,9 +802,9 @@
                   "id": "M5-11",
                   "emoji": "📋",
                   "title": "Expose capability negotiation and safe feature detection",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "chat-queue/v1 capabilities returns v2 scopes; Node rights isolation tested, browser client acceptance pending"
+                    "Actual FDE independent addon negotiates capabilities, receives independently granted rules-only preview permission, and loses it after revocation: https://github.com/sguzman/chat-queue/actions/runs/40037217649"
                   ]
                 },
                 {
@@ -931,8 +931,10 @@
                   "id": "M6-11",
                   "emoji": "🔌",
                   "title": "Expose rule CRUD, evaluation and notifications in a versioned API",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Pure versioned external rules evaluation added with separate rules grant; rule persistence/CRUD and notifications remain unimplemented: src/background.js, src/grants.js, API.md and https://github.com/sguzman/chat-queue/actions/runs/40037217649"
+                  ]
                 },
                 {
                   "id": "M6-12",
