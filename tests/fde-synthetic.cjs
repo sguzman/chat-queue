@@ -41,12 +41,14 @@ async function main(){
       `browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
-          if(msg.route==='/c/future-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
-              return browser.storage.local.set({[key]:{version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}})
-                .then(()=>({ok:true,tabId:sender.tab.id}));
+              const record=msg.route==='/c/future-record'
+                ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
+                : {items:[{id:'legacy0001',text:'Synthetic legacy prompt',status:'pending'}]};
+              return browser.storage.local.set({[key]:record}).then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
           return Promise.resolve({ok:true,tabId:sender.tab.id});
@@ -187,6 +189,17 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // A recognizable versionless legacy record remains readable. Saving a
+    // second queued item writes an accepted v1 record, which reload preserves.
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/legacy-record`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('status')}.textContent.includes('Unsupported saved queue')`),false);
+    await driver.executeScript(`const el=${jsEl('draft')};el.value='Synthetic legacy migrated';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
