@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 21 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 23 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -18,7 +18,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 
 ## ✅ Prototype capabilities (not live browser acceptance)
 
-- Floating, isolated Shadow DOM HUD with add/edit/delete, drag/drop, up/down reorder, collapse, recent locally stored submissions, and Start/Pause controls.
+- Floating, isolated Shadow DOM HUD with add/edit/delete, guarded two-click Clear, drag/drop, up/down reorder, collapse, recent locally stored submissions, and Start/Pause controls.
 - **Theme selector:** `System` (default), `Light`, `Dark`. `System` follows desktop preferences without synchronizing with ChatGPT's own site theme. Selection is saved locally and mirrored in other open HUDs and the options page.
 - Queued prompts remain editable while ChatGPT generates. Only an active dispatch attempt temporarily locks mutations.
 - Single-attempt dispatch with draft occupancy checks, explicit user authorization, and pause on unknown/interrupted/failed/limit states. No automatic retry after an uncertain submission.
@@ -46,4 +46,6 @@ Work directly on `main`, keep public materials free of private chat content, and
 
 ## 🔀 History API route guard (synthetic Firefox verified)
 
-Firefox tab URL update events are used for reported SPA conversation switches; a low-overhead one-second pathname-only check also detects pushState-only route changes without reading transcript content. The background invalidates the prior route and Signal authority, and the content script reloads the newly selected conversation queue with a generation guard. Returning to the original route restores its saved queue **paused**. No new browser permissions are required; it neither scans unrelated tab content nor enumerates browsing history. The synthetic Firefox QA verifies `pushState`/`replaceState` route isolation and paused recovery. Authenticated ChatGPT remains an independent acceptance gate.
+ChatGPT can switch conversations through `history.pushState()` and `history.replaceState()` without a document reload. Chat Queue uses a bounded pathname-only watcher, plus ordinary click/navigation hints and Firefox `tabs.onUpdated` invalidation. During registration and state publication the background checks the **browser-owned live tab URL** via `tabs.get(tabId)`, because a content script's `sender.url` can refer to the original document after a same-document navigation.
+
+Returning to a conversation restores its saved queue **paused** and rotates stale API edit tokens. A synthetic two-route Firefox Developer Edition test confirms separation, restoration and no unintended Send ([passing run](https://github.com/sguzman/chat-queue/actions/runs/40034372239)). This needs no `webNavigation` permission, tab enumeration, transcript scan or forced reload. Authenticated ChatGPT routing remains a separate acceptance gate.
