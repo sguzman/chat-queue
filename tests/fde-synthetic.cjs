@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
-const {Builder,By}=require('selenium-webdriver');
+const {Builder,By,Key}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 
 const page=`<!doctype html><html><head><meta charset="utf-8"><title>Fixture</title></head>
@@ -59,6 +59,16 @@ async function main(){
     await up.click();
     order=await driver.executeScript(`return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)`);
     assert.deepEqual(order,['Synthetic second message','Synthetic first message']);
+    // Keyboard activation of Down must reverse a pointer-driven reorder.
+    const down=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(1) .controls button:nth-child(2)')");
+    await down.sendKeys(Key.ENTER);
+    order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
+    assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
+    const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
+    await toggle.sendKeys(Key.ENTER);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
+    await toggle.sendKeys(Key.ENTER);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),false);
     await driver.executeScript(`const el=${jsEl('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='light'"),5000);
     const lightToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
@@ -66,6 +76,11 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='dark'"),5000);
     const darkToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
     assert.notEqual(lightToken,darkToken,'Light and Dark must apply independent semantic color tokens');
+    await driver.executeScript(`const el=${jsEl('theme')};el.value='system';el.dispatchEvent(new Event('change',{bubbles:true}))`);
+    await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='system'"),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('theme')}.value`),'system');
+    await driver.executeScript(`const el=${jsEl('theme')};el.value='dark';el.dispatchEvent(new Event('change',{bubbles:true}))`);
+    await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='dark'"),5000);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
     assert.equal(await driver.executeScript(`return ${jsEl('theme')}.value`),'dark');
