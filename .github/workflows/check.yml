@@ -19,6 +19,12 @@ jobs:
           zip -q -r dist/chat-queue-fde-qa-unsigned.zip manifest.json src options
           unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx manifest.json
           unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx src/signal.js
+      - name: Mozilla web-ext source and manifest lint
+        run: |
+          mkdir -p dist/extension
+          cp manifest.json dist/extension/
+          cp -R src options dist/extension/
+          npm exec --yes --package=web-ext@10.8.0 -- web-ext lint --source-dir dist/extension --self-hosted --warnings-as-errors --boring
       - uses: actions/upload-artifact@v4
         with:
           name: chat-queue-fde-qa-unsigned
