@@ -280,3 +280,42 @@ test('revoking discover while a port authorization read is pending fails closed'
   assert.equal(disconnects,1);
   assert.equal(posts,0);
 });
+
+test('one exact conversation route has at most one live dispatch owner',async()=>{
+  const {listeners}=create();
+  const senders=[17,18].map(id=>({tab:{id,url:'https://chatgpt.com/c/shared'},url:'https://chatgpt.com/c/shared'}));
+  const provider={id:'chat-signals@sguzman.github'};
+  const check=(index)=>listeners.internal({type:'chat-queue-internal/v1',action:'dispatch-check',
+    route:'/c/shared',documentToken:(index===0?'a':'b').repeat(32),epoch:0,sequence:1},senders[index]);
+  for(let i=0;i<2;i++){
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/shared'},senders[i])).ok,true);
+    const sig={version:1,route:'/c/shared',documentToken:(i===0?'a':'b').repeat(32),
+      epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'};
+    assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:senders[i].tab.id,signal:sig},provider)).ok,true);
+  }
+  // Two independent preflight callbacks compete for one route lease.
+  const results=await Promise.all([check(0),check(1)]);
+  assert.equal(results.filter(x=>x.ok).length,1);
+  assert.equal(results.filter(x=>x.error==='conversation-owned-by-another-tab').length,1);
+  const winner=results[0].ok?0:1,loser=1-winner;
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',running:false,size:1,phase:'idle'},senders[winner]);
+  assert.equal((await check(loser)).ok,true,'manual pause frees the exact-route lease');
+  assert.equal((await check(winner)).error,'conversation-owned-by-another-tab');
+  listeners.removed(senders[loser].tab.id);
+  assert.equal((await check(winner)).ok,true,'tab closure releases the owner');
+});
+test('route ownership cannot persist through tab registration or unrelated routes',async()=>{
+  const {listeners}=create(),provider={id:'chat-signals@sguzman.github'};
+  const sender={tab:{id:17,url:'https://chatgpt.com/c/a'},url:'https://chatgpt.com/c/a'};
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/a'},sender);
+  await listeners.external({type:'chat-queue-signal/v1',tabId:17,signal:{
+    version:1,route:'/c/a',documentToken:'a'.repeat(32),
+    epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'
+  }},provider);
+  const check={type:'chat-queue-internal/v1',action:'dispatch-check',route:'/c/a',
+    documentToken:'a'.repeat(32),epoch:0,sequence:1};
+  assert.equal((await listeners.internal(check,sender)).ok,true);
+  // Re-registration invalidates previous authority; the old epoch is unusable.
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/a'},sender)).ok,true);
+  assert.equal((await listeners.internal(check,sender)).error,'signal-authority-lost');
+});
