@@ -32,6 +32,14 @@
     next.splice(at, 0, item);
     return next;
   }
+  function exactPermutation(items, ids) {
+    if (!Array.isArray(items) || !Array.isArray(ids) ||
+        items.length > MAX_ITEMS || ids.length !== items.length) return false;
+    const current = new Set(items.map(item => item?.id));
+    if (current.size !== items.length || ids.some(id => typeof id !== 'string')) return false;
+    const supplied = new Set(ids);
+    return supplied.size === ids.length && ids.every(id => current.has(id));
+  }
   function normalizeSaved(value) {
     if (!value || typeof value !== 'object') return [];
     if (!Array.isArray(value.items)) return [];
@@ -52,7 +60,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, normalizeSaved, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, normalizeSaved, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
