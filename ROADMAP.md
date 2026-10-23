@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 33/96 verified (34%) · ███░░░░░░░ · 45 implemented awaiting acceptance.**
+**Overall: 34/96 verified (35%) · ███░░░░░░░ · 44 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -53,7 +53,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M1-02` 🖥️ Default to the OS preferred light/dark color scheme _(implemented; acceptance pending)_
 - [x] `M1-03` ☀️ Offer explicit Light override independent of site theme
 - [x] `M1-04` 🌙 Offer explicit Dark override independent of site theme
-- [~] `M1-05` 💾 Persist theme preference and sync across open ChatGPT tabs _(implemented; acceptance pending)_
+- [x] `M1-05` 💾 Persist theme preference and sync across open ChatGPT tabs
 
 **F3 · Accessible queue HUD**
 
@@ -67,7 +67,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M1-11` ♿ Verify contrast, spacing, small viewports, zoom, reduced motion
 - [x] `M1-12` 🪄 Remember HUD placement/collapsed state with reset control
 
-**M1 acceptance:** 7/12 verified (58%) · █████░░░░░ · 5 implemented but not accepted.
+**M1 acceptance:** 8/12 verified (66%) · ██████░░░░ · 4 implemented but not accepted.
 
 ### 📦 M2 — Queue model & persistence
 

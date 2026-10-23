@@ -208,9 +208,9 @@
                   "id": "M1-05",
                   "emoji": "💾",
                   "title": "Persist theme preference and sync across open ChatGPT tabs",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Local storage settings and storage change listener; Firefox QA pending"
+                    "Real disposable Firefox Developer Edition two-tab extension test verifies dark initial stored preference, live Dark→Light propagation without reload, persistent per-chat queue isolation and no Send. https://github.com/sguzman/chat-queue/actions/runs/40040769120"
                   ]
                 }
               ]
