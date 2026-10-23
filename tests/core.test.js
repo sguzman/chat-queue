@@ -35,3 +35,17 @@ test('exact permutation rejects duplicates, foreign IDs, truncation and excessiv
   assert.equal(q.exactPermutation(oversized,oversized.map(x=>x.id)),false);
   assert.deepEqual(items.map(x=>x.id),valid,'validation must not mutate queue items');
 });
+
+test('unknown persisted states fail closed as uncertain, without automatic retry',()=>{
+  const saved={version:1,items:[
+    {id:'aaaaaaaa',text:'pending',status:'pending'},
+    {id:'bbbbbbbb',text:'in flight',status:'submitted'},
+    {id:'cccccccc',text:'legacy',status:'sent'},
+    {id:'dddddddd',text:'no state'},
+    {id:'eeeeeeee',text:'known uncertain',status:'uncertain'}
+  ]};
+  const restored=q.normalizeSaved(saved);
+  assert.deepEqual(restored.map(x=>x.status),['pending','uncertain','uncertain','uncertain','uncertain']);
+  assert.deepEqual(restored.map(x=>x.id),saved.items.map(x=>x.id));
+  assert.equal(saved.items[1].status,'submitted','source state is not mutated');
+});
