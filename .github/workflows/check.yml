@@ -52,3 +52,7 @@ jobs:
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-synthetic.cjs
+      - name: Headless FDE authenticated extension messaging with synthetic provider
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-signal.cjs

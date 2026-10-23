@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Firefox Developer Edition-first ChatGPT queue HUD and extension API",
   "scripts": {
-    "check": "node --check src/core.js && node --check src/signal.js && node --check src/content.js && node --check src/background.js && node --check tests/fde-smoke.cjs && node --check tests/fde-synthetic.cjs && node --check options/options.js && node scripts/progress.mjs --check && node --test tests/*.test.js",
+    "check": "node --check src/core.js && node --check src/signal.js && node --check src/content.js && node --check src/background.js && node --check tests/fde-smoke.cjs && node --check tests/fde-synthetic.cjs && node --check tests/fde-signal.cjs && node --check options/options.js && node scripts/progress.mjs --check && node --test tests/*.test.js",
     "progress": "node scripts/progress.mjs --json",
     "roadmap": "node scripts/progress.mjs --write"
   }
