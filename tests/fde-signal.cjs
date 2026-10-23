@@ -188,7 +188,20 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Synthetic queued A','Synthetic queued C','Synthetic queued B','Synthetic unsent D']);
-    console.log('Headless FDE synthetic Signal: in-flight reorder, preflight denial, manual Retry + Start authorize one later send');
+    // Requeue is a deliberate queue edit, never a Send authorization.
+    const historySize=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.historyitem').length");
+    assert.ok(historySize>=4&&historySize<=20,'Recent history must be visible and bounded');
+    const historyDisclosure=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details summary')");
+    await historyDisclosure.click();
+    const requeue=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.historyitem:first-child button')");
+    await requeue.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${hud('count')}.textContent==='1 queued'`),5000);
+    assert.deepEqual(await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)"),['Synthetic unsent D']);
+    assert.equal(await driver.executeScript('return window.__sent.length'),4,'Requeue must not automatically Send');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${hud('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,'Reload cannot perform an automatic send');
+    console.log('Headless FDE synthetic Signal: reorder, uncertain recovery, bounded history and explicit no-send Requeue');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
