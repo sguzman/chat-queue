@@ -109,9 +109,9 @@
                   "id": "M0-08",
                   "emoji": "🦊",
                   "title": "Add Firefox Developer Edition MV3 scaffold with stable Gecko ID",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "extension manifest exists; actual Firefox load pending"
+                    "Actual headless Firefox Developer Edition installed/uninstalled the production add-on with stable Gecko ID: https://github.com/sguzman/chat-queue/actions/runs/40026885082"
                   ]
                 },
                 {
@@ -938,18 +938,18 @@
                   "id": "M7-01",
                   "emoji": "🦊",
                   "title": "Load and unload actual production extension in isolated FDE",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Headless Firefox Developer Edition install/uninstall scenario implemented in tests/fde-smoke.cjs and the fde-smoke GitHub Actions job; target-browser CI result pending."
+                    "Real Firefox Developer Edition installed and uninstalled the exact production manifest/scripts in a disposable profile: https://github.com/sguzman/chat-queue/actions/runs/40026885082"
                   ]
                 },
                 {
                   "id": "M7-02",
                   "emoji": "🧪",
                   "title": "Use synthetic ChatGPT UI fixtures in automated FDE WebDriver",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "QA-only localhost manifest and isolated mock background exercise the production queue HUD code through headless Firefox Developer Edition in tests/fde-synthetic.cjs; CI acceptance pending."
+                    "Headless Firefox Developer Edition synthetic localhost fixture exercised the HUD, reorder, dark mode, persistence and spoofed page Signal denial: https://github.com/sguzman/chat-queue/actions/runs/40027299592"
                   ]
                 },
                 {
@@ -1004,9 +1004,9 @@
                   "id": "M7-08",
                   "emoji": "📦",
                   "title": "Produce reproducible unsigned QA add-on package from extension directory",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Manifest-rooted, restricted-path unsigned QA ZIP and 14-day Actions artifact implemented in .github/workflows/check.yml; CI artifact acceptance pending."
+                    "GitHub Actions produced and uploaded manifest-rooted unsigned ZIP containing only manifest.json, src and options: https://github.com/sguzman/chat-queue/actions/runs/40026885082"
                   ]
                 },
                 {

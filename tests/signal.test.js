@@ -35,4 +35,5 @@ test('queue executor does not use page-controlled status as dispatch authorizati
   assert.match(content,/signalFromPage\(\)/);
   assert.doesNotMatch(content,/core\.mayDispatch\(state\.signal/);
   assert.match(content,/item\.status='uncertain';\s*await save\(\);/);
+  assert.match(content,/state\.key!==attemptKey\|\|storageKey\(\)!==attemptKey/);
 });

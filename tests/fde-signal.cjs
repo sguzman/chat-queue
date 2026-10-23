@@ -94,9 +94,9 @@ async function main(){
     await start.click();
     await driver.wait(async()=>await driver.executeScript(`return ${hud('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
-    const emit=async(phase,epoch,sequence,confidence='observed')=>{
+    const emit=async(phase,epoch,sequence,confidence='observed',origin='fresh')=>{
       const signal={version:1,documentToken:token,route:'/c/synthetic',epoch,sequence,
-        phase,origin:'fresh',confidence};
+        phase,origin,confidence};
       await driver.executeScript('window.postMessage({kind:"qa-provider-signal",signal:arguments[0]},"*")',signal);
       await driver.wait(async()=>await driver.executeScript(
         'return window.__acks.some(x=>x.sequence===arguments[0])',sequence),8000);
@@ -111,14 +111,22 @@ async function main(){
     await waitNote('Signal: idle');
     await start.click();
     await waitSends(1);
-    await emit('generating',1,2);
+    // A restored terminal from the previous response cannot confirm a fresh
+    // Send, even though it arrives after the dispatch attempt began.
+    await emit('finished',0,2,'inferred','restored');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    await emit('generating',1,3);
     await waitNote('Waiting for confirmed response completion');
     assert.equal(await driver.executeScript('return window.__sent.length'),1);
-    await emit('finished',1,3,'inferred');
+    await emit('finished',1,4,'inferred');
     await waitSends(2);
-    await emit('generating',2,4);
+    // A terminal replay from the previous response may be fresh evidence of
+    // the previous epoch, but must not complete the second queue item.
+    await emit('finished',1,5,'inferred');
+    assert.equal(await driver.executeScript('return window.__sent.length'),2);
+    await emit('generating',2,6);
     await waitNote('Waiting for confirmed response completion');
-    await emit('finished',2,5,'inferred');
+    await emit('finished',2,7,'inferred');
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Synthetic queued A','Synthetic queued B']);

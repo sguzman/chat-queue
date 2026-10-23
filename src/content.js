@@ -168,6 +168,7 @@
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function dispatchOne() {
     if (!state.running || state.attempting || state.awaiting || !pending()) return;
+    if (state.key!==storageKey()) {void handleRouteChange();return;}
     if (!freshProvider() || !contract.ready(state.trusted,routeKey())) return;
     const item=state.items.find(e=>e.status==='pending');
     if (!item) return;
@@ -178,6 +179,8 @@
     let clicked=false;
     let editor;
     try {
+      if (state.key!==attemptKey||storageKey()!==attemptKey)
+        throw new Error('Conversation changed before composer handoff');
       const found=findComposer();editor=found.editor;
       fillComposer(editor,item.text);
       const send=findSend(found.form);
@@ -185,7 +188,7 @@
       // it must never reopen as an automatically retryable pending item.
       item.status='uncertain';
       await save();
-      if (!state.running || state.destroyed || state.key!==attemptKey ||
+      if (!state.running || state.destroyed || state.key!==attemptKey ||storageKey()!==attemptKey ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
           editorValue(editor).trim()!==item.text.trim())
         throw new Error('Dispatch context changed; no send attempted');
@@ -195,14 +198,14 @@
       let accepted=false;
       for (let i=0;i<12;i++) {
         await delay(250);
-        if (state.destroyed || !state.running || state.key!==attemptKey || !editor.isConnected) break;
+        if (state.destroyed || !state.running || state.key!==attemptKey ||storageKey()!==attemptKey || !editor.isConnected) break;
         if (contract.newBusy(state.trusted,baseline) && !editorValue(editor).trim()) {
           state.waiting={documentToken:baseline.documentToken,route:baseline.route,
             epoch:state.trusted.epoch,sequence:state.trusted.sequence};
           accepted=true;break;
         }
       }
-      if(state.key!==attemptKey)throw new Error('Conversation changed during submission');
+      if(state.key!==attemptKey||storageKey()!==attemptKey)throw new Error('Conversation changed during submission');
       if (!accepted) throw new Error('Submission not confirmed; manual review required');
       // Persist removal first; do not consider another item until storage commits.
       state.items=state.items.filter(x=>x.id!==item.id);
