@@ -62,6 +62,18 @@ jobs:
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-theme-sync.cjs
+      - name: Check out pinned real Chat Signals v0.3.13 for coexistence QA
+        uses: actions/checkout@v4
+        with:
+          repository: sguzman/chat-signals
+          ref: 102e3ea16a9e9535d377c1d4e8b564f5b0fdb721
+          path: chat-signals-reference
+          persist-credentials: false
+      - name: Headless FDE coexistence with real pinned Chat Signals (no automatic Send)
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+          CHAT_SIGNALS_SOURCE: ${{ github.workspace }}/chat-signals-reference
+        run: node tests/fde-coexist.cjs
       - name: Headless FDE authenticated extension messaging with synthetic provider
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
