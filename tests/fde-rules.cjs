@@ -61,12 +61,13 @@ async function main(){
   const injection='<img src=x onerror="window.__previewXss=1">';
   await driver.executeScript('document.querySelector("#rule-text").value=arguments[0]',injection);
   await driver.findElement(By.id('rule-add')).click();
+  await driver.wait(async()=>/Saved synthetic-rule/.test(await driver.findElement(By.id('rule-message')).getText()),7000);
   await driver.findElement(By.css('#preview-form button[type="submit"]')).click();
   assert.equal(await driver.executeScript('return window.__previewXss===undefined'),true);
   assert.equal(await driver.executeScript('return document.querySelectorAll("#preview-output img").length'),0);
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/onerror/);
   await driver.navigate().refresh();
-  await driver.wait(async()=>await driver.executeScript('return Boolean(window.ChatQueueRules && document.querySelector("#rule-form"))'),15000);
+  await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),15000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/synthetic-rule/);
   // No rules evaluate by themselves after refresh, even with saved proposals.
