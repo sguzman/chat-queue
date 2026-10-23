@@ -147,7 +147,7 @@
       // rules, publishes provider identity or changes the dispatch scheduler.
       const p=message.payload;
       if(!p||typeof p!=='object')return {ok:false,error:'invalid-preview'};
-      const response=rulesEngine?.evaluate(p.rules,p.signal,p.consumedKeys??[]);
+      const response=rulesEngine?.evaluate(p.rules,p.signal,p.consumedKeys??[],p.context);
       return response||{ok:false,error:'rules-engine-unavailable'};
     }
     if (message.action === 'listTabs') {
