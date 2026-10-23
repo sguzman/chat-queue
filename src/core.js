@@ -40,6 +40,16 @@
     const supplied = new Set(ids);
     return supplied.size === ids.length && ids.every(id => current.has(id));
   }
+  // Backward-compatible missing version is allowed only for recognizable
+  // legacy records. Unknown future versions must be preserved, not rewritten.
+  function savedRecordSupport(value) {
+    if (value==null) return {ok:true};
+    if (typeof value!=='object'||Array.isArray(value)||
+        (value.version!==undefined&&value.version!==1)||
+        !Array.isArray(value.items))
+      return {ok:false,error:'unsupported-saved-queue'};
+    return {ok:true};
+  }
   function normalizeSaved(value) {
     if (!value || typeof value !== 'object') return [];
     if (!Array.isArray(value.items)) return [];
@@ -60,7 +70,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, normalizeSaved, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
