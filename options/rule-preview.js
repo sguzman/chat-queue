@@ -23,7 +23,7 @@
     const list=field('rule-list');list.replaceChildren();
     for(const rule of rules){
       const li=document.createElement('li'),label=document.createElement('span');
-      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}`;
+      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}${rule.when.minDurationMs===undefined?'':` · from ${rule.when.minDurationMs} ms`}${rule.when.maxDurationMs===undefined?'':` · until ${rule.when.maxDurationMs} ms`}`;
       const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';
       edit.setAttribute('aria-label',`Edit ${rule.id}`);
       edit.addEventListener('click',()=>{
@@ -31,6 +31,8 @@
         field('rule-id').value=rule.id;field('rule-enabled').checked=rule.enabled;
         field('rule-priority').value=rule.priority;field('rule-phase').value=rule.when.phase;
         field('rule-confidence').value=rule.when.confidence;
+        field('rule-min-duration').value=rule.when.minDurationMs??'';
+        field('rule-max-duration').value=rule.when.maxDurationMs??'';
         field('rule-action').value=rule.then.type;
         field('rule-text').value=rule.then.type==='propose'?rule.then.text:'';
         field('rule-text').disabled=rule.then.type==='pause';
@@ -80,9 +82,12 @@
   field('rule-form').addEventListener('submit',event=>{
     event.preventDefault();if(blocked||saving)return;
     resetClear();
+    const minInput=field('rule-min-duration').value.trim(),maxInput=field('rule-max-duration').value.trim();
+    const min=minInput===''?{}:{minDurationMs:Number(minInput)};
+    const max=maxInput===''?{}:{maxDurationMs:Number(maxInput)};
     const candidate={version:1,id:field('rule-id').value.trim(),enabled:field('rule-enabled').checked,
       priority:Number(field('rule-priority').value),
-      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value},
+      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value,...min,...max},
       then:field('rule-action').value==='pause'?{type:'pause'}:
         {type:'propose',text:field('rule-text').value}};
     void persist([...rules.filter(r=>r.id!==candidate.id),candidate],`Saved ${candidate.id}`);
@@ -101,7 +106,9 @@
     const synthetic={version:1,route:'/c/synthetic-preview',documentToken:'a'.repeat(32),
       epoch,sequence:1,phase:field('preview-phase').value,
       confidence:field('preview-confidence').value,origin:field('preview-origin').value};
-    const result=engine.evaluate(rules,synthetic,consumed);
+    const durationInput=field('preview-duration').value.trim();
+    const context=durationInput===''?undefined:{stateDurationMs:Number(durationInput)};
+    const result=engine.evaluate(rules,synthetic,consumed,context);
     if(!result.ok){print(`Rejected: ${result.error}`);return;}
     if(!result.decision){print(`No proposal: ${result.reason}`);return;}
     if(consumed.length>=engine.MAX_SEEN)consumed.shift();
