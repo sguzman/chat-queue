@@ -37,7 +37,7 @@ async function main(){
     fs.writeFileSync(path.join(temp,'src/content.js'),content);
     fs.writeFileSync(path.join(temp,'qa-background.js'),
       `browser.runtime.onMessage.addListener((msg,sender)=>{if(msg?.type!=='chat-queue-internal/v1')return; if(msg.action==='register')return Promise.resolve({ok:true,tabId:sender.tab.id});if(msg.action==='state')return Promise.resolve({ok:true});});`);
-    const options=new firefox.Options().setBinary(binary).addArguments('-headless');
+    const options=new firefox.Options().setBinary(binary).addArguments('-headless').setPreference('ui.systemUsesDarkTheme',1);
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
     const addon=await driver.installAddon(temp,true);
     const origin=`http://127.0.0.1:${server.address().port}`;
@@ -45,6 +45,15 @@ async function main(){
     await driver.get(`${origin}/c/theme-first`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('theme')})`),15000);
     assert.equal(await driver.executeScript(`return ${get('theme')}.value`),'system');
+    const scheme=await driver.executeScript(`const h=document.querySelector('#chat-queue-extension-root');
+      return {prefersDark:matchMedia('(prefers-color-scheme: dark)').matches,
+        mode:h.dataset.theme,systemPanel:getComputedStyle(h).getPropertyValue('--panel').trim()};`);
+    assert.equal(scheme.prefersDark,true,'Fixture must use Firefox system dark preference');
+    assert.equal(scheme.mode,'system');
+    await driver.executeScript(`const h=document.querySelector('#chat-queue-extension-root');h.dataset.theme='dark';`);
+    const explicitDark=await driver.executeScript(`return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()`);
+    assert.equal(scheme.systemPanel,explicitDark,'System should resolve the same dark panel as explicit Dark');
+    await driver.executeScript(`document.querySelector('#chat-queue-extension-root').dataset.theme='system'`);
     const first=await driver.getWindowHandle();
     await driver.executeScript(`const el=${get('draft')};el.value='Synthetic queued prompt';el.dispatchEvent(new Event('input',{bubbles:true}));`);
     await driver.executeScript(`return ${get('add')}.click()`);
