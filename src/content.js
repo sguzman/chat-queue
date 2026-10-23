@@ -236,6 +236,16 @@
     try {
       if (state.key!==attemptKey||storageKey()!==attemptKey)
         throw new Error('Conversation changed before composer handoff');
+      // Reserve the exact-route owner before changing the page composer.
+      // Competing tabs fail while their drafts remain completely untouched.
+      const ownership=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
+        action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
+        epoch:baseline.epoch,sequence:baseline.sequence});
+      if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
+        ? 'Another tab owns this conversation; no Send attempted'
+        : 'Signal authority lost; no Send attempted');
+      if(!state.running||state.destroyed||state.key!==attemptKey||storageKey()!==attemptKey)
+        throw new Error('Dispatch context changed before composer handoff');
       const found=findComposer();editor=found.editor;
       fillComposer(editor,item.text);
       const send=findSend(found.form);
