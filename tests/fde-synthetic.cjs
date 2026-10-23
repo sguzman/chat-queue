@@ -38,7 +38,21 @@ async function main(){
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
-      `browser.runtime.onMessage.addListener((msg,sender)=>{if(msg?.type!=='chat-queue-internal/v1')return; if(msg.action==='register')return Promise.resolve({ok:true,tabId:sender.tab.id});if(msg.action==='state')return Promise.resolve({ok:true});});`);
+      `browser.runtime.onMessage.addListener((msg,sender)=>{
+        if(msg?.type!=='chat-queue-internal/v1')return;
+        if(msg.action==='register'){
+          if(msg.route==='/c/future-record'){
+            const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
+            return browser.storage.local.get(key).then(saved=>{
+              if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
+              return browser.storage.local.set({[key]:{version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}})
+                .then(()=>({ok:true,tabId:sender.tab.id}));
+            });
+          }
+          return Promise.resolve({ok:true,tabId:sender.tab.id});
+        }
+        if(msg.action==='state')return Promise.resolve({ok:true});
+       });`);
     // Exercise actual Firefox reduced-motion preference, not a mocked media query.
     const options=new firefox.Options().setBinary(binary).addArguments('-headless')
       .setPreference('ui.prefersReducedMotion',1);
@@ -160,6 +174,19 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
     await clear.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // QA seeds the unsupported record only once. If a queue edit clobbers
+    // it, a reload will reveal that corruption instead of resetting the test.
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/future-record`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.executeScript(`const el=${jsEl('draft')};el.value='Synthetic should not replace future data';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('unsupported-saved-queue')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
