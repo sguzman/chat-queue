@@ -19,7 +19,7 @@ async function main(){
   const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
   assert.equal(manifest.browser_specific_settings.gecko.id,'chat-queue@sguzman.github');
   assert.deepEqual(manifest.content_scripts[0].matches,['https://chatgpt.com/*']);
-  assert.deepEqual(manifest.permissions,['storage','webNavigation']);
+  assert.deepEqual(manifest.permissions,['storage']);
   let driver=null;
   try{
     const opts=new firefox.Options().setBinary(binary).addArguments('-headless');

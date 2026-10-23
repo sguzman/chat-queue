@@ -15,7 +15,6 @@ function create() {
   const browser={
     runtime:{onMessage:{addListener:fn=>listeners.internal=fn},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
     tabs:{sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},onRemoved:{addListener:fn=>listeners.removed=fn},onUpdated:{addListener:fn=>listeners.updated=fn}},
-    webNavigation:{onHistoryStateUpdated:{addListener:fn=>listeners.history=fn}},
     storage:{local:{get:async()=>state},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
   const context=vm.createContext({browser,URL});
@@ -128,9 +127,9 @@ test('Firefox History API route changes revoke old providers and registration un
   const source={id:'chat-signals@sguzman.github'};
   const event=(route,seq)=>({type:'chat-queue-signal/v1',tabId:15,signal:{version:1,route,sequence:seq,epoch:1,documentToken:'a'.repeat(32),phase:'finished',origin:'fresh',confidence:'inferred'}});
   assert.equal((await listeners.external(event('/c/first',1),source)).ok,true);
-  listeners.history({tabId:15,frameId:2,url:'https://chatgpt.com/c/second'});
+  listeners.updated(15,{url:'https://chatgpt.com/c/first?query=unchanged'});
   assert.equal((await listeners.external(event('/c/first',2),source)).ok,true,'subframe must not revoke top document');
-  listeners.history({tabId:15,frameId:0,url:'https://chatgpt.com/c/second'});
+  listeners.updated(15,{url:'https://chatgpt.com/c/second'});
   assert.equal((await listeners.external(event('/c/first',3),source)).error,'tab-not-registered');
   assert.equal(forwards.at(-1).message.type,'chat-queue-route-changed/v1');
   const newSender={tab:{id:15,url:'https://chatgpt.com/c/second'},url:'https://chatgpt.com/c/second'};

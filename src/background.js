@@ -144,15 +144,5 @@
   });
   // ChatGPT's SPA changes paths through History API without popstate or reload.
   // Firefox delivers this only for the explicitly scoped ChatGPT host.
-  try{api.webNavigation?.onHistoryStateUpdated?.addListener(details => {
-    if(details.frameId!==0 || !Number.isInteger(details.tabId))return;
-    let path;
-    try{path=new URL(details.url).pathname;}catch{return;}
-    if(ROUTES.has(details.tabId) && ROUTES.get(details.tabId)!==path){
-      invalidate(details.tabId);
-      // The content script must inspect its OWN current location before re-registering.
-      void api.tabs.sendMessage(details.tabId,{type:'chat-queue-route-changed/v1'}).catch(()=>{});
-    }
-  },{url:[{hostEquals:'chatgpt.com'}]});}
-  catch { /* Firefox may omit the API in a QA context; route checks remain active. */ }
+
 })();

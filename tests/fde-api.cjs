@@ -40,9 +40,6 @@ function createQueue(dest,root){
  const nav="!change.url.startsWith('https://chatgpt.com/')";
  assert.equal(bg.split(nav).length,2);
  bg=bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')");
-  const historyFilter="{url:[{hostEquals:'chatgpt.com'}]}";
-  assert.equal(bg.split(historyFilter).length,2);
-  bg=bg.replace(historyFilter,"{url:[{hostEquals:'127.0.0.1',schemes:['http']]}]");
  fs.writeFileSync(bgFile,bg);
  // QA-only bootstrap and permission update handler. Production extension
  // remains unchanged; it receives genuine browser.storage.local writes.
@@ -131,7 +128,7 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript('return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),9000);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.ok(!JSON.stringify(await command({type:'chat-queue/v1',action:'listTabs'})).includes('Synthetic external enqueue'));
-  // Firefox's webNavigation sees History API changes even without popstate or anchor clicks.
+  // Verify if Firefox reports History API changes through ordinary tab URL changes.
   await driver.executeScript('history.pushState({},"","/c/second")');
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="0 queued"'),10000);
