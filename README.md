@@ -40,6 +40,6 @@ The addon uses Manifest V3's Firefox `background.scripts`, the `storage` permiss
 
 ## 🛠️ Development
 
-Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks; real Firefox Developer Edition tests are not configured or claimed passing yet.
+Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks and an independent disposable headless Firefox Developer Edition installation smoke; this **does not** prove authenticated ChatGPT sending, state-provider integration or HUD behavior.
 
 Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.

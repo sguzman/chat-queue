@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passed on 2026-10-23 for nine Node tests; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 13 Node tests; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -13,6 +13,8 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 - **Q5 release:** Mozilla manifest lint, reproducible package with manifest at ZIP root, public privacy scan, signed XPI plan, installation/update on FDE, and regression acceptance against the pinned Chat Signals contract.
 
 ## Dedicated QA launch
+
+GitHub Actions also has an independent disposable `fde-smoke` job which installs and uninstalls the production add-on in headless Firefox Developer Edition. It copies only the manifest, `src`, and `options` to a temporary add-on directory. The separate static job produces a manifest-rooted unsigned ZIP artifact (`chat-queue-fde-qa-unsigned`, retained 14 days). These checks are **installation and packaging smoke tests**, not authenticated ChatGPT or integrated state acceptance.
 
 `fish scripts/qa-firefox-developer.fish` opens Firefox Developer Edition with its own project-specific profile under `$XDG_DATA_HOME/chat-queue-fde-qa/profile`. It does not change the default browser profile, Firefox preferences, or ChatGPT account data in the normal browser. The script also does **not** automatically load or sign an extension. In the separate QA window use `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → `manifest.json` from the repo root. Chat Signals must also be installed in the same QA profile for integrated observation tests.
 
@@ -23,7 +25,7 @@ Do not install the unsigned prototype into a personal browser for automatic send
 | Scenario | Required outcome | Current evidence |
 | --- | --- | --- |
 | Unknown/missing provider | No automatic Send | Node logic only |
-| Restored/historical `finished` | No falsely attributed response | Not implemented; new epoch contract needed |
+| Restored/historical `finished` | No falsely attributed response | Candidate consumer and Node regression; producer/FDE pending |
 | Reply interrupted/failed/limited | Pause; no blind retry | Prototype implementation only |
 | Existing draft or attachment | Remains untouched | Prototype adapter only; not live tested |
 | Navigation to another conversation | No misrouted send | Prototype route guard; races untested |

@@ -938,8 +938,10 @@
                   "id": "M7-01",
                   "emoji": "🦊",
                   "title": "Load and unload actual production extension in isolated FDE",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Headless Firefox Developer Edition install/uninstall scenario implemented in tests/fde-smoke.cjs and the fde-smoke GitHub Actions job; target-browser CI result pending."
+                  ]
                 },
                 {
                   "id": "M7-02",
@@ -1000,8 +1002,10 @@
                   "id": "M7-08",
                   "emoji": "📦",
                   "title": "Produce reproducible unsigned QA add-on package from extension directory",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Manifest-rooted, restricted-path unsigned QA ZIP and 14-day Actions artifact implemented in .github/workflows/check.yml; CI artifact acceptance pending."
+                  ]
                 },
                 {
                   "id": "M7-09",

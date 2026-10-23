@@ -13,4 +13,38 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check
+      - name: Package only required Firefox add-on files
+        run: |
+          mkdir -p dist
+          zip -q -r dist/chat-queue-fde-qa-unsigned.zip manifest.json src options
+          unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx manifest.json
+          unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx src/signal.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chat-queue-fde-qa-unsigned
+          path: dist/chat-queue-fde-qa-unsigned.zip
+          if-no-files-found: error
+          retention-days: 14
       # Browser and authenticated Firefox QA are separate gates. This job cannot certify them.
+  fde-smoke:
+    name: Firefox Developer Edition temporary installation
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: fde
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest-devedition
+      - uses: browser-actions/setup-geckodriver@5ef1526ed36211ab6cb531ec1cfb11f924ca2dee
+        with:
+          token: ${{ github.token }}
+      - name: Install CI-only WebDriver dependency
+        run: npm install --no-save --no-package-lock selenium-webdriver@4.35.0
+      - name: Real headless FDE install/uninstall
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-smoke.cjs
