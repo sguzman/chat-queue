@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 32 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 44 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -37,6 +37,8 @@ The fail-closed consumer accepts `chat-queue-signal/v1` only when Firefox authen
 For an isolated local QA profile, use `fish scripts/qa-firefox-developer.fish`. The script only opens a separate Firefox Developer Edition profile and `about:debugging`; it does not modify the personal browser profile, install an add-on or automatically send messages. Select the repository's `manifest.json` via **Load Temporary Add-on** inside that separate profile, and independently install Chat Signals in the same QA profile when testing integration.
 
 The addon uses Manifest V3's Firefox `background.scripts`, the `storage` permission, and a content script on `https://chatgpt.com/*` only. There is no Native Messaging or local Jobflick backend. For real authenticated sending, wait until the QA gates in `docs/QA.md` are evidenced. An unsigned developer add-on may need Mozilla signing for permanent installation; the current manifest is a development artifact.
+
+The local queue loader preserves unrecognized future-version records without overwriting them; recognizable legacy versionless records can be edited and saved as v1. Firefox synthetic QA verifies both paths. External `move`/`reorder` requests reject invalid targets and duplicate or foreign IDs without changing order. These tests remain distinct from authenticated ChatGPT acceptance.
 
 ## 🛠️ Development
 
