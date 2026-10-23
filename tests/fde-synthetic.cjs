@@ -39,7 +39,9 @@ async function main(){
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
       `browser.runtime.onMessage.addListener((msg,sender)=>{if(msg?.type!=='chat-queue-internal/v1')return; if(msg.action==='register')return Promise.resolve({ok:true,tabId:sender.tab.id});if(msg.action==='state')return Promise.resolve({ok:true});});`);
-    const options=new firefox.Options().setBinary(binary).addArguments('-headless');
+    // Exercise actual Firefox reduced-motion preference, not a mocked media query.
+    const options=new firefox.Options().setBinary(binary).addArguments('-headless')
+      .setPreference('ui.prefersReducedMotion',1);
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
     const id=await driver.installAddon(root,true);
     assert.equal(id,manifest.browser_specific_settings.gecko.id);
@@ -120,6 +122,15 @@ async function main(){
     assert.ok(geometry.x>=-1&&geometry.right<=geometry.w+1,JSON.stringify(geometry));
     assert.ok(geometry.y>=-1&&geometry.bottom<=geometry.h+1,JSON.stringify(geometry));
     assert.ok(geometry.topPadding>=8,'Header needs usable padding at zoom');
+    // The HUD should obey a real Firefox preference for reduced motion.
+    const motion=await driver.executeScript(`const root=document.querySelector('#chat-queue-extension-root');
+      const panel=root.shadowRoot.querySelector('.panel');
+      panel.style.transition='transform 2s linear';
+      return {prefersReduced:matchMedia('(prefers-reduced-motion: reduce)').matches,
+        transitionDuration:getComputedStyle(panel).transitionDuration};`);
+    assert.equal(motion.prefersReduced,true,'Fixture must actually enable Firefox reduced motion');
+    assert.ok(motion.transitionDuration.split(',').every(x=>Number.parseFloat(x)===0),
+      'HUD animation must be disabled under reduced-motion preference');
     // The resolved light and dark foreground/background pairs must keep body
     // text legible at a WCAG-like 4.5:1 contrast threshold.
     const colors=[];
