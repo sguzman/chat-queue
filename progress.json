@@ -181,9 +181,10 @@
                   "id": "M1-02",
                   "emoji": "🖥️",
                   "title": "Default to the OS preferred light/dark color scheme",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "System media query selector in src/content.js; Firefox visual QA pending"
+                    "Actual headless Firefox Developer Edition synthetic fixture starts with ui.systemUsesDarkTheme=1 and verifies System matches the resolved explicit Dark palette, with all cross-tab and queue isolation checks passing: https://github.com/sguzman/chat-queue/actions/runs/40040918824",
+                    "This synthetic test does not replace authenticated ChatGPT visual/assistive QA."
                   ]
                 },
                 {
