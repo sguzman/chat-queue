@@ -71,6 +71,24 @@ async function main(){
     await input.sendKeys('Synthetic second message');await add.click();
     const count=await driver.executeScript(`return ${jsEl('count')}.textContent`);
     assert.equal(count,'2 queued');
+    // Edit queue contents without overwriting the HUD input or ChatGPT draft.
+    await input.sendKeys('Synthetic unsaved HUD draft');
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent='Synthetic site draft'");
+    const edit=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(3)')");
+    await edit.click();
+    let editField=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea')");
+    await editField.clear();await editField.sendKeys('Synthetic edited first message');
+    let saveEdit=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:first-child')");
+    await saveEdit.click();
+    await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic edited first message'"),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('draft')}.value`),'Synthetic unsaved HUD draft');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'Synthetic site draft');
+    const editAgain=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(3)')");
+    await editAgain.click();
+    editField=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea')");
+    await editField.clear();await editField.sendKeys('Synthetic first message');
+    saveEdit=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:first-child')");
+    await saveEdit.click();
     let order=await driver.executeScript(`return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)`);
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
     const up=await driver.executeScript(`return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:first-child')`);
