@@ -26,7 +26,7 @@ const snapshot = await browser.runtime.sendMessage(target, envelope('status', ta
 const started = await browser.runtime.sendMessage(target, envelope('start', tabId));
 ```
 
-Every response returns `{ok:boolean}` plus action-specific data or `error`. Missing permissions return `unauthorized` (no grant) or `forbidden-scope` (grant lacks this verb). A metadata-only `capabilities` request requires at least one grant, reports its scopes, and does not disclose prompt content. All requests have a 32 KiB serialized-frame cap. `listTabs` reports registered ChatGPT tabs with `{tabId,phase,size,running,revision}` (no message text). `status` returns `{tabId,phase,running,awaiting,items,history}`; `items` and `history` include message text.
+Every response returns `{ok:boolean}` plus action-specific data or `error`. Missing permissions return `unauthorized` (no grant) or `forbidden-scope` (grant lacks this verb). A metadata-only `capabilities` request requires at least one grant, reports its scopes, and does not disclose prompt content. All requests have a 32 KiB serialized-frame cap. `listTabs` reports registered ChatGPT tabs with `{tabId,phase,size,running,revision}` (no message text). `status` returns `{tabId,phase,running,awaiting,revision,etag,items,history}`; `items` and `history` include message text.
 
 | Action | `payload` | Behavior |
 | --- | --- | --- |
@@ -42,6 +42,10 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | `start` | None | Start or resume conservatively gated sending |
 | `pause` | None | Pause; an in-progress send may remain uncertain |
 | `resolve` | `{id,decision:'retry'\|'discard'}` | Explicitly handle an uncertain submission |
+
+## Optimistic queue edits (experimental)
+
+A caller with the 'read' scope can fetch `status.etag` (a random instance token) and pass `ifMatch:etag` within an `enqueue`, `update`, `move`, `reorder`, `remove`, `clear` or `resolve` payload. If another queue edit occurred, or the content-script document was reloaded, the operation returns `{ok:false,error:'revision-conflict',revision}` without applying a change. Fetch a fresh status, reconcile the intended edit, and issue a new request; never replay a destructive mutation blindly. The token is a consistency precondition, not an authorization secret. For backwards compatibility, omitting `ifMatch` keeps legacy unconditional semantics; the user grants still apply. `enqueue` also returns the new `etag` for append-only clients. Future revisions may require preconditions for destructive actions.
 
 Message text max: 24,000 UTF-16 code units; queue cap: 100 items; recent-history cap: 20. There is no arbitrary script execution or remote request interface.
 

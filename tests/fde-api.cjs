@@ -125,10 +125,13 @@ async function main(){
   }
   result=await command({type:'chat-queue/v1',action:'enqueue',tabId,payload:{text:'Synthetic external enqueue'}});
   assert.equal(result.ok,true);
+  const itemId=result.id;
   await driver.wait(async()=>await driver.executeScript('return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),9000);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.ok(!JSON.stringify(await command({type:'chat-queue/v1',action:'listTabs'})).includes('Synthetic external enqueue'));
-  // Verify if Firefox reports History API changes through ordinary tab URL changes.
+  // The fallback must detect Firefox URL change events when History API updates the route.
+  const beforeNavigation=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.equal(beforeNavigation.ok,true);
   await driver.executeScript('history.pushState({},"","/c/second")');
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="0 queued"'),10000);
@@ -140,6 +143,25 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),10000);
   assert.equal(await driver.executeScript('return window.__sent'),0);
+  const returned=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.equal(returned.ok,true);
+  assert.notEqual(returned.etag,beforeNavigation.etag,'route return must invalidate stale revision token');
+  assert.equal((await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Stale route overwrite',ifMatch:beforeNavigation.etag}})).error,'revision-conflict');
+  // Grant read/edit deliberately, then check optimistic mutation tokens.
+  let readNonce=++nonce;
+  await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
+  const snapshot=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.equal(snapshot.ok,true);assert.equal(typeof snapshot.etag,'string');
+  assert.equal(snapshot.items[0].text,'Synthetic external enqueue');
+  result=await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Wrong stale update',ifMatch:'old-token'}});
+  assert.equal(result.error,'revision-conflict');
+  result=await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Synthetic updated message',ifMatch:snapshot.etag}});
+  assert.equal(result.ok,true);
+  result=await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Duplicate stale update',ifMatch:snapshot.etag}});
+  assert.equal(result.error,'revision-conflict');
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).items[0].text,'Synthetic updated message');
+  assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
   const grantNonce=++nonce;
@@ -151,7 +173,7 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.error,'unauthorized');
   assert.equal(await driver.executeScript('return window.__sent'),0);
-  console.log('FDE scoped API: grants/revocation, real pushState/replaceState isolation, return to original queued route without Send');
+  console.log('FDE scoped API: grants/revocation, optimistic conflict protection, real pushState/replaceState isolation, no Send');
  }finally{
   if(driver)await driver.quit();
   await new Promise(resolve=>server.close(resolve));

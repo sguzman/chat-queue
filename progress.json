@@ -390,7 +390,7 @@
                   "title": "Define explicit new-chat and history.pushState handling",
                   "status": "implemented",
                   "evidence": [
-                    "Firefox webNavigation History API route notifications, per-route background registration, and generation-guarded async loading: src/background.js, src/content.js; tests/background.test.js and tests/fde-api.cjs; real CI pending."
+                    "Same-chat route isolation via browser-verified URL registration, tabs.onUpdated fallback, and a one-second pathname-only content watch; synthetic Firefox pushState/replaceState tested in workflow 40032344908; live authenticated ChatGPT remains unverified."
                   ]
                 },
                 {
@@ -777,8 +777,10 @@
                   "id": "M5-08",
                   "emoji": "⏱️",
                   "title": "Add bounded API request sizes, replay guard, mutation revisions",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "32 KiB frame limit in src/background.js; optional per-instance optimistic edit token in src/content.js, FDE synthetic API acceptance in tests/fde-api.cjs; durable replay-safe mutation IDs still planned."
+                  ]
                 },
                 {
                   "id": "M5-09",

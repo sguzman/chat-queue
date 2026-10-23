@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 18 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 21 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -22,7 +22,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - **Theme selector:** `System` (default), `Light`, `Dark`. `System` follows desktop preferences without synchronizing with ChatGPT's own site theme. Selection is saved locally and mirrored in other open HUDs and the options page.
 - Queued prompts remain editable while ChatGPT generates. Only an active dispatch attempt temporarily locks mutations.
 - Single-attempt dispatch with draft occupancy checks, explicit user authorization, and pause on unknown/interrupted/failed/limit states. No automatic retry after an uncertain submission.
-- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scope enforcement has Node tests; live FDE API client acceptance remains open.
+- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scope enforcement and revocation passed a disposable Firefox Developer Edition client test; authenticated-site acceptance remains open.
 
 ## 📡 Critical limitation: Chat Signals contract
 
@@ -30,7 +30,7 @@ Chat Signals v0.3.13 currently provides `document.documentElement.dataset.chatSi
 
 The fail-closed consumer accepts `chat-queue-signal/v1` only when Firefox authenticates the sender as the Chat Signals extension. It requires a matching route, monotonic sequence, response epoch and fresh event origin; each Send attempt is journaled as uncertain before the click. See [Signal contract](docs/SIGNAL-CONTRACT.md).
 
-**Important: Chat Signals does not yet publish this protocol.** Start therefore refuses with `authenticated-chat-signals-required`. The receiver's tests are not real browser integration acceptance. No changes were made to the Chat Signals repository.
+**Important: Chat Signals does not yet publish this protocol.** Start therefore refuses with `authenticated-chat-signals-required`. Synthetic Firefox tests verify receiver mechanics only, not the real provider or authenticated ChatGPT. No changes were made to the Chat Signals repository.
 
 ## 🦊 Disposable Firefox Developer Edition
 
@@ -44,6 +44,6 @@ Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progr
 
 Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.
 
-## 🔀 History API route guard (implementation awaiting CI)
+## 🔀 History API route guard (synthetic Firefox verified)
 
-Firefox `webNavigation.onHistoryStateUpdated` scoped to `chatgpt.com` reports SPA conversation switches. The background invalidates the prior route and Signal authority, and the content script reloads the newly selected conversation queue with a generation guard. Returning to the original route restores its saved queue **paused**. This uses a new Firefox `webNavigation` permission; it neither scans unrelated tab content nor enumerates browsing history. Dedicated Firefox QA covers `pushState` and `replaceState`; authenticated live ChatGPT remains an independent acceptance gate.
+Firefox tab URL update events are used for reported SPA conversation switches; a low-overhead one-second pathname-only check also detects pushState-only route changes without reading transcript content. The background invalidates the prior route and Signal authority, and the content script reloads the newly selected conversation queue with a generation guard. Returning to the original route restores its saved queue **paused**. No new browser permissions are required; it neither scans unrelated tab content nor enumerates browsing history. The synthetic Firefox QA verifies `pushState`/`replaceState` route isolation and paused recovery. Authenticated ChatGPT remains an independent acceptance gate.

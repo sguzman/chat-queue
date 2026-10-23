@@ -59,8 +59,13 @@ async function main(){
     await up.click();
     order=await driver.executeScript(`return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)`);
     assert.deepEqual(order,['Synthetic second message','Synthetic first message']);
+    await driver.executeScript(`const el=${jsEl('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}))`);
+    await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='light'"),5000);
+    const lightToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
     await driver.executeScript(`const el=${jsEl('theme')};el.value='dark';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='dark'"),5000);
+    const darkToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
+    assert.notEqual(lightToken,darkToken,'Light and Dark must apply independent semantic color tokens');
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
     assert.equal(await driver.executeScript(`return ${jsEl('theme')}.value`),'dark');

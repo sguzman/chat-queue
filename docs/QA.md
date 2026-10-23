@@ -51,4 +51,8 @@ Mark a gate complete only with test output or reproducible authenticated FDE res
 
 ## 🔀 Navigation acceptance
 
-`tests/fde-api.cjs` uses a real Firefox Developer Edition `webNavigation` listener with QA-only localhost filter, then calls `history.pushState()` and `history.replaceState()` in a synthetic ChatGPT-shaped tab without a page reload. The background must drop old route authority; the HUD must show a fresh empty queue on a distinct route and restore the original queued message only after returning, remaining paused and never clicking Send. The unit suite also rejects old-route late registrations and wrong-route Signal epochs. This does not prove every live ChatGPT SPA transition variant.
+`tests/fde-api.cjs` uses the real Firefox Developer Edition tab URL listener plus a bounded pathname-only watcher, then calls `history.pushState()` and `history.replaceState()` in a synthetic ChatGPT-shaped tab without a page reload. The background must drop old route authority; the HUD must show a fresh empty queue on a distinct route and restore the original queued message only after returning, remaining paused and never clicking Send. The unit suite also rejects old-route late registrations and wrong-route Signal epochs. This does not prove every live ChatGPT SPA transition variant.
+
+## 🔁 Stale API mutation evidence
+
+In synthetic FDE, a deliberate read/edit grant allows an approved extension to retrieve an opaque queue edit token, reject stale and replayed `update` operations, and accept only a current `ifMatch`. A separate History API roundtrip must rotate the token so a previous conversation snapshot cannot silently overwrite later edits. Omitted preconditions remain allowed for backwards-compatible API clients; exactly-once external requests and authenticated ChatGPT QA are still open.

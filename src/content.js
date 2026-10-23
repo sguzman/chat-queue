@@ -13,7 +13,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, saveChain: Promise.resolve(), routing: false };
+    editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -131,7 +131,7 @@
     void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,revision:state.revision}).catch(()=>{});
   }
   function save() {
-    state.revision++;const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20)};
+    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20)};
     state.saveChain=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
     state.saveChain.catch(()=>{state.running=false;statusNote('Could not save queue; paused');});
     publish();return state.saveChain;
@@ -289,6 +289,7 @@
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
+    state.revision=0;state.etag=uid(); // invalidate stale compare tokens across routes
     state.items=core.normalizeSaved(stored[newKey]);
     state.history=readHistory(stored[newKey]);
     state.observedSignal=signalFromPage();state.note='Conversation changed; manually start queue';state.editing=null;
@@ -303,13 +304,18 @@
     if(state.key!==storageKey())await handleRouteChange();
     if(state.routing||state.key!==storageKey())return {ok:false,error:'route-transition'};
     try {
-      if (action==='status') return {ok:true,tabId:state.tabId,phase:state.signal,running:state.running,awaiting:state.awaiting,items:state.items.map(e=>({...e})),history:state.history.map(e=>({...e}))};
+      if (action==='status') return {ok:true,tabId:state.tabId,phase:state.signal,running:state.running,awaiting:state.awaiting,revision:state.revision,etag:state.etag,items:state.items.map(e=>({...e})),history:state.history.map(e=>({...e}))};
+      // Optional optimistic compare-and-swap. A random per-document token
+      // prevents revision ABA after reload or a new tab instance.
+      if (['enqueue','update','reorder','move','remove','clear','resolve'].includes(action) &&
+          payload && Object.hasOwn(payload,'ifMatch') && payload.ifMatch!==state.etag)
+        return {ok:false,error:'revision-conflict',revision:state.revision};
       if (action==='enqueue') {
         const text=payload?.text;
         if (state.items.length>=core.MAX_ITEMS) return {ok:false,error:'queue-full'};
         const item=core.makeItem(text,uid());state.items.push(item);await save();render();
         if(state.running&&!state.awaiting)planNext();
-        return {ok:true,id:item.id};
+        return {ok:true,id:item.id,etag:state.etag};
       }
       if (action==='update') {
         if(state.attempting) return {ok:false,error:'dispatch-in-progress'};

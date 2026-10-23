@@ -120,7 +120,7 @@ test('all externally supplied API frames are size bounded, including capabilitie
   assert.equal(forwards.length,0);
 });
 
-test('Firefox History API route changes revoke old providers and registration until exact new route',async()=>{
+test('Firefox tab URL updates revoke old providers and require exact re-registration',async()=>{
   const {listeners,forwards}=create();
   const sender={tab:{id:15,url:'https://chatgpt.com/c/first'},url:'https://chatgpt.com/c/first'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},sender)).ok,true);
@@ -128,7 +128,7 @@ test('Firefox History API route changes revoke old providers and registration un
   const event=(route,seq)=>({type:'chat-queue-signal/v1',tabId:15,signal:{version:1,route,sequence:seq,epoch:1,documentToken:'a'.repeat(32),phase:'finished',origin:'fresh',confidence:'inferred'}});
   assert.equal((await listeners.external(event('/c/first',1),source)).ok,true);
   listeners.updated(15,{url:'https://chatgpt.com/c/first?query=unchanged'});
-  assert.equal((await listeners.external(event('/c/first',2),source)).ok,true,'subframe must not revoke top document');
+  assert.equal((await listeners.external(event('/c/first',2),source)).ok,true,'same pathname must not revoke route');
   listeners.updated(15,{url:'https://chatgpt.com/c/second'});
   assert.equal((await listeners.external(event('/c/first',3),source)).error,'tab-not-registered');
   assert.equal(forwards.at(-1).message.type,'chat-queue-route-changed/v1');
@@ -144,4 +144,13 @@ test('late registration from old route fails closed even if it claims new route'
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},old)).error,'route-mismatch');
   const newSender={tab:{id:2,url:'https://chatgpt.com/c/new'},url:'https://chatgpt.com/c/new'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},newSender)).ok,true);
+});
+
+test('tab URL updates revoke route authority even if History API listener is unavailable',async()=>{
+  const {listeners}=create();
+  const sender={tab:{id:28,url:'https://chatgpt.com/c/one'},url:'https://chatgpt.com/c/one'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/one'},sender)).ok,true);
+  listeners.updated(28,{url:'https://chatgpt.com/c/two'});
+  const status=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
+  assert.equal(status.tabs.length,0);
 });
