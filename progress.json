@@ -763,8 +763,10 @@
                   "id": "M5-07",
                   "emoji": "🎫",
                   "title": "Separate read, append, edit, control and content-disclosure scopes",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "src/grants.js and scoped Options UI; Node scope/revocation tests pass, external client FDE acceptance pending"
+                  ]
                 },
                 {
                   "id": "M5-08",
@@ -793,8 +795,10 @@
                   "id": "M5-11",
                   "emoji": "📋",
                   "title": "Expose capability negotiation and safe feature detection",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "chat-queue/v1 capabilities returns v2 scopes; Node rights isolation tested, browser client acceptance pending"
+                  ]
                 },
                 {
                   "id": "M5-12",

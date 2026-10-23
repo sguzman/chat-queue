@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not live-verified.** The current implementation passes 13 Node tests and has the first HUD, queue model, permissioned external messaging, and theme selector. It has **not** passed authenticated ChatGPT sending, real Firefox Developer Edition UI or addon-to-addon tests. Do not mistake code presence for acceptance.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 18 Node tests, actual Firefox Developer Edition installation, synthetic HUD interaction and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -22,7 +22,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - **Theme selector:** `System` (default), `Light`, `Dark`. `System` follows desktop preferences without synchronizing with ChatGPT's own site theme. Selection is saved locally and mirrored in other open HUDs and the options page.
 - Queued prompts remain editable while ChatGPT generates. Only an active dispatch attempt temporarily locks mutations.
 - Single-attempt dispatch with draft occupancy checks, explicit user authorization, and pause on unknown/interrupted/failed/limit states. No automatic retry after an uncertain submission.
-- Local Firefox extension storage and explicit allowlist for other extensions. No telemetry or server endpoint. An approved v1 client has broad read/write access; use only with trusted clients until least-privilege scopes are implemented.
+- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scope enforcement has Node tests; live FDE API client acceptance remains open.
 
 ## 📡 Critical limitation: Chat Signals contract
 

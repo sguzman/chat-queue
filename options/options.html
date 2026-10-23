@@ -14,8 +14,8 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="theme">HUD appearance</label><select id="theme"><option value="system">System (default)</option><option value="light">Light</option><option value="dark">Dark</option></select>
 <p class="note">System follows your desktop light/dark preference. The choice is shared between the queue HUD and this preferences page.</p>
 <h2>Extension API permissions</h2>
-<p>No other extension can read or modify queued messages unless you approve its <strong>exact Firefox extension ID</strong>. The current v1 API grants approved extensions both read and write access, including the ability to start the queue. Only approve extensions you trust.</p>
-<label for="ids">Allowed extension IDs, one per line</label><textarea id="ids" spellcheck="false" placeholder="my-extension@example.test"></textarea>
+<p>No other extension receives queue access unless you approve its <strong>exact Firefox extension ID</strong> and explicit scopes. Scopes: <code>discover</code> (tab metadata/events), <code>read</code> (queued prompt text/history), <code>append</code> (add messages), <code>edit</code> (change/delete/reorder), <code>control</code> (Start/Pause). These are independent; grant only what is needed.</p>
+<label for="ids">Extension ID | scopes (one per line)</label><textarea id="ids" spellcheck="false" placeholder="my-extension@example.test | discover,append"></textarea>
 <p><button type="button" id="save">Save permissions</button> <output id="message" role="status"></output></p>
 <p>API namespace: <code>chat-queue/v1</code>. Add-on ID: <code>chat-queue@sguzman.github</code>.</p>
 <script src="options.js"></script></body></html>

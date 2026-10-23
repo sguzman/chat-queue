@@ -3,6 +3,7 @@
   'use strict';
   const api = globalThis.browser || globalThis.chrome;
   const signalContract = globalThis.ChatQueueSignal;
+  const grants = globalThis.ChatQueueGrants;
   const PREFIX = 'chat-queue/v1';
   const TABS = new Map();
   // Authenticated provider envelopes never enter public tab metadata, API
@@ -15,8 +16,6 @@
       try { port.postMessage({ type: PREFIX, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
     }
   };
-  const ALLOWED_ACTIONS = new Set(['status','enqueue','update','move','reorder','remove','clear','start','pause','resolve']);
-  const allowedId = id => typeof id === 'string' && /^[a-zA-Z0-9_.@-]{4,160}$/.test(id);
 
   api.runtime.onMessage.addListener((message, sender) => {
     if (message?.type !== 'chat-queue-internal/v1' || !Number.isInteger(sender?.tab?.id)) return;
@@ -46,20 +45,20 @@
   });
 
   api.runtime.onConnectExternal.addListener(port => {
-    if(port.name !== PREFIX || !allowedId(port.sender?.id)) { port.disconnect();return; }
+    if(port.name !== PREFIX || !grants.validId(port.sender?.id)) { port.disconnect();return; }
     const id=port.sender.id;
-    void api.storage.local.get('allowedExtensionIds').then(config=>{
-      if(!Array.isArray(config.allowedExtensionIds)||!config.allowedExtensionIds.includes(id)) {port.disconnect();return;}
+    void api.storage.local.get(grants.KEY).then(config=>{
+      if(!grants.has(config[grants.KEY],id,'discover')) {port.disconnect();return;}
       PORTS.set(port,id);
       port.onDisconnect.addListener(()=>PORTS.delete(port));
       port.postMessage({type:PREFIX,event:'ready',tabs:Array.from(TABS,([tabId,state])=>({tabId,...state}))});
     }).catch(()=>port.disconnect());
   });
   api.storage.onChanged.addListener((changes,area)=>{
-    if(area!=='local'||!changes.allowedExtensionIds)return;
-    const allowed=changes.allowedExtensionIds.newValue || [];
+    if(area!=='local'||!changes[grants.KEY])return;
+    const newPolicy=changes[grants.KEY].newValue;
     for(const [port,id] of PORTS){
-      if(!Array.isArray(allowed)||!allowed.includes(id)){PORTS.delete(port);try{port.disconnect();}catch{}}
+      if(!grants.has(newPolicy,id,'discover')){PORTS.delete(port);try{port.disconnect();}catch{}}
     }
   });
 
@@ -87,14 +86,21 @@
     }
     if (!message || message.type !== PREFIX) return;
     const requester = sender?.id;
-    const config = await api.storage.local.get('allowedExtensionIds');
-    if (!Array.isArray(config.allowedExtensionIds) || !config.allowedExtensionIds.includes(requester) || !allowedId(requester)) {
+    const config = await api.storage.local.get(grants.KEY);
+    const authorized=grants.scopes(config[grants.KEY],requester);
+    if (!authorized.length) {
       return { ok: false, error: 'unauthorized' };
     }
+    // Size limits cover all verbs, including metadata-only capability probes.
+    if(JSON.stringify(message).length>32768)return {ok:false,error:'request-too-large'};
+    if(message.action==='capabilities')return {ok:true,version:2,scopes:authorized};
+    if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
+    if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
+      return {ok:false,error:'forbidden-scope'};
     if (message.action === 'listTabs') {
       return { ok: true, tabs: Array.from(TABS, ([tabId, status]) => ({ tabId, ...status })) };
     }
-    if (!ALLOWED_ACTIONS.has(message.action) || !Number.isInteger(message.tabId) || message.tabId < 0) {
+    if (!Number.isInteger(message.tabId) || message.tabId < 0) {
       return { ok: false, error: 'invalid-request' };
     }
     const target = TABS.get(message.tabId);

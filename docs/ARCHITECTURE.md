@@ -56,4 +56,4 @@ The panel is a Shadow DOM surface fixed near the lower-right, independently styl
 
 ## API
 
-See [API.md](../API.md). The current API is `chat-queue/v1`, with explicit external extension allowlist, bounded item text and a few typed verbs. **v1 allowlisting presently grants read and write together**; per-operation permissions and revocation are planned and must be tested before rich API release. Never expose queue contents through DOM attributes, tab titles or diagnostic logs.
+See [API.md](../API.md). The current API is `chat-queue/v1`, with explicit external extension allowlist, bounded item text and a few typed verbs. **v2 grants separate `discover`, `read`, `append`, `edit` and `control`**; legacy broad ID lists are ignored, background checks exact `sender.id` and each action, and subscription ports require `discover`. Source and Node coverage exist, but live external Firefox caller tests, revisions and event-page recovery remain pending. Never expose queue contents through DOM attributes, tab titles or diagnostic logs.
