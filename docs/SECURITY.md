@@ -26,3 +26,7 @@ Unlike Jobflick Bridge, Chat Queue has no native code execution capability or ge
 ## Locally saved rule definitions
 
 The Options rule editor stores user-authored proposal text under `chatqueue:conditional-rules:v1` in Firefox local extension storage after deliberate changes. It is subject to the same local-profile privacy threat as queued prompts. The external `rules` scope does not disclose or mutate these definitions; rule previews are made from caller-provided input only. Unknown storage schema versions are preserved unread and edits are blocked. There is no automatic execution, listener on real conversations, or telemetry.
+
+## Asynchronous external permission revocation
+
+The event page keeps a volatile ACL revision counter. A pending external grant read is invalidated whenever Options changes the grant record; this also closes any discovery port not permitted by the new record. For private prompt reads (`status`), a second check after the forwarded content-script reply ensures an earlier authorization cannot leak prompt text following a revocation. A mutation which was already delivered cannot be undone: returning its true result is safer than falsely suggesting it did not happen and inviting a duplicate retry. Node adversarial tests cover a deferred status response and a deferred event-port registration. These are not a substitute for live browser revocation races.

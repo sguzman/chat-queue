@@ -230,3 +230,44 @@ test('rules-only external client can preview synthetics but cannot enumerate or 
     {id:'poster@example.test'})).error,'forbidden-scope');
   assert.equal(forwards.length,0,'pure previews must not contact any queue tab');
 });
+
+test('revoking read scope during an in-flight status request withholds private prompt text',async()=>{
+  const {listeners,state,context}=create();
+  const page={tab:{id:83,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'},page)).ok,true);
+  let release;
+  context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+  const request=listeners.external({type:'chat-queue/v1',action:'status',tabId:83},{id:'approved@example.test'});
+  for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof release,'function');
+  const oldValue=state['chatqueue:api-grants:v2'];
+  const newValue={version:2,grants:{'approved@example.test':['discover','append']}};
+  state['chatqueue:api-grants:v2']=newValue;
+  listeners.changed({'chatqueue:api-grants:v2':{oldValue,newValue}},'local');
+  release({ok:true,items:[{id:'only-in-browser',text:'synthetic private text'}]});
+  const response=await request;
+  assert.equal(response.error,'authorization-changed');
+  assert.equal(JSON.stringify(response).includes('synthetic private text'),false);
+  assert.equal((await listeners.external({type:'chat-queue/v1',action:'status',tabId:83},
+    {id:'approved@example.test'})).error,'forbidden-scope');
+});
+
+test('revoking discover while a port authorization read is pending fails closed',async()=>{
+  const {listeners,state,context}=create();
+  const realGet=context.browser.storage.local.get;
+  let resume;
+  context.browser.storage.local.get=()=>new Promise(resolve=>{resume=()=>resolve(realGet());});
+  let disconnects=0,posts=0;
+  const port={name:'chat-queue/v1',sender:{id:'observer@example.test'},
+    onDisconnect:{addListener:()=>{}},postMessage:()=>posts++,disconnect:()=>disconnects++};
+  listeners.connect(port);
+  assert.equal(typeof resume,'function');
+  const oldValue=state['chatqueue:api-grants:v2'];
+  const newValue={version:2,grants:{'approved@example.test':['discover']}};
+  state['chatqueue:api-grants:v2']=newValue;
+  listeners.changed({'chatqueue:api-grants:v2':{oldValue,newValue}},'local');
+  resume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(disconnects,1);
+  assert.equal(posts,0);
+});

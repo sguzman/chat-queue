@@ -13,6 +13,8 @@
   // Separate route registry: never exposed through the public extension API.
   const ROUTES = new Map();
   const PORTS = new Map();
+  // Invalidates pending authorization reads when Options changes the ACL.
+  let grantRevision=0;
   const PROVIDER_TYPE = signalContract.TYPE;
   // On History API transitions sender.url may still identify the originally
   // loaded document. Verify the browser-owned live tab instead.
@@ -85,8 +87,9 @@
   api.runtime.onConnectExternal.addListener(port => {
     if(port.name !== PREFIX || !grants.validId(port.sender?.id)) { port.disconnect();return; }
     const id=port.sender.id;
+    const authorizedAt=grantRevision;
     void api.storage.local.get(grants.KEY).then(config=>{
-      if(!grants.has(config[grants.KEY],id,'discover')) {port.disconnect();return;}
+      if(authorizedAt!==grantRevision||!grants.has(config[grants.KEY],id,'discover')) {port.disconnect();return;}
       PORTS.set(port,id);
       port.onDisconnect.addListener(()=>PORTS.delete(port));
       port.postMessage({type:PREFIX,event:'ready',tabs:Array.from(TABS,([tabId,state])=>({tabId,...state}))});
@@ -94,6 +97,7 @@
   });
   api.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local'||!changes[grants.KEY])return;
+    grantRevision++;
     const newPolicy=changes[grants.KEY].newValue;
     for(const [port,id] of PORTS){
       if(!grants.has(newPolicy,id,'discover')){PORTS.delete(port);try{port.disconnect();}catch{}}
@@ -125,7 +129,9 @@
     }
     if (!message || message.type !== PREFIX) return;
     const requester = sender?.id;
+    const authorizedAt=grantRevision;
     const config = await api.storage.local.get(grants.KEY);
+    if(authorizedAt!==grantRevision)return {ok:false,error:'authorization-changed'};
     const authorized=grants.scopes(config[grants.KEY],requester);
     if (!authorized.length) {
       return { ok: false, error: 'unauthorized' };
@@ -153,9 +159,15 @@
     const target = TABS.get(message.tabId);
     if (!target) return { ok: false, error: 'tab-not-registered' };
     try {
-      return await api.tabs.sendMessage(message.tabId, {
+      const reply=await api.tabs.sendMessage(message.tabId, {
         type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null
       });
+      // Status contains private prompts. An ACL revocation during the content
+      // script's asynchronous response must prevent that content from leaving.
+      // Mutations already forwarded cannot be undone; return their true result.
+      if(message.action==='status' && grantRevision!==authorizedAt)
+        return {ok:false,error:'authorization-changed'};
+      return reply;
     } catch {
       TABS.delete(message.tabId);
       SIGNALS.delete(message.tabId);

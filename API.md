@@ -79,3 +79,9 @@ API schemas remain experimental pending live FDE acceptance. Only one extension 
 ## Preview-only conditional message contract (no dispatch)
 
 The separately granted `previewRules` request accepts caller-supplied typed rules and Signal-shaped **simulated** events and returns a proposed decision. It does not read current Chat Signals provider events, conversation text, queue state, or browser storage. No automatic or manual Send is available through this action. Future versions may expose rules such as `when: {phase:'finished'}`, `when:{phase:'failed'}`, or `when:{phase:'interrupted',minDurationMs:5000}`. They will be evaluated per response epoch and scoped conversation, with policy-specific action caps, priority and manual approval for risky retries. **Do not** interpret v1 message fields as executable predicates. No content-based success evaluation currently exists.
+
+## 🔐 Grant changes during in-flight requests
+
+When an extension grant changes while a background authorization read is pending, Chat Queue rejects that operation with `authorization-changed`, even if the older policy would have allowed it. Discovery event ports pending connection are disconnected rather than being activated under stale permissions. A private `status` response already in flight is also discarded if the grant record changes before its response returns, preventing late disclosure of prompt text. Clients should refresh capabilities after a grant change and obtain fresh status instead of treating this rejection as a transport failure.
+
+**Mutating operations already delivered to a queue tab cannot be cancelled retroactively.** Their actual result is returned, rather than reporting a fictitious rejection after a change may have happened. Callers must not automatically replay an operation whose completion is uncertain. This is a narrow revocation/response privacy hardening, not a distributed transaction guarantee.
