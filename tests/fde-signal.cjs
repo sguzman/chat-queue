@@ -50,6 +50,12 @@ function prepareQueue(dir,source){
   const oldNav="!change.url.startsWith('https://chatgpt.com/')";
   assert.equal(bg.split(oldNav).length,2);
   bg=bg.replace(oldNav,"!change.url.startsWith('http://127.0.0.1:')");
+  // QA-only fault injection: forget the provider ledger exactly at the
+  // fourth attempt's pre-send authorization. Production code is unchanged.
+  const preflight="    if (message.action === 'dispatch-check') {";
+  assert.equal(bg.split(preflight).length,2);
+  bg=bg.replace(preflight,
+    "    if (message.action === 'dispatch-check' && message.sequence===10) SIGNALS.clear();\\n"+preflight);
   fs.writeFileSync(bgPath,bg);
 }
 function prepareProvider(dir){
@@ -153,7 +159,19 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Synthetic queued A','Synthetic queued C','Synthetic queued B']);
-    console.log('Headless FDE cross-extension Signal fixture: in-flight reorder, three ordered sends, exact epochs, no page-spoofed send');
+    await input.sendKeys('Synthetic unsent D');
+    await add.click();
+    await emit('idle',3,10);
+    await start.click();
+    await waitNote('Signal authority lost');
+    assert.equal(await driver.executeScript('return window.__sent.length'),3,
+      'Lost provider authorization must prevent the fourth Send');
+    const uncertain=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item')?.textContent||''");
+    assert.match(uncertain,/uncertain/i,'Interrupted attempt must not requeue an unverified submission');
+    // Even a later ready event cannot revive a paused uncertain attempt.
+    await emit('idle',3,11);
+    assert.equal(await driver.executeScript('return window.__sent.length'),3);
+    console.log('Headless FDE cross-extension Signal fixture: reorder, three ordered sends, lost preflight authority blocks fourth Send');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
