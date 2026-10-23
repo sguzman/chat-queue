@@ -222,6 +222,15 @@ test('rules-only external client can preview synthetics but cannot enumerate or 
     payload:{rules:[rule],signal}}),sender);
   assert.equal(preview.ok,true);assert.equal(preview.decision.action.type,'pause');
   assert.equal(preview.decision.approvalRequired,true);
+  const timedRule={...rule,when:{phase:'failed',minDurationMs:5000}};
+  const noDuration=await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[timedRule],signal}}),sender);
+  assert.equal(noDuration.reason,'no-match');
+  const enough=await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[timedRule],signal,context:{stateDurationMs:6000}}}),sender);
+  assert.equal(enough.decision.ruleId,'halt');
+  assert.equal((await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[timedRule],signal,context:{stateDurationMs:-5}}}),sender)).error,'invalid-context');
   assert.equal((await listeners.external({type:'chat-queue/v1',action:'listTabs'},sender)).error,'forbidden-scope');
   assert.equal((await listeners.external({type:'chat-queue/v1',action:'start',tabId:1},sender)).error,'forbidden-scope');
   assert.equal((await listeners.external({type:'chat-queue/v1',action:'status',tabId:1},sender)).error,'forbidden-scope');
