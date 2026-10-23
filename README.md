@@ -59,3 +59,7 @@ The pure rule engine and its 8 focused Node regressions passed in [GitHub Action
 ## 📦 Reordering while generating
 
 The synthetic Firefox Developer Edition two-add-on test now covers adding and reordering pending messages **during** a response: message A is dispatched, C is added and moved ahead of B while A is generating, then subsequent synthetic provider completions produce A → C → B without a duplicate ([accepted CI](https://github.com/sguzman/chat-queue/actions/runs/40036243322)). This is browser-level evidence for queue interaction, not authenticated ChatGPT acceptance.
+
+## 🛡️ Uncertain sends and deliberate recovery
+
+When the background loses a synthetic authenticated Signal registry at the pre-send check, the queue preserves the draft and an uncertain item. A later idle Signal never retries it; explicit user clearing of the occupied composer, **Retry**, and **Start** are required. Actual headless Firefox Developer Edition verifies this sequence in [run 40036722480](https://github.com/sguzman/chat-queue/actions/runs/40036722480). This is fault injection, not a demonstrated real event-page restart. The HUD also disarms Clear confirmation when the user clicks elsewhere.

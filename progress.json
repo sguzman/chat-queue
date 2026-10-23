@@ -655,9 +655,9 @@
                   "id": "M4-09",
                   "emoji": "🚧",
                   "title": "Expose ambiguous submissions for explicit human resolution",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "uncertain item state + Retry; browser QA pending"
+                    "Actual FDE synthetic Signal-provider failure leaves composer draft intact and queued item uncertain; later ready event does not retry; explicit user clearing, Retry and Start permits one subsequent Send: https://github.com/sguzman/chat-queue/actions/runs/40036722480"
                   ]
                 },
                 {

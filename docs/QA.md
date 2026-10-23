@@ -68,3 +68,9 @@ Actual headless Firefox Developer Edition verifies Up/Down keyboard Enter, colla
 ## 📦 In-flight queue editing acceptance
 
 [Firefox Developer Edition run 40036243322](https://github.com/sguzman/chat-queue/actions/runs/40036243322) verifies the queue can add a new message during a synthetic response-generation epoch, reorder the two pending messages with the HUD, and dispatch them **A → C → B**, each only after a correctly attributed synthetic provider completion. This does not prove live ChatGPT editor behavior or an actual Chat Signals publisher.
+
+## 🛡️ Interrupted preflight and explicit recovery
+
+[Real headless Firefox Developer Edition CI run 40036722480](https://github.com/sguzman/chat-queue/actions/runs/40036722480) uses a **QA-only injected loss of the background Signal registry**, while the production queue code remains unchanged. The test verifies the blocked Send never fires, the prepared draft remains in the editor for user review, the queue item is uncertain and not restarted by a later ready Signal, and only deliberate clearing of that draft followed by **Retry** and **Start** permits one later Send. This is simulated event-page state loss, **not** a genuine Firefox background restart or authenticated ChatGPT acceptance.
+
+The same CI suite verifies an armed **Confirm clear** action is cancelled by an unrelated page click; a later Clear click therefore starts a new two-step confirmation instead of deleting messages.
