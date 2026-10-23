@@ -9,6 +9,8 @@
   // Authenticated provider envelopes never enter public tab metadata, API
   // snapshots, subscription events or persistent browser storage.
   const SIGNALS = new Map();
+  // Separate route registry: never exposed through the public extension API.
+  const ROUTES = new Map();
   const PORTS = new Map();
   const PROVIDER_TYPE = signalContract.TYPE;
   const notify = (tabId, state) => {
@@ -22,6 +24,13 @@
     const tab = sender.tab;
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
+      if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
+      // The sender URL is supplied by Firefox, not the page payload. A late
+      // registration from an old route must not seize the new route's slot.
+      let senderRoute;
+      try{senderRoute=new URL(sender.url || tab.url).pathname;}catch{return Promise.resolve({ok:false,error:'invalid-route'});}
+      if(senderRoute!==message.route)return Promise.resolve({ok:false,error:'route-mismatch'});
+      ROUTES.set(tab.id,message.route);
       TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
       SIGNALS.delete(tab.id);
       return Promise.resolve({ ok: true, tabId: tab.id });
@@ -73,6 +82,7 @@
       if(!parsed)return {ok:false,error:'invalid-signal'};
       const slot=TABS.get(tabId);
       if(!slot)return {ok:false,error:'tab-not-registered'};
+      if(ROUTES.get(tabId)!==parsed.route)return {ok:false,error:'route-mismatch'};
       if(!signalContract.advance(SIGNALS.get(tabId),parsed))return {ok:false,error:'stale-signal'};
       // Reserve this sequence before awaiting the recipient; otherwise two
       // concurrent provider callbacks can both pass the stale-event check.
@@ -112,14 +122,30 @@
     } catch {
       TABS.delete(message.tabId);
       SIGNALS.delete(message.tabId);
+      ROUTES.delete(message.tabId);
       return { ok: false, error: 'tab-unavailable' };
     }
   });
 
-  api.tabs.onRemoved.addListener(tabId => {TABS.delete(tabId);SIGNALS.delete(tabId);notify(tabId,null);});
+  function invalidate(tabId){
+    if(!ROUTES.has(tabId))return;
+    ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);
+    notify(tabId,null);
+  }
+  api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
   api.tabs.onUpdated.addListener((tabId, change) => {
-    if (change.url && !change.url.startsWith('https://chatgpt.com/')) {
-      TABS.delete(tabId);SIGNALS.delete(tabId);
-    }
+    if (change.url && !change.url.startsWith('https://chatgpt.com/')) invalidate(tabId);
   });
+  // ChatGPT's SPA changes paths through History API without popstate or reload.
+  // Firefox delivers this only for the explicitly scoped ChatGPT host.
+  api.webNavigation.onHistoryStateUpdated.addListener(details => {
+    if(details.frameId!==0 || !Number.isInteger(details.tabId))return;
+    let path;
+    try{path=new URL(details.url).pathname;}catch{return;}
+    if(ROUTES.has(details.tabId) && ROUTES.get(details.tabId)!==path){
+      invalidate(details.tabId);
+      // The content script must inspect its OWN current location before re-registering.
+      void api.tabs.sendMessage(details.tabId,{type:'chat-queue-route-changed/v1'}).catch(()=>{});
+    }
+  },{url:[{hostEquals:'chatgpt.com',schemes:['https']}]});
 })();

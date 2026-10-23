@@ -40,6 +40,9 @@ function createQueue(dest,root){
  const nav="!change.url.startsWith('https://chatgpt.com/')";
  assert.equal(bg.split(nav).length,2);
  bg=bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')");
+  const historyFilter="{url:[{hostEquals:'chatgpt.com',schemes:['https']}]}";
+  assert.equal(bg.split(historyFilter).length,2);
+  bg=bg.replace(historyFilter,"{url:[{hostEquals:'127.0.0.1',schemes:['http']]}]");
  fs.writeFileSync(bgFile,bg);
  // QA-only bootstrap and permission update handler. Production extension
  // remains unchanged; it receives genuine browser.storage.local writes.
@@ -128,6 +131,18 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript('return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),9000);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.ok(!JSON.stringify(await command({type:'chat-queue/v1',action:'listTabs'})).includes('Synthetic external enqueue'));
+  // Firefox's webNavigation sees History API changes even without popstate or anchor clicks.
+  await driver.executeScript('history.pushState({},"","/c/second")');
+  await driver.wait(async()=>await driver.executeScript(
+    'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="0 queued"'),10000);
+  const changed=await command({type:'chat-queue/v1',action:'listTabs'});
+  assert.equal(changed.ok,true);assert.equal(changed.tabs.length,1);
+  assert.equal(changed.tabs[0].phase,'unknown');
+  // Reopening the original route must recover its queue without enabling auto-send.
+  await driver.executeScript('history.replaceState({},"","/c/synthetic")');
+  await driver.wait(async()=>await driver.executeScript(
+    'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),10000);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
   const grantNonce=++nonce;
@@ -139,7 +154,7 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.error,'unauthorized');
   assert.equal(await driver.executeScript('return window.__sent'),0);
-  console.log('FDE scoped API: exact caller, capabilities, append-only, no prompt read/control, live revocation and port disconnect');
+  console.log('FDE scoped API: grants/revocation, real pushState/replaceState isolation, return to original queued route without Send');
  }finally{
   if(driver)await driver.quit();
   await new Promise(resolve=>server.close(resolve));

@@ -388,8 +388,10 @@
                   "id": "M2-09",
                   "emoji": "🔀",
                   "title": "Define explicit new-chat and history.pushState handling",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Firefox webNavigation History API route notifications, per-route background registration, and generation-guarded async loading: src/background.js, src/content.js; tests/background.test.js and tests/fde-api.cjs; real CI pending."
+                  ]
                 },
                 {
                   "id": "M2-10",
@@ -463,7 +465,8 @@
                   "title": "Bind signal identity to currently selected conversation",
                   "status": "implemented",
                   "evidence": [
-                    "Exact route, stable document token and monotonic sequence are checked in consumer: src/signal.js, src/background.js, src/content.js; provider agreement pending."
+                    "Exact route, stable document token and monotonic sequence are checked in consumer: src/signal.js, src/background.js, src/content.js; provider agreement pending.",
+                    "Background now independently binds authenticated epochs to browser-registered route and rejects stale route registration; Firefox History API integration acceptance pending."
                   ]
                 },
                 {

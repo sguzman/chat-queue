@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 18 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 20 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -48,3 +48,7 @@ Do not install the unsigned prototype into a personal browser for automatic send
 | Consecutive queued messages | Exactly once, ordered after matching response | Not live tested |
 
 Mark a gate complete only with test output or reproducible authenticated FDE results. Preserve negative counterexamples when fixing live regressions. The user should not be treated as the project's automated test harness.
+
+## 🔀 Navigation acceptance
+
+`tests/fde-api.cjs` uses a real Firefox Developer Edition `webNavigation` listener with QA-only localhost filter, then calls `history.pushState()` and `history.replaceState()` in a synthetic ChatGPT-shaped tab without a page reload. The background must drop old route authority; the HUD must show a fresh empty queue on a distinct route and restore the original queued message only after returning, remaining paused and never clicking Send. The unit suite also rejects old-route late registrations and wrong-route Signal epochs. This does not prove every live ChatGPT SPA transition variant.

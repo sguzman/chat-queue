@@ -13,7 +13,8 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, saveChain: Promise.resolve() };
+    editing: null, collapsed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, saveChain: Promise.resolve(), routing: false };
+  let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
   const host = document.createElement('div');
@@ -271,24 +272,36 @@
   }
   async function handleRouteChange() {
     if(!state.initialized)return;
-    const newKey=storageKey();if (state.key===newKey)return;
+    const generation=++routeGeneration;
+    const newKey=storageKey();
+    if (state.key===newKey){state.routing=false;return;}
+    state.routing=true;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
     await state.saveChain.catch(()=>{});
+    if(generation!==routeGeneration||storageKey()!==newKey)return;
+    let stored;
+    try{stored=await api.storage.local.get(newKey);}catch{
+      if(generation===routeGeneration)statusNote('Could not load conversation queue');
+      return;
+    }
+    if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
-    const stored=await api.storage.local.get(newKey);
     state.items=core.normalizeSaved(stored[newKey]);
     state.history=readHistory(stored[newKey]);
     state.observedSignal=signalFromPage();state.note='Conversation changed; manually start queue';state.editing=null;
     // A new route also invalidates the background's Signal document sequence.
-    try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register'});}catch{}
-    render();publish();
+    try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
+    if(generation!==routeGeneration||storageKey()!==newKey)return;
+    state.routing=false;render();publish();
   }
   async function act(action,payload,local=false) {
     if (!state.initialized) return {ok:false,error:'not-ready'};
+    if(state.routing)return {ok:false,error:'route-transition'};
     if(state.key!==storageKey())await handleRouteChange();
+    if(state.routing||state.key!==storageKey())return {ok:false,error:'route-transition'};
     try {
       if (action==='status') return {ok:true,tabId:state.tabId,phase:state.signal,running:state.running,awaiting:state.awaiting,items:state.items.map(e=>({...e})),history:state.history.map(e=>({...e}))};
       if (action==='enqueue') {
@@ -359,6 +372,10 @@
     state.theme=['system','light','dark'].includes(next)?next:'system';render();
   });
   api.runtime.onMessage.addListener((message) => {
+    if(message?.type==='chat-queue-route-changed/v1'){
+      void handleRouteChange();
+      return Promise.resolve({ok:true});
+    }
     if(message?.type==='chat-queue-signal-verified/v1'){
       const next=contract.parse({type:contract.TYPE,signal:message.signal});
       if(!state.initialized||!next||next.route!==routeKey()||
@@ -391,7 +408,7 @@
   },{once:true});
   (async()=>{
     try {
-      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register'});
+      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});
       if(!response?.ok)throw new Error('Registration unavailable');
       state.tabId=response.tabId;state.key=storageKey();state.keyRoute=routeKey();
       const stored=await api.storage.local.get([state.key,'chatqueue:settings:v1']);
@@ -402,6 +419,7 @@
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
       (document.body||document.documentElement).append(host);
       state.note='Paused; press Start';render();publish();
+      if(state.key!==storageKey())void handleRouteChange();
     } catch(error) {
       state.destroyed=true;signalObserver.disconnect();
       // Do not inject a broken HUD or a partial queue.

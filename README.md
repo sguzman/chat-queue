@@ -43,3 +43,7 @@ The addon uses Manifest V3's Firefox `background.scripts`, the `storage` permiss
 Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks, real headless Firefox Developer Edition installation, a synthetic HUD/browser test, and **two-addon synthetic Signal transport** tests. These prove bounded browser mechanics, not authenticated ChatGPT sending or a working real Chat Signals publisher.
 
 Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.
+
+## 🔀 History API route guard (implementation awaiting CI)
+
+Firefox `webNavigation.onHistoryStateUpdated` scoped to `chatgpt.com` reports SPA conversation switches. The background invalidates the prior route and Signal authority, and the content script reloads the newly selected conversation queue with a generation guard. Returning to the original route restores its saved queue **paused**. This uses a new Firefox `webNavigation` permission; it neither scans unrelated tab content nor enumerates browsing history. Dedicated Firefox QA covers `pushState` and `replaceState`; authenticated live ChatGPT remains an independent acceptance gate.

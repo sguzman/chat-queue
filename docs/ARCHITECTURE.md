@@ -57,3 +57,7 @@ The panel is a Shadow DOM surface fixed near the lower-right, independently styl
 ## API
 
 See [API.md](../API.md). The current API is `chat-queue/v1`, with explicit external extension allowlist, bounded item text and a few typed verbs. **v2 grants separate `discover`, `read`, `append`, `edit` and `control`**; legacy broad ID lists are ignored, background checks exact `sender.id` and each action, and subscription ports require `discover`. Source and Node coverage exist, but live external Firefox caller tests, revisions and event-page recovery remain pending. Never expose queue contents through DOM attributes, tab titles or diagnostic logs.
+
+## Firefox History API navigation boundary
+
+Firefox `webNavigation.onHistoryStateUpdated` is scoped by host and top frame. If the URL pathname changes from a tab's registered route, the background immediately discards its authenticated Signal sequence and public tab registry, then asks the same tab's content script to recheck its actual `location.pathname`. A re-registration must match the browser-provided sender URL; a forged/late route string cannot rebind old events. Route loading uses generation numbers so older delayed storage reads cannot overwrite a newer selected conversation. All transitions pause scheduling, retain old queued messages durably, and require a fresh explicit Start. Firefox extension tests cover pushState/replaceState; they do not establish authenticated ChatGPT production acceptance.

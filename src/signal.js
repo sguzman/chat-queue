@@ -7,6 +7,8 @@
   const PHASES=new Set(['idle','submitted','generating','verifying','finished','interrupted','failed','limit','unknown']);
   const ACTIVE=new Set(['submitted','generating','verifying']);
   const TOKEN=/^[0-9a-f]{32}$/;
+  const validRoute=route=>typeof route==='string'&&route.length<=512&&
+    /^\/[a-zA-Z0-9/_%.-]*$/.test(route);
   function parse(input){
     if(!input||typeof input!=='object'||input.type!==TYPE)return null;
     const x=input.signal;
@@ -14,8 +16,7 @@
        !Number.isSafeInteger(x.epoch)||x.epoch<0||
        !Number.isSafeInteger(x.sequence)||x.sequence<1||
        typeof x.documentToken!=='string'||!TOKEN.test(x.documentToken)||
-       typeof x.route!=='string'||x.route.length>512||
-       !/^\/[a-zA-Z0-9/_%.-]*$/.test(x.route)||
+       !validRoute(x.route)||
        !['fresh','restored'].includes(x.origin)||
        !['observed','inferred','unknown'].includes(x.confidence))return null;
     return Object.freeze({version:1,documentToken:x.documentToken,route:x.route,
@@ -42,7 +43,7 @@
       signal.route===waiting.route&&signal.origin==='fresh'&&signal.phase==='finished'&&
       signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
   }
-  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,parse,advance,ready,newBusy,completed});
+  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,parse,advance,ready,newBusy,completed});
   root.ChatQueueSignal=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -15,9 +15,10 @@ function create() {
   const browser={
     runtime:{onMessage:{addListener:fn=>listeners.internal=fn},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
     tabs:{sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},onRemoved:{addListener:fn=>listeners.removed=fn},onUpdated:{addListener:fn=>listeners.updated=fn}},
+    webNavigation:{onHistoryStateUpdated:{addListener:fn=>listeners.history=fn}},
     storage:{local:{get:async()=>state},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
-  const context=vm.createContext({browser});
+  const context=vm.createContext({browser,URL});
   vm.runInContext(signals,context);
   vm.runInContext(grants,context);
   vm.runInContext(src,context);
@@ -32,7 +33,7 @@ test('cross-extension API is denied by default unless allowlisted',async()=>{
 test('approved senders can discover registered tabs and forward only known actions',async()=>{
   const {listeners,forwards}=create();
   const sender={tab:{id:17,url:'https://chatgpt.com/c/fake'},url:'https://chatgpt.com/c/fake'};
-  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register'},sender)).tabId,17);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/fake'},sender)).tabId,17);
   await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:2,running:true},sender);
   const external={id:'approved@example.test'};
   const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},external);
@@ -53,7 +54,7 @@ test('non-ChatGPT content cannot register as a target',async()=>{
 test('least-privilege scopes prevent read or control from discover/append grants',async()=>{
   const {listeners,forwards}=create();
   const tab={tab:{id:17,url:'https://chatgpt.com/c/example'},url:'https://chatgpt.com/c/example'};
-  await listeners.internal({type:'chat-queue-internal/v1',action:'register'},tab);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/example'},tab);
   const discover={id:'observer@example.test'},append={id:'poster@example.test'};
   assert.equal((await listeners.external({type:'chat-queue/v1',action:'listTabs'},discover)).ok,true);
   assert.equal((await listeners.external({type:'chat-queue/v1',action:'status',tabId:17},discover)).error,'forbidden-scope');
@@ -69,7 +70,7 @@ test('least-privilege scopes prevent read or control from discover/append grants
 test('only the authenticated Chat Signals extension can supply epochs; stale events are rejected',async()=>{
   const {listeners,forwards}=create();
   const tab={tab:{id:17,url:'https://chatgpt.com/c/example'},url:'https://chatgpt.com/c/example'};
-  await listeners.internal({type:'chat-queue-internal/v1',action:'register'},tab);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/example'},tab);
   const signal={version:1,route:'/c/example',documentToken:'a'.repeat(32),
     sequence:1,epoch:1,phase:'generating',origin:'fresh',confidence:'observed'};
   const msg={type:'chat-queue-signal/v1',tabId:17,signal};
@@ -85,7 +86,7 @@ test('only the authenticated Chat Signals extension can supply epochs; stale eve
   assert.equal(JSON.stringify(listed).includes(signal.route),false);
   assert.equal((await listeners.external(msg,sender)).error,'stale-signal');
   assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,epoch:0}},sender)).error,'stale-signal');
-  assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,route:'/c/other'}},sender)).error,'stale-signal');
+  assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,route:'/c/other'}},sender)).error,'route-mismatch');
   assert.equal((await listeners.external({...msg,signal:{...signal,sequence:2,documentToken:'b'.repeat(32)}},sender)).error,'stale-signal');
   assert.equal((await listeners.external({...msg,tabId:42},sender)).error,'tab-not-registered');
 });
@@ -118,4 +119,30 @@ test('all externally supplied API frames are size bounded, including capabilitie
   assert.equal(cap.error,'request-too-large');
   assert.equal(enqueue.error,'request-too-large');
   assert.equal(forwards.length,0);
+});
+
+test('Firefox History API route changes revoke old providers and registration until exact new route',async()=>{
+  const {listeners,forwards}=create();
+  const sender={tab:{id:15,url:'https://chatgpt.com/c/first'},url:'https://chatgpt.com/c/first'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},sender)).ok,true);
+  const source={id:'chat-signals@sguzman.github'};
+  const event=(route,seq)=>({type:'chat-queue-signal/v1',tabId:15,signal:{version:1,route,sequence:seq,epoch:1,documentToken:'a'.repeat(32),phase:'finished',origin:'fresh',confidence:'inferred'}});
+  assert.equal((await listeners.external(event('/c/first',1),source)).ok,true);
+  listeners.history({tabId:15,frameId:2,url:'https://chatgpt.com/c/second'});
+  assert.equal((await listeners.external(event('/c/first',2),source)).ok,true,'subframe must not revoke top document');
+  listeners.history({tabId:15,frameId:0,url:'https://chatgpt.com/c/second'});
+  assert.equal((await listeners.external(event('/c/first',3),source)).error,'tab-not-registered');
+  assert.equal(forwards.at(-1).message.type,'chat-queue-route-changed/v1');
+  const newSender={tab:{id:15,url:'https://chatgpt.com/c/second'},url:'https://chatgpt.com/c/second'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/second'},newSender)).ok,true);
+  assert.equal((await listeners.external(event('/c/first',4),source)).error,'route-mismatch');
+  assert.equal((await listeners.external(event('/c/second',4),source)).ok,true);
+});
+
+test('late registration from old route fails closed even if it claims new route',async()=>{
+  const {listeners}=create();
+  const old={tab:{id:2,url:'https://chatgpt.com/c/old'},url:'https://chatgpt.com/c/old'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},old)).error,'route-mismatch');
+  const newSender={tab:{id:2,url:'https://chatgpt.com/c/new'},url:'https://chatgpt.com/c/new'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},newSender)).ok,true);
 });
