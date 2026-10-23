@@ -98,7 +98,7 @@ async function main(){
  fs.mkdirSync(qdir);fs.mkdirSync(cdir);
  createQueue(qdir,path.resolve(__dirname,'..'));createClient(cdir);
  const server=http.createServer((_req,res)=>{res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(html)});
- let driver=null;
+ let driver=null,stage='initialization';
  try{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   driver=await new Builder().forBrowser('firefox').setFirefoxOptions(
@@ -134,8 +134,10 @@ async function main(){
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
   await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
   // The fallback must detect Firefox URL change events when History API updates the route.
+  stage='pre-navigation-snapshot';
   const beforeNavigation=await command({type:'chat-queue/v1',action:'status',tabId});
   assert.equal(beforeNavigation.ok,true);
+  stage='pushState';
   await driver.executeScript('history.pushState({},"","/c/second")');
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="0 queued"'),10000);
@@ -143,6 +145,7 @@ async function main(){
   assert.equal(changed.ok,true);assert.equal(changed.tabs.length,1);
   assert.equal(changed.tabs[0].phase,'unknown');
   // Reopening the original route must recover its queue without enabling auto-send.
+  stage='replaceState';
   await driver.executeScript('history.replaceState({},"","/c/synthetic")');
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),10000);
@@ -153,6 +156,7 @@ async function main(){
   assert.equal((await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Stale route overwrite',ifMatch:beforeNavigation.etag}})).error,'revision-conflict');
   // Check optimistic mutation tokens after route recovery.
 
+  stage='optimistic-token-updates';
   const snapshot=await command({type:'chat-queue/v1',action:'status',tabId});
   assert.equal(snapshot.ok,true);assert.equal(typeof snapshot.etag,'string');
   assert.equal(snapshot.items[0].text,'Synthetic external enqueue');
@@ -166,6 +170,7 @@ async function main(){
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
+  stage='grant-revocation';
   const grantNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{}}},"*")',grantNonce);
   await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',grantNonce),10000);
@@ -176,6 +181,8 @@ async function main(){
   assert.equal(result.error,'unauthorized');
   assert.equal(await driver.executeScript('return window.__sent'),0);
   console.log('FDE scoped API: grants/revocation, optimistic conflict protection, real pushState/replaceState isolation, no Send');
+ }catch(error){
+  throw new Error('FDE API stage '+stage+': '+error.message);
  }finally{
   if(driver)await driver.quit();
   await new Promise(resolve=>server.close(resolve));
