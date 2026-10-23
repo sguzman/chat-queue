@@ -129,6 +129,10 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript('return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="1 queued"'),9000);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.ok(!JSON.stringify(await command({type:'chat-queue/v1',action:'listTabs'})).includes('Synthetic external enqueue'));
+  // Explicitly elevate the synthetic client for snapshot/edit acceptance.
+  let readNonce=++nonce;
+  await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
   // The fallback must detect Firefox URL change events when History API updates the route.
   const beforeNavigation=await command({type:'chat-queue/v1',action:'status',tabId});
   assert.equal(beforeNavigation.ok,true);
@@ -147,10 +151,8 @@ async function main(){
   assert.equal(returned.ok,true);
   assert.notEqual(returned.etag,beforeNavigation.etag,'route return must invalidate stale revision token');
   assert.equal((await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Stale route overwrite',ifMatch:beforeNavigation.etag}})).error,'revision-conflict');
-  // Grant read/edit deliberately, then check optimistic mutation tokens.
-  let readNonce=++nonce;
-  await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
-  await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
+  // Check optimistic mutation tokens after route recovery.
+
   const snapshot=await command({type:'chat-queue/v1',action:'status',tabId});
   assert.equal(snapshot.ok,true);assert.equal(typeof snapshot.etag,'string');
   assert.equal(snapshot.items[0].text,'Synthetic external enqueue');
