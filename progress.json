@@ -738,8 +738,10 @@
                   "id": "M5-05",
                   "emoji": "🧪",
                   "title": "Run real add-on-to-add-on messaging in Firefox Developer Edition",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "tests/fde-api.cjs real Firefox dual-addon test present; CI acceptance result pending"
+                  ]
                 },
                 {
                   "id": "M5-06",
