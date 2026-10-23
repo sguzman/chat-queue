@@ -55,7 +55,9 @@ function prepareQueue(dir,source){
   const preflight="    if (message.action === 'dispatch-check') {";
   assert.equal(bg.split(preflight).length,2);
   bg=bg.replace(preflight,
-    "    if (message.action === 'dispatch-check' && message.sequence===10) SIGNALS.clear();\n"+preflight);
+    "    if (message.action === 'dispatch-check' && message.sequence===10) {"+
+    "globalThis.__qaFourthChecks=(globalThis.__qaFourthChecks||0)+1;"+
+    "if(globalThis.__qaFourthChecks===2) SIGNALS.clear();}\n"+preflight);
   fs.writeFileSync(bgPath,bg);
 }
 function prepareProvider(dir){
