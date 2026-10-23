@@ -7,7 +7,8 @@
 :root[data-theme="dark"]{color-scheme:dark;--bg:#181b20;--fg:#f2f4f7;--surface:#252a31;--border:#667485;--focus:#86b6e8;--muted:#bfcedf}
 *{box-sizing:border-box}body{font:16px/1.5 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:650px;margin:40px auto;padding:0 20px}
 textarea{display:block;width:100%;min-height:180px;background:var(--surface);color:inherit;border:1px solid var(--border);border-radius:8px;padding:12px;font:inherit}
-button,select{font:inherit;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:inherit;cursor:pointer}button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input{font:inherit;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:inherit;max-width:100%}
+input[type=checkbox]{margin-right:8px}textarea.short{min-height:80px}#rule-sandbox{margin-top:40px;padding-top:24px;border-top:1px solid var(--border)}#rule-sandbox form{padding:16px;border:1px solid var(--border);border-radius:12px;margin:18px 0}#rule-sandbox form label{margin-top:14px}#rule-list{padding-left:22px}#rule-list li{padding:8px 0}#rule-list button{margin-left:12px}#preview-output{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:68px}button,select{font:inherit;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:inherit;cursor:pointer}button:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 </style></head><body>
 <h1>Chat Queue preferences</h1>
@@ -18,4 +19,29 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="ids">Extension ID | scopes (one per line)</label><textarea id="ids" spellcheck="false" placeholder="my-extension@example.test | discover,append"></textarea>
 <p><button type="button" id="save">Save permissions</button> <output id="message" role="status"></output></p>
 <p>API namespace: <code>chat-queue/v1</code>. Add-on ID: <code>chat-queue@sguzman.github</code>.</p>
+<section id="rule-sandbox" aria-label="Conditional rule sandbox">
+<h2>Conditional rule sandbox (simulation only)</h2>
+<p class="note">Propose a response or pause based on a simulated Signal event. This prototype does not save rules, read conversations, change a queue, or click Send.</p>
+<form id="rule-form">
+<label for="rule-id">Rule identifier</label><input id="rule-id" required value="example-rule" maxlength="64" spellcheck="false">
+<label for="rule-priority">Priority (0–1000)</label><input type="number" id="rule-priority" min="0" max="1000" step="1" value="10" required>
+<label for="rule-phase">When response state is</label><select id="rule-phase"><option value="finished">Finished</option><option value="failed">Failed</option><option value="interrupted">Connection interrupted</option><option value="limit">Conversation limit</option></select>
+<label for="rule-confidence">Required confidence</label><select id="rule-confidence"><option value="any">Any known confidence</option><option value="observed">Observed</option><option value="inferred">Inferred</option></select>
+<label for="rule-action">Then propose</label><select id="rule-action"><option value="propose">Text for manual review</option><option value="pause">Pause (preview only)</option></select>
+<label for="rule-text">Proposed text</label><textarea id="rule-text" class="short" maxlength="24000">Synthetic follow-up</textarea>
+<label for="rule-enabled"><input type="checkbox" id="rule-enabled" checked> Enabled</label>
+<p><button id="rule-add" type="submit">Add or replace rule</button> <output role="status" id="rule-message"></output></p>
+</form>
+<ul id="rule-list" aria-label="Rules in current sandbox"></ul>
+<form id="preview-form">
+<h3>Simulate one response event</h3>
+<label for="preview-phase">Simulated response state</label><select id="preview-phase"><option value="finished">Finished</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="limit">Limit</option></select>
+<label for="preview-confidence">Simulated confidence</label><select id="preview-confidence"><option value="observed">Observed</option><option value="inferred">Inferred</option><option value="unknown">Unknown</option></select>
+<label for="preview-origin">Simulated origin</label><select id="preview-origin"><option value="fresh">Fresh</option><option value="restored">Restored historical snapshot</option></select>
+<label for="preview-epoch">Simulated response epoch</label><input id="preview-epoch" type="number" min="0" max="1000000" value="1" required>
+<p><button type="submit">Preview rule decision</button> <button type="button" id="preview-reset">Reset replay history</button></p>
+<pre id="preview-output" aria-live="polite" role="status">No preview yet.</pre>
+</form>
+</section>
+<script src="../src/signal.js"></script><script src="../src/rules.js"></script><script src="rule-preview.js"></script>
 <script src="options.js"></script></body></html>

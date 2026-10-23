@@ -60,3 +60,7 @@ jobs:
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-api.cjs
+      - name: Headless FDE conditional rule preview sandbox (no send)
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-rules.cjs
