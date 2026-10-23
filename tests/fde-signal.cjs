@@ -203,7 +203,57 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${hud('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,'Reload cannot perform an automatic send');
-    console.log('Headless FDE synthetic Signal: reorder, uncertain recovery, bounded history and explicit no-send Requeue');
+
+    // Two live tabs at the exact same conversation route may each hold queue
+    // items, but only one may pass the authenticated dispatch preflight.
+    const ownerWindow=await driver.getWindowHandle();
+    await emit('idle',0,20);
+    await waitNote('Signal: idle');
+    const ownerStart=await driver.executeScript(`return ${hud('run')}`);
+    await ownerStart.click();await waitSends(1);
+    await emit('generating',1,21);
+    await waitNote('Waiting for confirmed response completion');
+
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/synthetic`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    const contenderWindow=await driver.getWindowHandle();
+    const contenderInput=await driver.executeScript(`return ${hud('draft')}`);
+    const contenderAdd=await driver.executeScript(`return ${hud('add')}`);
+    await contenderInput.sendKeys('Synthetic competing message');
+    await contenderAdd.click();
+    await emit('idle',0,22);
+    await waitNote('Signal: idle');
+    const contenderStart=await driver.executeScript(`return ${hud('run')}`);
+    await contenderStart.click();
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Competing tab cannot Send or gain ownership');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'',
+      'Rejected ownership must preserve the empty ChatGPT composer');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
+    await driver.switchTo().window(ownerWindow);
+    const pauseOwner=await driver.executeScript(`return ${hud('run')}`);
+    await pauseOwner.click();
+    await driver.switchTo().window(contenderWindow);
+    await emit('idle',0,23);
+    await contenderStart.click();
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Pausing while awaiting a response must retain the route lease');
+
+    await driver.switchTo().window(ownerWindow);
+    await emit('finished',1,22,'inferred');
+    await waitNote('Response finished; control returned');
+    await driver.sleep(250);
+    await driver.switchTo().window(contenderWindow);
+    await emit('idle',0,24);
+    await contenderStart.click();
+    await waitSends(1);
+    assert.deepEqual(await driver.executeScript('return window.__sent'),['Synthetic competing message']);
+    console.log('Headless FDE synthetic Signal: requeue, same-conversation single-owner gate, paused-awaiting lock and manual takeover');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
