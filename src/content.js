@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -183,6 +183,7 @@
     void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,revision:state.revision}).catch(()=>{});
   }
   function save() {
+    if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
     state.clearArmed=false;
     state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20)};
     state.saveChain=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
@@ -320,7 +321,7 @@
   function planNext() {
     if (state.scheduler) clearTimeout(state.scheduler);
     state.scheduler=setTimeout(()=>{state.scheduler=null;
-      if (!state.running || state.awaiting || state.attempting ||
+      if (!state.running || state.awaiting || state.attempting || state.blockedRecord ||
           !freshProvider() || !contract.ready(state.trusted,routeKey())) return;
       if (!pending()) {state.running=false;statusNote('Queue completed');return;}
       void dispatchOne();
@@ -352,9 +353,10 @@
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
     state.revision=0;state.etag=uid(); // invalidate stale compare tokens across routes
-    state.items=core.normalizeSaved(stored[newKey]);
-    state.history=readHistory(stored[newKey]);
-    state.observedSignal=signalFromPage();state.note='Conversation changed; manually start queue';state.editing=null;
+    state.blockedRecord=!core.savedRecordSupport(stored[newKey]).ok;
+    state.items=state.blockedRecord?[]:core.normalizeSaved(stored[newKey]);
+    state.history=state.blockedRecord?[]:readHistory(stored[newKey]);
+    state.observedSignal=signalFromPage();state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Conversation changed; manually start queue';state.editing=null;
     // A new route also invalidates the background's Signal document sequence.
     try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
@@ -366,7 +368,8 @@
     if(state.key!==storageKey())await handleRouteChange();
     if(state.routing||state.key!==storageKey())return {ok:false,error:'route-transition'};
     try {
-      if (action==='status') return {ok:true,tabId:state.tabId,phase:state.signal,running:state.running,awaiting:state.awaiting,revision:state.revision,etag:state.etag,items:state.items.map(e=>({...e})),history:state.history.map(e=>({...e}))};
+      if (action==='status') return {ok:true,tabId:state.tabId,phase:state.signal,running:state.running,awaiting:state.awaiting,readOnly:state.blockedRecord,revision:state.revision,etag:state.etag,items:state.items.map(e=>({...e})),history:state.history.map(e=>({...e}))};
+      if (state.blockedRecord) return {ok:false,error:'unsupported-saved-queue'};
       // Optional optimistic compare-and-swap. A random per-document token
       // prevents revision ABA after reload or a new tab instance.
       if (['enqueue','update','reorder','move','remove','clear','resolve'].includes(action) &&
@@ -527,11 +530,12 @@
       state.theme=['system','light','dark'].includes(pref)?pref:'system';
       const ui=uiValid(stored[UI_KEY])?stored[UI_KEY]:{right:20,bottom:84,collapsed:false};
       state.position={right:ui.right,bottom:ui.bottom};state.collapsed=ui.collapsed;
-      state.items=core.normalizeSaved(stored[state.key]);
-      state.history=readHistory(stored[state.key]);
+      state.blockedRecord=!core.savedRecordSupport(stored[state.key]).ok;
+      state.items=state.blockedRecord?[]:core.normalizeSaved(stored[state.key]);
+      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
       (document.body||document.documentElement).append(host);
-      state.note='Paused; press Start';render();publish();
+      state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';render();publish();
       if(state.key!==storageKey())void handleRouteChange();
     } catch(error) {
       state.destroyed=true;signalObserver.disconnect();clearInterval(routeWatch);
