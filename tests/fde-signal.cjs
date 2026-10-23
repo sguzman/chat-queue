@@ -50,7 +50,7 @@ function prepareQueue(dir,source){
   const oldNav="!change.url.startsWith('https://chatgpt.com/')";
   assert.equal(bg.split(oldNav).length,2);
   bg=bg.replace(oldNav,"!change.url.startsWith('http://127.0.0.1:')");
-  const historyFilter="{url:[{hostEquals:'chatgpt.com',schemes:['https']}]}";
+  const historyFilter="{url:[{hostEquals:'chatgpt.com'}]}";
   assert.equal(bg.split(historyFilter).length,2);
   bg=bg.replace(historyFilter,"{url:[{hostEquals:'127.0.0.1',schemes:['http']]}]");
   fs.writeFileSync(bgPath,bg);

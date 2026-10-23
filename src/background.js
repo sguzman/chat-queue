@@ -147,5 +147,5 @@
       // The content script must inspect its OWN current location before re-registering.
       void api.tabs.sendMessage(details.tabId,{type:'chat-queue-route-changed/v1'}).catch(()=>{});
     }
-  },{url:[{hostEquals:'chatgpt.com',schemes:['https']}]});
+  },{url:[{hostEquals:'chatgpt.com'}]});
 })();
