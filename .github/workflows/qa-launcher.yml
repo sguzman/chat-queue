@@ -1,0 +1,21 @@
+name: Isolated Firefox QA Launcher Safety
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/qa-firefox-developer.fish'
+      - 'tests/qa-launcher.fish'
+      - '.github/workflows/qa-launcher.yml'
+  workflow_dispatch:
+jobs:
+  fish-launcher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fish in disposable CI runner
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fish
+      - name: Validate Firefox QA profile isolation without launching a browser
+        run: fish tests/qa-launcher.fish
