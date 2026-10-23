@@ -22,7 +22,7 @@ test('malformed and overlength messages rejected',()=>{
   assert.equal(q.validText(''),false);
   assert.equal(q.validText('x'.repeat(q.MAX_CHARS+1)),false);
   assert.throws(()=>q.makeItem('a','!!!'));
-  assert.deepEqual(q.normalizeSaved({items:[{id:'aaaaaaaa',text:'hi'},{id:'aaaaaaaa',text:'dup'},{id:'bbbbbbbb',text:''}]}),[{id:'aaaaaaaa',text:'hi',status:'pending'}]);
+  assert.deepEqual(q.normalizeSaved({items:[{id:'aaaaaaaa',text:'hi'},{id:'aaaaaaaa',text:'dup'},{id:'bbbbbbbb',text:''}]}),[{id:'aaaaaaaa',text:'hi',status:'uncertain'}]);
 });
 
 test('exact permutation rejects duplicates, foreign IDs, truncation and excessive queues',()=>{
