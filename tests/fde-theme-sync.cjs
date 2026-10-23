@@ -46,7 +46,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('theme')})`),15000);
     assert.equal(await driver.executeScript(`return ${get('theme')}.value`),'system');
     const first=await driver.getWindowHandle();
-    await driver.executeScript(`const el=${get('draft')};el.value='';el.textContent='Synthetic queued prompt';el.dispatchEvent(new Event('input',{bubbles:true}));`);
+    await driver.executeScript(`const el=${get('draft')};el.value='Synthetic queued prompt';el.dispatchEvent(new Event('input',{bubbles:true}));`);
     await driver.executeScript(`return ${get('add')}.click()`);
     stage='first-enqueue';
     await driver.wait(async()=>await driver.executeScript(`return ${get('count')}.textContent==='1 queued'`),5000);
