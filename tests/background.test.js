@@ -8,13 +8,23 @@ const grants=fs.readFileSync(require.resolve('../src/grants.js'),'utf8');
 function create() {
   const listeners={};
   const forwards=[];
+  const liveUrls=new Map();
   const state={'chatqueue:api-grants:v2':{version:2,grants:{
     'approved@example.test':['discover','read','append','edit','control'],
     'observer@example.test':['discover'],
     'poster@example.test':['append']}}};
   const browser={
-    runtime:{onMessage:{addListener:fn=>listeners.internal=fn},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
-    tabs:{sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},onRemoved:{addListener:fn=>listeners.removed=fn},onUpdated:{addListener:fn=>listeners.updated=fn}},
+    runtime:{onMessage:{addListener:fn=>listeners.internal=(message,sender)=>{
+      if(sender?.tab&&!liveUrls.has(sender.tab.id))liveUrls.set(sender.tab.id,sender.tab.url);
+      return fn(message,sender);
+    }},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
+    tabs:{get:async tabId=>({id:tabId,url:liveUrls.get(tabId)}),
+      sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},
+      onRemoved:{addListener:fn=>listeners.removed=fn},
+      onUpdated:{addListener:fn=>listeners.updated=(id,change)=>{
+        if(change.url)liveUrls.set(id,change.url);
+        return fn(id,change);
+      }}},
     storage:{local:{get:async()=>state},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
   const context=vm.createContext({browser,URL});
@@ -142,6 +152,7 @@ test('late registration from old route fails closed even if it claims new route'
   const {listeners}=create();
   const old={tab:{id:2,url:'https://chatgpt.com/c/old'},url:'https://chatgpt.com/c/old'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},old)).error,'route-mismatch');
+  listeners.updated(2,{url:'https://chatgpt.com/c/new'});
   const newSender={tab:{id:2,url:'https://chatgpt.com/c/new'},url:'https://chatgpt.com/c/new'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/new'},newSender)).ok,true);
 });
@@ -165,4 +176,15 @@ test('unregistered and stale SPA state updates cannot repopulate the public tab 
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished'},old)).error,'route-mismatch');
   const list=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
   assert.deepEqual(Array.from(list.tabs),[]);
+});
+
+test('Firefox live tab URL overrides stale document sender URL after SPA navigation',async()=>{
+  const {listeners}=create();
+  const initial={tab:{id:32,url:'https://chatgpt.com/c/first'},url:'https://chatgpt.com/c/first'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},initial)).ok,true);
+  listeners.updated(32,{url:'https://chatgpt.com/c/second'});
+  const second={tab:{id:32,url:'https://chatgpt.com/c/second'},url:'https://chatgpt.com/c/first'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/second'},second)).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'unknown'},second)).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},second)).error,'route-mismatch');
 });

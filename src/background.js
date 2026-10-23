@@ -13,6 +13,16 @@
   const ROUTES = new Map();
   const PORTS = new Map();
   const PROVIDER_TYPE = signalContract.TYPE;
+  // History API navigation can leave sender.url at the original document URL.
+  // Query only the browser-owned current tab and compare origins; no tab sweep.
+  async function currentRoute(sender) {
+    try {
+      const current=await api.tabs.get(sender.tab.id);
+      const live=new URL(current?.url);
+      const origin=new URL(sender.url || sender.tab.url);
+      return live.origin===origin.origin ? live.pathname : null;
+    } catch { return null; }
+  }
   const notify = (tabId, state) => {
     for (const port of PORTS.keys()) {
       try { port.postMessage({ type: PREFIX, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
@@ -25,26 +35,22 @@
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
-      // The sender URL is supplied by Firefox, not the page payload. A late
-      // registration from an old route must not seize the new route's slot.
-      let senderRoute;
-      try{senderRoute=new URL(sender.url || tab.url).pathname;}catch{return Promise.resolve({ok:false,error:'invalid-route'});}
-      if(senderRoute!==message.route)return Promise.resolve({ok:false,error:'route-mismatch'});
-      ROUTES.set(tab.id,message.route);
-      TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
-      SIGNALS.delete(tab.id);
-      return Promise.resolve({ ok: true, tabId: tab.id });
+      return currentRoute(sender).then(live=>{
+        if(live!==message.route)return {ok:false,error:'route-mismatch'};
+        ROUTES.set(tab.id,message.route);
+        TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
+        SIGNALS.delete(tab.id);
+        return {ok:true,tabId:tab.id};
+      });
     }
     if (message.action === 'state') {
       // A stale message from a former SPA route must not recreate a public
       // tab slot after Firefox invalidated its registration.
-      let senderRoute;
-      try{senderRoute=new URL(sender.url || tab.url).pathname;}catch{
-        return Promise.resolve({ok:false,error:'invalid-route'});
-      }
-      if(!TABS.has(tab.id)||ROUTES.get(tab.id)!==senderRoute)
-        return Promise.resolve({ok:false,error:'route-mismatch'});
-      {
+      const registered=ROUTES.get(tab.id);
+      if(!TABS.has(tab.id)||!registered)return Promise.resolve({ok:false,error:'route-mismatch'});
+      return currentRoute(sender).then(live=>{
+        if(ROUTES.get(tab.id)!==registered||live!==registered||!TABS.has(tab.id))
+          return {ok:false,error:'route-mismatch'};
         const phase = String(message.phase || 'unknown');
         const prev=TABS.get(tab.id);
         const next={
@@ -55,8 +61,8 @@
         };
         TABS.set(tab.id,next);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
-      }
-      return Promise.resolve({ ok: true });
+        return {ok:true};
+      });
     }
     return Promise.resolve({ ok: false, error: 'unknown-action' });
   });
