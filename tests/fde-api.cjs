@@ -184,6 +184,21 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Duplicate stale update',ifMatch:snapshot.etag}});
   assert.equal(result.error,'revision-conflict');
   assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).items[0].text,'Synthetic updated message');
+  // Approved clients must supply an exact permutation; invalid requests must
+  // not modify the queue or permit a subsequent unintended Send.
+  const second=await command({type:'chat-queue/v1',action:'enqueue',tabId,payload:{text:'Synthetic second item'}});
+  assert.equal(second.ok,true);
+  const orderOf=async()=> (await command({type:'chat-queue/v1',action:'status',tabId})).items.map(item=>item.id);
+  assert.deepEqual(await orderOf(),[itemId,second.id]);
+  for(const ids of [[itemId,itemId],[itemId],['foreign-id',second.id],null]){
+    const bad=await command({type:'chat-queue/v1',action:'reorder',tabId,payload:{ids}});
+    assert.equal(bad.error,'invalid-order');
+    assert.deepEqual(await orderOf(),[itemId,second.id]);
+  }
+  assert.equal((await command({type:'chat-queue/v1',action:'reorder',tabId,payload:{ids:[second.id,itemId]}})).ok,true);
+  assert.deepEqual(await orderOf(),[second.id,itemId]);
+  assert.equal((await command({type:'chat-queue/v1',action:'remove',tabId,payload:{id:second.id}})).ok,true);
+  assert.deepEqual(await orderOf(),[itemId]);
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
