@@ -129,6 +129,14 @@ async function main(){
     await emit('generating',1,3);
     await waitNote('Waiting for confirmed response completion');
     assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    // While awaiting a response, editing and reordering the pending queue
+    // must remain possible. The in-flight item cannot be sent again.
+    await input.sendKeys('Synthetic queued C');
+    await add.click();
+    const up=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:first-child')");
+    await up.click();
+    const pending=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
+    assert.deepEqual(pending,['Synthetic queued C','Synthetic queued B']);
     await emit('finished',1,4,'inferred');
     await waitSends(2);
     // A terminal replay from the previous response may be fresh evidence of
@@ -138,10 +146,14 @@ async function main(){
     await emit('generating',2,6);
     await waitNote('Waiting for confirmed response completion');
     await emit('finished',2,7,'inferred');
+    await waitSends(3);
+    await emit('generating',3,8);
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',3,9,'inferred');
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
-      ['Synthetic queued A','Synthetic queued B']);
-    console.log('Headless FDE cross-extension Signal fixture: two ordered sends, exact epochs, no page-spoofed send');
+      ['Synthetic queued A','Synthetic queued C','Synthetic queued B']);
+    console.log('Headless FDE cross-extension Signal fixture: in-flight reorder, three ordered sends, exact epochs, no page-spoofed send');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
