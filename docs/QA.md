@@ -82,3 +82,7 @@ The same CI suite verifies an armed **Confirm clear** action is cancelled by an 
 ## 🗂️ Persisted preview definitions
 
 The `fde-rules.cjs` fixture uses a synthetic same-origin sessionStorage-backed stub for Firefox extension storage. It checks that rule definitions survive page reloads, remain inert without a simulation request, can be edited after reload, and require two clicks for destructive clearing. Production Options uses Firefox `browser.storage.local`, not the fixture's `sessionStorage`. Consequently this gate proves real Firefox UI behavior and storage-adapter mechanics, not privileged Firefox extension-storage persistence or conditional execution. Corrupt/future-version record rejection is covered by Node unit tests.
+
+## 🎨 HUD placement persistence
+
+The synthetic headless Firefox Developer Edition HUD suite now exercises keyboard header movement, a retained position and collapsed flag after reload, and a reset that restores the default corner without clearing queued messages. Pointer drag uses bounded pointer capture in the production content script; a real pointer-drag and high-zoom visual/layout acceptance remain separate unverified gates. No browser profile preferences are changed.

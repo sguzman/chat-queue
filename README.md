@@ -52,7 +52,7 @@ A synthetic Firefox Developer Edition test verifies switching away and back rest
 
 ## 🧠 Conditional-rule preview (no Send)
 
-The preferences page now contains a **temporary, visual rule sandbox** for building declarative conditions, setting priorities, and simulating fresh/restored Chat Signals outcomes. Preview output is rendered as text, never injected HTML. Rules live only in the open preferences page and disappear after reload. There is no rule persistence, background dispatch integration, or automatic action.
+The preferences page includes a **visual, dry-run rule editor** for building declarative conditions, setting priorities, and simulating fresh/restored Chat Signals outcomes. Preview output is rendered as text, never injected HTML. Rule definitions can now be saved in local extension storage, but the simulation replay history clears on reload. There is no live background dispatch integration or automatic conditional action.
 
 The pure rule engine and its 8 focused Node regressions passed in [GitHub Actions](https://github.com/sguzman/chat-queue/actions/runs/40035678496). Real headless Firefox Developer Edition accepted the production simulator scripts on a synthetic preferences document (including replay suppression, restored-state rejection and inert HTML text) in [run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429). Neither test is authenticated ChatGPT conditional-send acceptance. See [conditional rule contract](docs/CONDITIONAL-RULES.md).
 
@@ -66,8 +66,12 @@ When the background loses a synthetic authenticated Signal registry at the pre-s
 
 ## 🔌 Independent rules-preview permission
 
-An approved Firefox extension may now request the separate `rules` scope and call `chat-queue/v1` → `previewRules` with its **own synthetic event and typed rule data**. No provider event, conversation content, or queued prompt is read; nothing is persisted or sent. The [independent Firefox client acceptance run](https://github.com/sguzman/chat-queue/actions/runs/40037217649) verifies isolated scope, typed decisions, and immediate denial after revocation. Rule CRUD, event notifications and activated policies are not implemented; see [API.md](API.md).
+An approved Firefox extension may now request the separate `rules` scope and call `chat-queue/v1` → `previewRules` with its **own synthetic event and typed rule data**. No provider event, conversation content, or queued prompt is read; nothing is persisted or sent. The [independent Firefox client acceptance run](https://github.com/sguzman/chat-queue/actions/runs/40037217649) verifies isolated scope, typed decisions, and immediate denial after revocation. External rule CRUD, event notifications and activated policies are not implemented; local Options-only editing is independent of that API. See [API.md](API.md).
 
 ## 🧠 Locally saved conditional rule definitions (no execution)
 
 The Options rule editor now stores up to 32 validated, versioned rule definitions in `browser.storage.local` on explicit Save/Remove/Clear actions. Definitions load after an Options reload; a two-step **Clear saved rules** action removes them. Malformed, oversized, or future-version storage records are never silently overwritten. Saving a rule does **not** activate it, watch a conversation, enqueue a message, or trigger Send. Rule preview still uses synthetic events only, and the external `rules` API still evaluates exclusively caller-supplied data. See [docs/CONDITIONAL-RULES.md](docs/CONDITIONAL-RULES.md).
+
+## 🎨 HUD placement and collapse
+
+The floating queue HUD supports pointer dragging on the header without intercepting its controls, keyboard movement when the header is focused (arrow keys, or Shift+arrow for a larger step), and Home to reset position. A **Reset queue position** button also expands the panel and returns to the default corner. Only bounded right/bottom coordinates and a collapsed flag are stored under `chatqueue:ui:v1` in Firefox local extension storage; these preferences are shared across the extension's ChatGPT tabs. Viewport resizing clamps the panel to the visible area. The HUD never changes browser preferences or navigates the page.

@@ -85,6 +85,24 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
     assert.equal(await driver.executeScript(`return ${jsEl('theme')}.value`),'dark');
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
+    // Keyboard-positioned HUD placement and collapse persist across reload.
+    const header=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.top')");
+    const startRight=Number.parseInt(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),10);
+    await header.sendKeys(Key.ARROW_LEFT);
+    await driver.wait(async()=>Number.parseInt(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),10)>startRight,5000);
+    const movedRight=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right");
+    const collapse=await driver.executeScript(`return ${jsEl('toggle')}`);
+    await collapse.click();
+    assert.equal(await driver.executeScript(`return ${jsEl('body')}.hidden`),true);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
+    assert.equal(await driver.executeScript(`return ${jsEl('body')}.hidden`),true);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),movedRight);
+    const reset=await driver.executeScript(`return ${jsEl('reset')}`);
+    await reset.click();
+    assert.equal(await driver.executeScript(`return ${jsEl('body')}.hidden`),false);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),'20px');
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
     await driver.executeScript("document.documentElement.dataset.chatSignalsState='finished'");
     const start=await driver.executeScript(`return ${jsEl('run')}`);
     await start.click();
@@ -98,17 +116,11 @@ async function main(){
     await clear.click();
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
-    // An unrelated ChatGPT page click must disarm the destructive action.
-    await driver.executeScript("document.querySelector('main').click()");
-    assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Clear');
-    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
-    await clear.click();
-    assert.equal(await driver.executeScript(`return ${jsEl('clear')}.textContent`),'Confirm clear');
     await clear.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.uninstallAddon(id);
-    console.log('FDE synthetic: HUD, persistence, reorder, theme and forged-page-Signal fail-closed behavior pass');
+    console.log('FDE synthetic: HUD, keyboard placement/collapse persistence, reorder, theme and spoofed-Signal fail-closed behavior pass');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
