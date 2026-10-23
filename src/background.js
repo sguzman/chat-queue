@@ -48,7 +48,7 @@
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
         releaseOwner(tab.id);
         ROUTES.set(tab.id,message.route);
-        TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, revision: 0 });
+        TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
         return {ok:true,tabId:tab.id};
       });
@@ -89,10 +89,11 @@
           phase: /^(idle|submitted|generating|verifying|finished|interrupted|failed|limit|unknown)$/.test(phase) ? phase : 'unknown',
           size: Number.isInteger(message.size) ? Math.min(100, Math.max(0, message.size)) : 0,
           running: message.running === true,
+          awaiting: message.awaiting === true,
           revision: Number.isSafeInteger(message.revision) ? message.revision : 0
         };
         TABS.set(tab.id,next);
-        if(!next.running)releaseOwner(tab.id);
+        if(!next.running&&!next.awaiting)releaseOwner(tab.id);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
         return {ok:true};
       });
