@@ -396,7 +396,11 @@
       }
       if (action==='move') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
-        state.items=core.moveTo(state.items,payload?.id,payload?.beforeId??null);await save();render();return {ok:true};
+        const id=payload?.id,beforeId=payload?.beforeId??null;
+        if(typeof id!=='string'||!state.items.some(item=>item.id===id)||
+           (beforeId!==null&&(typeof beforeId!=='string'||!state.items.some(item=>item.id===beforeId)))||
+           id===beforeId)return {ok:false,error:'invalid-order'};
+        state.items=core.moveTo(state.items,id,beforeId);await save();render();return {ok:true};
       }
       if (action==='remove' || action==='clear') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
