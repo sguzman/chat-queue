@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 37/96 verified (38%) · ███░░░░░░░ · 41 implemented awaiting acceptance.**
+**Overall: 41/96 verified (42%) · ████░░░░░░ · 37 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -60,14 +60,14 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 **HUD surfaces**
 
 - [~] `M1-06` 🪟 Display nonintrusive floating panel, collapse and queue count _(implemented; acceptance pending)_
-- [~] `M1-07` ✍️ Add and edit queued prompts without losing draft input _(implemented; acceptance pending)_
+- [x] `M1-07` ✍️ Add and edit queued prompts without losing draft input
 - [x] `M1-08` 🗑️ Remove individual prompts and clear queue safely
 - [~] `M1-09` 🔀 Drag/drop reorder with predictable insertion boundaries _(implemented; acceptance pending)_
 - [x] `M1-10` ⌨️ Provide keyboard-only reorder and usable focus behavior
 - [x] `M1-11` ♿ Verify contrast, spacing, small viewports, zoom, reduced motion
 - [x] `M1-12` 🪄 Remember HUD placement/collapsed state with reset control
 
-**M1 acceptance:** 9/12 verified (75%) · ███████░░░ · 3 implemented but not accepted.
+**M1 acceptance:** 10/12 verified (83%) · ████████░░ · 2 implemented but not accepted.
 
 ### 📦 M2 — Queue model & persistence
 
@@ -79,7 +79,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M2-02` 🔢 Preserve exact order under move up/down and reorder operations
 - [x] `M2-03` ✏️ Support queue edits during generation, lock only dispatch item
 - [x] `M2-04` 🧮 Reject invalid permutation, duplicate IDs and oversized queues
-- [~] `M2-05` 🧾 Provide bounded sent-history inspection and manual requeue _(implemented; acceptance pending)_
+- [x] `M2-05` 🧾 Provide bounded sent-history inspection and manual requeue
 - [x] `M2-06` 🔏 Version persisted state, validate and migrate safely
 
 **F5 · Persistence & identity**
@@ -93,7 +93,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [ ] `M2-11` 🧷 Resolve same-conversation multi-tab ownership deterministically
 - [ ] `M2-12` 🧹 Offer user-controlled retention, export, import and deletion
 
-**M2 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 4 implemented but not accepted.
+**M2 acceptance:** 6/12 verified (50%) · █████░░░░░ · 3 implemented but not accepted.
 
 ### 📡 M3 — Signal integration & scheduler
 
@@ -156,7 +156,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M5-01` 🔌 Expose versioned Firefox external message actions _(implemented; acceptance pending)_
 - [x] `M5-02` 🔒 Deny unknown extensions by default with exact-ID allowlist
 - [x] `M5-03` 👁️ Offer read-only status, tab discovery and subscription events
-- [~] `M5-04` ✍️ Support validated enqueue/update/move/remove/reorder commands _(implemented; acceptance pending)_
+- [x] `M5-04` ✍️ Support validated enqueue/update/move/remove/reorder commands
 - [x] `M5-05` 🧪 Run real add-on-to-add-on messaging in Firefox Developer Edition
 - [ ] `M5-06` ♻️ Recover tab registry after event-page shutdown
 
@@ -171,7 +171,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M5-11` 📋 Expose capability negotiation and safe feature detection
 - [ ] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers
 
-**M5 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 4 implemented but not accepted.
+**M5 acceptance:** 6/12 verified (50%) · █████░░░░░ · 3 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
@@ -216,14 +216,14 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **Release discipline**
 
-- [~] `M7-07` 🔬 Add dependency-free CI syntax/behavior checks and Mozilla lint _(implemented; acceptance pending)_
+- [x] `M7-07` 🔬 Add dependency-free CI syntax/behavior checks and Mozilla lint
 - [x] `M7-08` 📦 Produce reproducible unsigned QA add-on package from extension directory
 - [ ] `M7-09` 🔒 Audit permissions, CSP, storage, private data and supply chain
 - [~] `M7-10` 📚 Publish installation, API, QA and recovery documentation _(implemented; acceptance pending)_
 - [ ] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 3/12 verified (25%) · ██░░░░░░░░ · 2 implemented but not accepted.
+**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 1 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 

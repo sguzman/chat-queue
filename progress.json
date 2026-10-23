@@ -238,9 +238,9 @@
                   "id": "M1-07",
                   "emoji": "✍️",
                   "title": "Add and edit queued prompts without losing draft input",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "HUD controls implemented; Firefox keyboard QA pending"
+                    "Headless Firefox Developer Edition synthetic HUD test edits a queued item twice while preserving both unsubmitted HUD input and the separate ChatGPT composer draft; no Send. https://github.com/sguzman/chat-queue/actions/runs/40041818441"
                   ]
                 },
                 {
@@ -346,9 +346,9 @@
                   "id": "M2-05",
                   "emoji": "🧾",
                   "title": "Provide bounded sent-history inspection and manual requeue",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js history widget; Firefox QA pending"
+                    "Actual Firefox Developer Edition synthetic Signal flow confirms four recent submitted history rows within the 20-row bound; deliberate history Requeue appends the exact prior text, does not Send, and survives reload. https://github.com/sguzman/chat-queue/actions/runs/40041768148"
                   ]
                 },
                 {
@@ -737,9 +737,9 @@
                   "id": "M5-04",
                   "emoji": "✍️",
                   "title": "Support validated enqueue/update/move/remove/reorder commands",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js act() exposed through background; QA pending"
+                    "Real Firefox Developer Edition separate client executes permitted enqueue, update, valid exact reorder, valid move, remove; rejects foreign/duplicate/invalid ordering, invalid move destinations, and stale etags without mutation. https://github.com/sguzman/chat-queue/actions/runs/40041672203"
                   ]
                 },
                 {
@@ -1032,9 +1032,9 @@
                   "id": "M7-07",
                   "emoji": "🔬",
                   "title": "Add dependency-free CI syntax/behavior checks and Mozilla lint",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    ".github workflow defined; hosted run pending"
+                    "GitHub CI passes Node 22 syntax/behavior suite and pinned Mozilla web-ext@10.8.0 lint of staged production extension with zero warnings and errors; Firefox Developer Edition install/synthetic suite passes independently. https://github.com/sguzman/chat-queue/actions/runs/40041570859"
                   ]
                 },
                 {
