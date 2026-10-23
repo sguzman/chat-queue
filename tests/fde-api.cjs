@@ -141,8 +141,12 @@ async function main(){
   await driver.executeScript('history.pushState({},"","/c/second")');
   await driver.wait(async()=>await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("count")?.textContent==="0 queued"'),10000);
-  const changed=await command({type:'chat-queue/v1',action:'listTabs'});
-  assert.equal(changed.ok,true);assert.equal(changed.tabs.length,1);
+  // The HUD updates before Firefox has necessarily delivered the new
+  // registration to the background. Await the settled registry, not a race.
+  const changed=await driver.wait(async()=>{
+   const reply=await command({type:'chat-queue/v1',action:'listTabs'});
+   return reply.ok&&reply.tabs.length===1&&reply.tabs[0].phase==='unknown' ? reply : false;
+  },15000);
   assert.equal(changed.tabs[0].phase,'unknown');
   // Reopening the original route must recover its queue without enabling auto-send.
   stage='replaceState';
