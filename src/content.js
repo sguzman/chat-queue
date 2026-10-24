@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -146,9 +146,11 @@
     els['history-clear'].textContent=state.historyClearArmed?'Confirm forget':'Forget history';
     els['recovery-confirm'].hidden=!state.pendingRecovery;
     els['recovery-confirm'].textContent=state.pendingRecovery?'Recover '+state.pendingRecovery.items.length+' for review':'Recover for review';
-    els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing;
+    els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing||state.importing;
     els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
-    els.clear.disabled=!state.items.length||Boolean(state.attempting);
+    els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
+    els.add.disabled=state.importing;
+    els.run.disabled=state.importing;
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
     els.body.hidden = state.collapsed;
@@ -224,7 +226,7 @@
       } else {
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Remove or resolve before restarting.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
-        const locked=Boolean(state.attempting);
+        const locked=Boolean(state.attempting||state.importing);
         ctrls.append(button('↑','Move earlier',()=>{state.items=core.nextPosition(state.items,item.id,-1);void save();render();},index===0||locked),
           button('↓','Move later',()=>{state.items=core.nextPosition(state.items,item.id,1);void save();render();},index===state.items.length-1||locked),
           button('Edit','Edit message',()=>{state.editing=item.id;render();},locked),
@@ -548,6 +550,7 @@
   async function act(action,payload,local=false,requester=null) {
     if (!state.initialized) return {ok:false,error:'not-ready'};
     if(state.routing)return {ok:false,error:'route-transition'};
+    if(state.importing&&action!=='status')return {ok:false,error:'import-in-progress'};
     if(state.key!==storageKey())await handleRouteChange();
     if(state.routing||state.key!==storageKey())return {ok:false,error:'route-transition'};
     try {
@@ -651,7 +654,7 @@
   // All file operations are deliberately initiated by a local user gesture.
   // No backup is transferred to the page, a server, or another extension.
   els['backup-export'].addEventListener('click',()=>{
-    if(state.blockedRecord||state.attempting||state.routing){statusNote('Backup unavailable while queue changes');return;}
+    if(state.blockedRecord||state.attempting||state.routing||state.importing){statusNote('Backup unavailable while queue changes');return;}
     try{
       const payload=core.backupItems(state.items);
       const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'});
@@ -664,7 +667,7 @@
     }catch(error){statusNote('Backup rejected: '+String(error.message||error));}
   });
   els['backup-choose'].addEventListener('click',()=>{
-    if(state.running||state.awaiting||state.attempting||state.routing||state.blockedRecord){
+    if(state.running||state.awaiting||state.attempting||state.routing||state.blockedRecord||state.importing){
       statusNote('Pause and finish the current response before importing');return;
     }
     els['backup-file'].value='';els['backup-file'].click();
@@ -672,35 +675,52 @@
   els['backup-file'].addEventListener('change',async()=>{
     const file=els['backup-file'].files?.[0];
     if(!file)return;
-    const key=state.key,generation=routeGeneration;
+    if(state.importing)return;
+    const key=state.key,generation=routeGeneration,revision=state.revision;
     state.pendingImport=null;
     if(file.size>core.MAX_BACKUP_BYTES){els['data-note'].textContent='File too large (16 MiB limit)';render();return;}
     try{
       const data=core.parseBackup(JSON.parse(await file.text()));
       if(state.destroyed||state.key!==key||generation!==routeGeneration||
-         state.running||state.awaiting||state.attempting||state.routing) {
+         state.revision!==revision||state.running||state.awaiting||state.attempting||state.routing||state.importing) {
         els['data-note'].textContent='Conversation or queue changed; import cancelled';return;
       }
       if(state.items.length+data.length>core.MAX_ITEMS)
         throw new Error('Queue would exceed 100 messages');
-      state.pendingImport={key,items:data};
+      state.pendingImport={key,generation,revision,items:data};
       els['data-note'].textContent='Review: '+data.length+' messages; no automatic sending. Click Confirm import to append.';
       render();
     }catch(error){els['data-note'].textContent='Import rejected: '+String(error?.message||error);render();}
   });
   els['backup-confirm'].addEventListener('click',async()=>{
     const draft=state.pendingImport;
-    if(!draft||draft.key!==state.key||state.key!==storageKey()||state.blockedRecord||
-       state.running||state.awaiting||state.attempting||state.routing)return;
+    if(!draft||state.importing)return;
+    // Consume confirmation synchronously. Two rapid clicks cannot append the
+    // same staged backup while storage persistence is pending.
+    state.pendingImport=null;
+    if(draft.key!==state.key||state.key!==storageKey()||
+       draft.generation!==routeGeneration||draft.revision!==state.revision||
+       state.blockedRecord||state.running||state.awaiting||state.attempting||
+       state.routing||state.storageFault||state.pendingSaves>0){
+      statusNote('Queue changed since import preview; select file again');return;
+    }
     if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
-    const original=state.items.slice();
+    const original=state.items.slice(),key=state.key;
+    state.importing=true;
     state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
+    render();
     try{
-      await save();state.pendingImport=null;
-      els['data-note'].textContent='Imported '+draft.items.length+' messages; queue remains paused';
-      render();
+      await save();
+      if(state.key===key&&!state.destroyed)
+        els['data-note'].textContent='Imported '+draft.items.length+' messages; queue remains paused';
     }catch{
-      state.items=original;statusNote('Import could not be stored; queue paused');
+      if(state.key===key){
+        state.items=original;
+        statusNote('Import could not be stored; queue paused');
+      }
+    }finally{
+      state.importing=false;
+      if(!state.destroyed)render();
     }
   });
   // This storage enumeration is only performed after a local HUD click.
