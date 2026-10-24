@@ -75,6 +75,8 @@ function prepareQueue(dir,source){
     "      return currentRoute(sender).then(async live=>{\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
     "if(globalThis.__qaLateChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
+    "if(globalThis.__qaRouteChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(live!==message.route || SIGNALS.get(tab.id)!==last ||");
   fs.writeFileSync(bgPath,bg);
 }
@@ -131,8 +133,8 @@ async function main(){
     await start.click();
     await driver.wait(async()=>await driver.executeScript(`return ${hud('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
-    const emit=async(phase,epoch,sequence,confidence='observed',origin='fresh')=>{
-      const signal={version:1,documentToken:token,route:'/c/synthetic',epoch,sequence,
+    const emit=async(phase,epoch,sequence,confidence='observed',origin='fresh',route='/c/synthetic')=>{
+      const signal={version:1,documentToken:token,route,epoch,sequence,
         phase,origin,confidence};
       await driver.executeScript('window.postMessage({kind:"qa-provider-signal",signal:arguments[0]},"*")',signal);
       await driver.wait(async()=>await driver.executeScript(
@@ -324,7 +326,34 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'An interrupted composer handoff must preserve uncertainty');
-    console.log('Headless FDE synthetic Signal: journal-before-handoff, trusted user edit race and single-owner gate');
+    // Navigate during an intentionally delayed final authorization; a
+    // prepared prompt must never be sent to the new conversation.
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/route-race`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    const routeDraft=await driver.executeScript(`return ${hud('draft')}`);
+    await routeDraft.sendKeys('Synthetic route-race prompt');
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,30,'observed','fresh','/c/route-race');
+    await waitNote('Signal: idle');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText==='Synthetic route-race prompt'"),10000);
+    await driver.executeScript("history.pushState({},'', '/c/another-conversation')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='0 queued'`),10000);
+    await driver.sleep(2000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A delayed Send must be cancelled after History API route change');
+    await driver.executeScript("history.pushState({},'', '/c/route-race')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'The source conversation must retain its uncertain pre-Send journal');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    console.log('Headless FDE synthetic Signal: journal-before-handoff, trusted edit race, route-race and single-owner gate');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
