@@ -100,6 +100,18 @@ async function main(){
     await down.sendKeys(Key.ENTER);
     order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
+    // Exercise native Firefox HTML5 pointer drag, not synthetic JS drag/drop.
+    const dragSource=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2)')");
+    const dragTarget=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(1)')");
+    await driver.actions({async:true}).dragAndDrop(dragSource,dragTarget).perform();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    // Reverse the drag through the keyboard alternative; future reload must
+    // preserve this explicit final order.
+    const downAfterDrag=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(2)')");
+    await downAfterDrag.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
