@@ -90,8 +90,19 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
     await driver.uninstallAddon(signalId);
+    // Disconnection and reload must not upgrade the cached legacy phase into
+    // a trusted provider envelope, and must not replay the pending message.
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('run')})`),15000);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript("document.documentElement.dataset.chatSignalsState='finished'");
+    await (await driver.executeScript(`return ${hud('run')}`)).click();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('authenticated-chat-signals-required')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Removing Chat Signals then reloading cannot authorize a pending Send');
     await driver.uninstallAddon(queueId);
-    console.log('Actual pinned Chat Signals v0.3.13 coexists in synthetic FDE; DOM-only status cannot authorize queued Send');
+    console.log('Actual Chat Signals v0.3.13 coexistence, spoofing and disconnected-provider reload remain fail-closed in synthetic FDE');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
