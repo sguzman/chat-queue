@@ -61,6 +61,7 @@
   }
   const BACKUP_KIND = 'chat-queue-message-backup';
   const BACKUP_VERSION = 1;
+  const MAX_BACKUP_BYTES = 16 * 1024 * 1024;
   function backupItems(items) {
     if(!Array.isArray(items)||items.length>MAX_ITEMS)
       throw new Error('invalid-backup-items');
@@ -101,7 +102,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, BACKUP_KIND, BACKUP_VERSION, backupItems, parseBackup, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
