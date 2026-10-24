@@ -242,16 +242,20 @@
     state.scheduler=null;
     state.note='Signal registry restarted; manually resume after reconnect';
     render();
+    let restored=false;
     try{
       const answer=await api.runtime.sendMessage({
         type:'chat-queue-internal/v1',action:'register',route});
       if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){
         state.tabId=answer.tabId;
-        publish();
+        restored=true;
       }
     }catch{
       if(state.key===key&&!state.destroyed)statusNote('Background registry unavailable; paused');
-    }finally{state.registryRecovering=false;}
+    }finally{
+      state.registryRecovering=false;
+      if(restored&&!state.destroyed)publish();
+    }
   }
   function publish() {
     if (state.tabId == null || state.destroyed || state.registryRecovering) return;
