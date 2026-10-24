@@ -475,3 +475,30 @@ test('out-of-order metadata cannot release newer conversation dispatch ownership
   assert.equal((await listeners.internal({...newer,sequence:3},first)).error,'stale-state');
   assert.equal((await listeners.internal({...newer,sequence:0},first)).error,'invalid-state-sequence');
 });
+
+test('same-route re-registration invalidates old in-flight metadata generations',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/same-route-rebind';
+  const sender={tab:{id:813,url},url};
+  const reg={type:'chat-queue-internal/v1',action:'register',route:'/c/same-route-rebind'};
+  assert.equal((await listeners.internal(reg,sender)).ok,true);
+  const originalGet=context.browser.tabs.get;
+  let resumeOld;
+  context.browser.tabs.get=()=>new Promise(resolve=>{resumeOld=resolve;});
+  const old= listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:500,phase:'idle',running:false,awaiting:false},sender);
+  assert.equal(typeof resumeOld,'function');
+  context.browser.tabs.get=originalGet;
+  assert.equal((await listeners.internal(reg,sender)).ok,true,
+    'registering a fresh generation may preserve the same browser pathname');
+  resumeOld({id:813,url});
+  assert.equal((await old).error,'stale-state',
+    'old registration callbacks must not modify the new volatile state');
+  const first=await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:1,phase:'generating',running:true,awaiting:true},sender);
+  assert.equal(first.ok,true,'new registration starts its own state sequence');
+  const result=await listeners.external({type:'chat-queue/v1',action:'listTabs'},
+    {id:'approved@example.test'});
+  assert.equal(result.tabs[0].phase,'generating');
+  assert.equal(result.tabs[0].running,true);
+});
