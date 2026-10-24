@@ -30,6 +30,7 @@ Envelope (all examples here are synthetic):
 - `route` is a bounded ChatGPT pathname, without query, fragment or title. Changing route/document requires re-registration, clears previous in-memory authority, and never resumes dispatch automatically.
 - `origin` is `fresh` or `restored`. Restored historical completion never authorizes sending or advancing. `confidence` is `observed`, `inferred`, or `unknown`.
 - `phase` is one of `idle`, `submitted`, `generating`, `verifying`, `finished`, `interrupted`, `failed`, `limit`, `unknown`. Chat Signals owns inference. The queue never examines transcript bodies to decide completion.
+- A protocol-valid event with `confidence:'unknown'` may be observed, but it **cannot** confirm a new busy epoch or a completed response. Both acceptance and terminal attribution require `observed` or `inferred` confidence. Missing evidence must pause or remain uncertain, never authorize a second prompt.
 
 ## Required causal relationship
 
