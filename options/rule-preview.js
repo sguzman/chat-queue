@@ -6,6 +6,14 @@
   const api=globalThis.browser||globalThis.chrome;
   const rules=[];
   const consumed=[];
+  const recentAudit=[];
+  function recordPreview(event,result){
+    const entry=engine.auditPreview(result,event);
+    if(recentAudit.length>=20)recentAudit.shift();
+    recentAudit.push(entry);
+    field('preview-audit').textContent=recentAudit.map((value,index)=>
+      `${index+1}. ${value.phase} · ${value.reason} · ${value.ruleId||'no rule'} · ${value.action||'no action'}`).join('\n');
+  }
   const field=id=>document.getElementById(id);
   const output=field('preview-output'), feedback=field('rule-message');
   let blocked=true, saving=false, clearArmed=false;
@@ -117,6 +125,7 @@
       ...(durationInput===''?{}:{stateDurationMs:Number(durationInput)}),
       ...(completed===undefined?{}:{completedRuleIds:completed})};
     const result=engine.evaluate(rules,synthetic,consumed,context);
+    recordPreview(synthetic,result);
     if(!result.ok){print(`Rejected: ${result.error}`);return;}
     if(!result.decision){print(`No proposal: ${result.reason}`);return;}
     if(consumed.length>=engine.MAX_SEEN)consumed.shift();
