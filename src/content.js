@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [] };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], storageFault: false, pendingSaves: 0 };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -237,9 +237,25 @@
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
     state.clearArmed=false;
     state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20),recoveredSources:state.recoveredSources.slice(-32)};
-    state.saveChain=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
-    state.saveChain.catch(()=>{state.running=false;statusNote('Could not save queue; paused');});
-    publish();return state.saveChain;
+    // Synchronous pending-write accounting prevents a fast Start from
+    // dispatching a message whose local queue write has not committed.
+    state.pendingSaves++;
+    const write=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
+    state.saveChain=write;
+    void write.then(()=>{
+      if(state.key!==key)return;
+      state.pendingSaves=Math.max(0,state.pendingSaves-1);
+      if(state.storageFault){
+        state.storageFault=false;
+        statusNote('Storage restored; manually press Start');
+      }
+    },()=>{
+      if(state.key!==key)return;
+      state.pendingSaves=Math.max(0,state.pendingSaves-1);
+      state.storageFault=true;state.running=false;
+      statusNote('Could not save queue; paused');
+    });
+    publish();return write;
   }
   function editorValue(editor) {
     return (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement ? editor.value : editor.innerText || editor.textContent || '').replace(/\r\n/g,'\n');
@@ -274,6 +290,11 @@
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function dispatchOne() {
     if (!state.running || state.attempting || state.awaiting || !pending()) return;
+    if(state.storageFault||state.pendingSaves>0){
+      state.running=false;
+      statusNote('Unsaved queue; manually restart after storage settles');
+      return;
+    }
     if (state.key!==storageKey()) {void handleRouteChange();return;}
     if (!freshProvider() || !contract.ready(state.trusted,routeKey())) return;
     const item=state.items.find(e=>e.status==='pending');
@@ -418,6 +439,7 @@
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
+    state.storageFault=false;state.pendingSaves=0;
     state.revision=0;state.etag=uid(); // invalidate stale compare tokens across routes
     state.blockedRecord=!core.savedRecordSupport(stored[newKey]).ok;
     state.items=state.blockedRecord?[]:core.normalizeSaved(stored[newKey]);
@@ -483,6 +505,8 @@
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
+        if (state.storageFault)return {ok:false,error:'storage-unavailable'};
+        if (state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         if (uncertain())return {ok:false,error:'resolve-uncertain-message'};
         if (!pending() && !state.awaiting)return {ok:false,error:'queue-empty'};
         if (!freshProvider())return {ok:false,error:'authenticated-chat-signals-required'};
