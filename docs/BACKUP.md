@@ -18,6 +18,8 @@ No tab IDs, routes, browser profiles, document tokens, provider state, submissio
 
 Malformed/future-version backups, unknown statuses, oversized files, and imports that would exceed queue capacity are rejected without appending. If the conversation changes while a file is being read, the staged import is discarded.
 
+Import confirmation is **one-use**: its staged record is consumed before any asynchronous storage operation, and the queue's pathname, route generation and revision must still match the snapshot reviewed when the file was selected. Editing the queue after preview requires choosing the file again. While the import's durable write is in progress, Start, queue mutations, recovery and history deletion are disabled; a rejected storage write rolls back the in-memory append and leaves the queue paused. The user must reselect the file after rejection. These checks prevent rapid double-confirmation and stale-preview imports, but Firefox local storage is not a cross-tab transactional database.
+
 ## Acceptance and remaining limits
 
 The implementation has unit tests for the version, size, status and content contract. Headless Firefox Developer Edition confirms native local-file selection, staged confirmation, persistence, byte-for-byte JSON download content, preserved uncertainty, and two-click history deletion after reload. [Accepted Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40044676209).
