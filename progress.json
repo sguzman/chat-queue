@@ -770,9 +770,9 @@
                   "id": "M5-06",
                   "emoji": "♻️",
                   "title": "Recover tab registry after event-page shutdown",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Content script pauses and clears stale authenticated Signal authority when its metadata state message reports an empty background registry, then performs exact-route metadata-only registration without auto-Start. Real synthetic Firefox Developer Edition injection passed: https://github.com/sguzman/chat-queue/actions/runs/40046767454. Genuine Firefox event-page suspension, session restart and rediscovery while idle remain untested."
+                    "Genuine nonpersistent Firefox Developer Edition MV3 event-page lifecycle test runs the production queue background on a disposable localhost origin with accelerated idle preference. Firefox recreated the actual background (QA boot-count 2→3), Queue's metadata-only heartbeat detected a lost registry, re-registered exact tab route, preserved a queued prompt and refused Send without authenticated Chat Signals. https://github.com/sguzman/chat-queue/actions/runs/40058326692. This does not establish whole-browser crash/restart or authenticated ChatGPT behavior."
                   ]
                 }
               ]
