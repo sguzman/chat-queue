@@ -98,6 +98,63 @@ async function main(){
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return /0 saved/.test(document.querySelector("#rule-message").textContent)'),10000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,0);
+  // The preview dependency/skip controls are simulations, not authorization.
+  // Build three saved rules and assert deterministic precedence via the real
+  // Firefox Options UI; no queue extension or ChatGPT page is involved.
+  const installRule=async({id,priority,depends='',skip=''})=>{
+    await driver.executeScript((data)=>{
+      document.getElementById('rule-id').value=data.id;
+      document.getElementById('rule-priority').value=String(data.priority);
+      document.getElementById('rule-phase').value='failed';
+      document.getElementById('rule-action').value='pause';
+      document.getElementById('rule-depends').value=data.depends;
+      document.getElementById('rule-skip').value=data.skip;
+      document.getElementById('rule-min-duration').value='';
+      document.getElementById('rule-max-duration').value='';
+      document.getElementById('rule-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+    },{id,priority,depends,skip});
+    await driver.wait(async()=>new RegExp('Saved '+id).test(
+      await driver.findElement(By.id('rule-message')).getText()),7000);
+  };
+  await installRule({id:'root',priority:10});
+  await installRule({id:'gated',priority:60,depends:'root'});
+  await installRule({id:'skip',priority:90,skip:'root'});
+  await driver.executeScript(()=>{
+    document.getElementById('preview-epoch').value='8';
+    document.getElementById('preview-phase').value='failed';
+    document.getElementById('preview-origin').value='fresh';
+    document.getElementById('preview-confidence').value='observed';
+    document.getElementById('preview-completed').value='';
+    document.getElementById('preview-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  });
+  assert.match(await driver.findElement(By.id('preview-output')).getText(),/via skip/);
+  await driver.executeScript(()=>{
+    document.getElementById('preview-reset').click();
+    document.getElementById('preview-completed').value='root';
+    document.getElementById('preview-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  });
+  assert.match(await driver.findElement(By.id('preview-output')).getText(),/via gated/);
+  await driver.navigate().refresh();
+  await driver.wait(async()=>/3 saved/.test(
+    await driver.findElement(By.id('rule-message')).getText()),10000);
+  assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/skip after root/);
+  await driver.executeScript(()=>{
+    const edit=document.querySelector('[aria-label="Edit gated"]');edit.click();
+  });
+  assert.equal(await driver.findElement(By.id('rule-depends')).getAttribute('value'),'root');
+  // A missing dependency makes a removal invalid: the stored library is not
+  // changed, and the UI reports a hard rejection rather than auto-relinking.
+  await driver.executeScript(()=>{
+    const remove=document.querySelector('[aria-label="Remove root"]');remove.click();
+  });
+  await driver.wait(async()=>/Rejected: invalid-dependency/.test(
+    await driver.findElement(By.id('rule-message')).getText()),7000);
+  assert.equal((await driver.findElements(By.css('#rule-list li'))).length,3);
+  await driver.findElement(By.id('rule-clear')).click();
+  await driver.findElement(By.id('rule-clear')).click();
+  await driver.wait(async()=>0===(await driver.findElements(By.css('#rule-list li'))).length,7000);
+  assert.equal(await driver.executeScript('return document.querySelectorAll("#preview-output img").length'),0);
+
   // Corrupt or future-version definitions remain in local storage untouched.
   await driver.executeScript('sessionStorage.setItem("chatqueue:conditional-rules:v1",JSON.stringify({version:99,rules:[]}))');
   await driver.navigate().refresh();
