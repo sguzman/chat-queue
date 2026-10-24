@@ -27,7 +27,7 @@ function create() {
         if(change.url)liveUrls.set(id,change.url);
         return fn(id,change);
       }}},
-    storage:{local:{get:async()=>state},onChanged:{addListener:fn=>listeners.changed=fn}}
+    storage:{local:{get:async()=>state,set:async changes=>{Object.assign(state,changes);}},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
   const context=vm.createContext({browser,URL});
   vm.runInContext(signals,context);
@@ -341,4 +341,45 @@ test('route ownership cannot persist through tab registration or unrelated route
   // Re-registration invalidates previous authority; the old epoch is unusable.
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/a'},sender)).ok,true);
   assert.equal((await listeners.internal(check,sender)).error,'signal-authority-lost');
+});
+
+test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
+  const {listeners,state,forwards}=create();
+  const sender={id:'sandbox@example.test'};
+  const request=(action,payload)=>listeners.external(
+    {type:'chat-queue/v1',action,payload},sender);
+  const initial=await request('rulesGet');
+  assert.equal(initial.ok,true);assert.equal(initial.revision,0);
+  assert.equal(initial.rules.length,0);
+  const rule={version:1,id:'review',enabled:true,priority:80,
+    when:{phase:'failed'},then:{type:'propose',text:'Synthetic private rule proposal'}};
+  const first=await request('rulesPut',{revision:0,rules:[rule]});
+  assert.equal(first.ok,true);assert.equal(first.revision,1);
+  assert.equal((await request('rulesPut',{revision:0,rules:[]})).error,'rule-revision-conflict');
+  assert.equal((await request('rulesPut',{revision:-1,rules:[]})).error,'invalid-rule-write');
+  const stored=await request('rulesGet');
+  assert.equal(stored.ok,true);assert.equal(stored.revision,1);
+  assert.equal(stored.rules[0].id,'review');
+  assert.equal(stored.rules[0].then.text,rule.then.text);
+  assert.equal(forwards.length,0,'Rules CRUD cannot reach ChatGPT tabs');
+  const racer=await Promise.all([
+    request('rulesPut',{revision:1,rules:[{...rule,priority:99}]}),
+    request('rulesPut',{revision:1,rules:[{...rule,priority:100}]})
+  ]);
+  assert.equal(racer.filter(x=>x.ok).length,1);
+  assert.equal(racer.filter(x=>x.error==='rule-revision-conflict').length,1);
+  const fresh=await request('rulesGet');
+  assert.equal(fresh.revision,2);
+  assert.ok([99,100].includes(fresh.rules[0].priority));
+  assert.equal((await request('rulesPut',{revision:2,rules:[]})).ok,true);
+  assert.equal((await request('rulesGet')).revision,3);
+  const key='chatqueue:external-rules:v1:'+sender.id;
+  state[key]={version:2,revision:100,rules:[]};
+  assert.equal((await request('rulesGet')).error,'unsupported-rule-record');
+  assert.equal((await request('rulesPut',{revision:100,rules:[]})).error,'unsupported-rule-record');
+  assert.equal(state[key].version,2,'Unknown future library must never be replaced');
+  const unrelated=await listeners.external({type:'chat-queue/v1',action:'rulesGet'},
+    {id:'poster@example.test'});
+  assert.equal(unrelated.error,'forbidden-scope');
+  assert.equal(forwards.length,0);
 });
