@@ -298,7 +298,20 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.error,'unauthorized');
   assert.equal(await driver.executeScript('return window.__sent'),0);
-  console.log('FDE scoped API: rules preview, grant revocation, optimistic edits, SPA routing and no Send');
+  stage='peer-extension-unload';
+  await driver.uninstallAddon(clientId);
+  await driver.navigate().refresh();
+  await driver.wait(async()=>await driver.executeScript(
+    'return Boolean(document.querySelector("#chat-queue-extension-root")?.shadowRoot?.getElementById("run"))'
+  ),12000);
+  assert.notEqual(await driver.executeScript(
+    "return document.documentElement.dataset.qaApiClientReady"),'yes',
+    'Uninstalled peer must not reinstall a content-script API bridge');
+  assert.equal(await driver.executeScript(
+    "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent"),
+    '3 queued','Client removal must not erase the destination queue');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  console.log('FDE scoped API: concurrent CAS, bounded replay, peer unload, revocation and no Send');
  }catch(error){
   throw new Error('FDE API stage '+stage+': '+error.message);
  }finally{
