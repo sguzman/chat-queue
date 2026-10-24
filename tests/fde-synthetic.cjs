@@ -649,6 +649,30 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='unassigned-route-variants';
+    for(const route of ['/g/g-synthetic','/g/g-synthetic/c','/share/synthetic','/search','/c/synthetic/extra']){
+      await driver.get(`http://127.0.0.1:${server.address().port}${route}`);
+      await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+      await driver.executeScript(`const d=${jsEl('draft')};d.value='Never send on unassigned route';`);
+      await driver.executeScript(`return ${jsEl('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${jsEl('count')}.textContent==='1 queued'`),8000);
+      await driver.executeScript(`return ${jsEl('run')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${jsEl('status')}.textContent.includes('conversation-not-assigned')`),7000);
+      assert.equal(await driver.executeScript('return window.__sendCount'),0,
+        'Unassigned page must never dispatch: '+route);
+    }
+    // A project-associated existing conversation route is acceptable as a
+    // shape, but still requires a separate authenticated provider event.
+    await driver.get(`http://127.0.0.1:${server.address().port}/g/g-synthetic/c/project-chat`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Still requires provider';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
