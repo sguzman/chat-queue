@@ -45,7 +45,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="preview-origin">Simulated origin</label><select id="preview-origin"><option value="fresh">Fresh</option><option value="restored">Restored historical snapshot</option></select>
 <label for="preview-epoch">Simulated response epoch</label><input id="preview-epoch" type="number" min="0" max="1000000" value="1" required>
 <label for="preview-duration">Simulated duration in current state (ms, optional)</label><input id="preview-duration" type="number" min="0" max="3600000" step="1" placeholder="Unspecified">
-<label for="preview-completed">Simulated completed rule IDs (comma-separated, optional)</label><input id="preview-completed" spellcheck="false" placeholder="prior-rule-id" maxlength="2048">
+<label for="preview-completed">Simulated completed rule IDs (comma-separated, optional)</label><input id="preview-completed" spellcheck="false" placeholder="prior-rule-id" maxlength="2200">
 <p><button type="submit">Preview rule decision</button> <button type="button" id="preview-reset">Reset replay history</button></p>
 <pre id="preview-output" aria-live="polite" role="status">No preview yet.</pre>
 <details><summary>Dry-run audit (this window only)</summary><pre id="preview-audit" aria-live="polite">No previews recorded.</pre></details>
