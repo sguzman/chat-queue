@@ -395,9 +395,9 @@
                   "id": "M2-09",
                   "emoji": "🔀",
                   "title": "Define explicit new-chat and history.pushState handling",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Same-chat route isolation via browser-verified URL registration, tabs.onUpdated fallback, and a one-second pathname-only content watch; synthetic Firefox pushState/replaceState tested in workflow 40032344908; live authenticated ChatGPT remains unverified."
+                    "Native synthetic Firefox Developer Edition validates browser-verified pathname registration, pushState and replaceState queue isolation, and A→B→A return while B's storage read is delayed; a failed new-route storage load hides old-chat prompts without overwriting source data. No Send or cross-conversation leakage. CI https://github.com/sguzman/chat-queue/actions/runs/40057485670. Authenticated ChatGPT acceptance remains the separate M7-04 gate."
                   ]
                 },
                 {
