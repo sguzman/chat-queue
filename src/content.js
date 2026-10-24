@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [] };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -68,12 +68,12 @@
   panel.className = 'panel';
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
-    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
+    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   const button = (label, title, fn, disabled=false) => {
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
@@ -137,6 +137,9 @@
     els['backup-confirm'].hidden=!state.pendingImport;
     els['backup-confirm'].textContent=state.pendingImport?'Append '+state.pendingImport.items.length+' messages':'Confirm import';
     els['history-clear'].textContent=state.historyClearArmed?'Confirm forget':'Forget history';
+    els['recovery-confirm'].hidden=!state.pendingRecovery;
+    els['recovery-confirm'].textContent=state.pendingRecovery?'Recover '+state.pendingRecovery.items.length+' for review':'Recover for review';
+    els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing;
     els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
     els.clear.disabled=!state.items.length||Boolean(state.attempting);
     els.toggle.textContent = state.collapsed ? '+' : '−';
@@ -233,7 +236,7 @@
   function save() {
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
     state.clearArmed=false;
-    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20)};
+    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20),recoveredSources:state.recoveredSources.slice(-32)};
     state.saveChain=state.saveChain.catch(()=>{}).then(()=>api.storage.local.set({[key]:data}));
     state.saveChain.catch(()=>{state.running=false;statusNote('Could not save queue; paused');});
     publish();return state.saveChain;
@@ -388,6 +391,11 @@
   function readHistory(saved) {
     return Array.isArray(saved?.history) ? saved.history.filter(h=>h&&typeof h.id==='string'&&core.validText(h.text)&&Number.isSafeInteger(h.at)).slice(0,20).map(h=>({id:h.id,text:h.text,at:h.at,status:['submitted','finished','interrupted','failed'].includes(h.status)?h.status:'submitted'})) : [];
   }
+  function readRecoverySources(saved){
+    return Array.isArray(saved?.recoveredSources)
+      ? [...new Set(saved.recoveredSources.filter(key=>typeof key==='string'&&key.startsWith('chatqueue:v1:tab:')))].slice(-32)
+      : [];
+  }
   async function handleRouteChange() {
     if(!state.initialized)return;
     const newKey=storageKey();
@@ -396,7 +404,7 @@
     if (state.key===newKey)return;
     const generation=++routeGeneration;
     state.routing=true;
-    state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;
+    state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;state.pendingRecovery=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -414,6 +422,7 @@
     state.blockedRecord=!core.savedRecordSupport(stored[newKey]).ok;
     state.items=state.blockedRecord?[]:core.normalizeSaved(stored[newKey]);
     state.history=state.blockedRecord?[]:readHistory(stored[newKey]);
+    state.recoveredSources=state.blockedRecord?[]:readRecoverySources(stored[newKey]);
     state.observedSignal=signalFromPage();state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Conversation changed; manually start queue';state.editing=null;
     // A new route also invalidates the background's Signal document sequence.
     try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
@@ -539,6 +548,50 @@
       state.items=original;statusNote('Import could not be stored; queue paused');
     }
   });
+  // This storage enumeration is only performed after a local HUD click.
+  // Never auto-import from an old tab ID: even a former pending item might
+  // have been submitted before an unobserved browser shutdown.
+  els['recovery-find'].addEventListener('click',async()=>{
+    if(state.blockedRecord||state.running||state.awaiting||state.attempting||state.routing)return;
+    state.pendingRecovery=null;
+    const key=state.key,generation=routeGeneration,revision=state.revision;
+    try{
+      const records=await api.storage.local.get(null);
+      if(state.destroyed||state.key!==key||storageKey()!==key||generation!==routeGeneration||
+         state.revision!==revision||state.running||state.awaiting||state.attempting||state.routing)return;
+      const choices=core.recoveryCandidates(records,routeKey(),key,state.recoveredSources);
+      if(!choices.length){els['data-note'].textContent='No other compatible queue saved for this conversation';render();return;}
+      // Recover one source at a time. A confirmation is always necessary,
+      // and source records are not erased or automatically scheduled.
+      const choice=choices[0];
+      const items=core.normalizeSaved(records[choice.key]).map(item=>({text:item.text,status:'uncertain'}));
+      if(!items.length||state.items.length+items.length>core.MAX_ITEMS){
+        els['data-note'].textContent='Recovery would exceed the 100-message limit';render();return;
+      }
+      state.pendingRecovery={key,sourceKey:choice.key,revision,items};
+      els['data-note'].textContent='Found '+choices.length+' earlier queue(s) for this exact conversation. '+items.length+' message(s) will be restored as uncertain, never sent automatically. Confirm to copy.';
+      render();
+    }catch{els['data-note'].textContent='Could not inspect earlier local queues';render();}
+  });
+  els['recovery-confirm'].addEventListener('click',async()=>{
+    const draft=state.pendingRecovery;
+    if(!draft||draft.key!==state.key||storageKey()!==state.key||
+       draft.revision!==state.revision||state.blockedRecord||state.running||
+       state.awaiting||state.attempting||state.routing)return;
+    if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
+    const before=state.items.slice(),sources=state.recoveredSources.slice();
+    state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:'uncertain'})));
+    state.recoveredSources.push(draft.sourceKey);
+    try{
+      await save();
+      state.pendingRecovery=null;
+      els['data-note'].textContent='Recovered '+draft.items.length+' messages for manual review; queue remains paused';
+      render();
+    }catch{
+      state.items=before;state.recoveredSources=sources;
+      state.pendingRecovery=null;statusNote('Recovery could not be saved; no automatic send');
+    }
+  });
   els['history-clear'].addEventListener('click',async()=>{
     if(state.running||state.awaiting||state.attempting||!state.history.length)return;
     if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
@@ -662,6 +715,7 @@
       state.blockedRecord=!core.savedRecordSupport(stored[state.key]).ok;
       state.items=state.blockedRecord?[]:core.normalizeSaved(stored[state.key]);
       state.history=state.blockedRecord?[]:readHistory(stored[state.key]);
+      state.recoveredSources=state.blockedRecord?[]:readRecoverySources(stored[state.key]);
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
       (document.body||document.documentElement).append(host);
       state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';render();publish();
