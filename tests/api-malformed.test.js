@@ -70,3 +70,29 @@ test('deny-by-default rejects unknown sender independently of payload validity',
   assert.equal(ok.ok,true);
   assert.equal(ok.version,2);
 });
+
+test('bounded deterministic adversarial IPC corpus never forwards or discloses text',async()=>{
+  const x=fixture();
+  const secret='SYNTHETIC-NONPUBLIC-PROMPT';
+  const samples=[null,undefined,false,0,'bad',[],{},{type:'other',action:'enqueue'},
+    {type:'chat-queue/v1',action:null},
+    {type:'chat-queue/v1',action:123},
+    {type:'chat-queue/v1',action:[]},
+    {type:'chat-queue/v1',action:{x:'enqueue'}}];
+  for(let i=0;i<128;i++){
+    const actions=['unsupported-'+i,'enqueue','previewRules','update','remove','capabilities','listTabs'];
+    const body=[null,secret,{text:secret},[secret],{deep:{nested:[secret]}}][i%5];
+    // The queue is never registered in this fixture, so even typed mutation
+    // frames with a plausible tabId cannot dispatch to a content script.
+    samples.push({type:i%3===0?'chat-queue/v1':'untrusted',
+      action:actions[i%actions.length],tabId:i%2===0?5:-1,
+      payload:body,extraneous:i%11===0?'Z'.repeat(35000):undefined});
+  }
+  for(const candidate of samples){
+    const reply=await x.listeners.external(candidate,{id:'approved@example.test'});
+    assert.notEqual(reply?.ok,true,'malformed peer frame must not be accepted');
+    assert.equal(x.forwards,0);
+    assert.equal(JSON.stringify(reply??{}).includes(secret),false,
+      'rejection must not echo private prompt text');
+  }
+});
