@@ -128,6 +128,31 @@ async function main(){
       'return window.__sent.length===arguments[0]',amount),10000);
     await emit('idle',0,1);
     await waitNote('Signal: idle');
+    // An occupied draft must be preserved byte-for-byte; the queue stays
+    // pending and cannot send merely because authenticated Signals is ready.
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent='Human draft remains here'");
+    await start.click();
+    await waitNote('Composer contains a draft; preserved it');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'Human draft remains here');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    await driver.wait(async()=>await driver.executeScript(
+      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:first-child').disabled"),5000);
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent=''");
+    // Use a real local Firefox file input, not a fabricated FileList, to
+    // exercise the production existing-attachment guard.
+    const fixtureAttachment=path.join(tmp,'harmless-attachment.txt');
+    fs.writeFileSync(fixtureAttachment,'synthetic attachment fixture');
+    const attachment=await driver.executeScript(
+      "const el=document.createElement('input');el.type='file';el.id='qa-existing-attachment';document.querySelector('main form').append(el);return el");
+    await attachment.sendKeys(fixtureAttachment);
+    assert.equal(await driver.executeScript("return document.querySelector('#qa-existing-attachment').files.length"),1);
+    await start.click();
+    await waitNote('Composer has attachments');
+    assert.equal(await driver.executeScript("return document.querySelector('#qa-existing-attachment').files.length"),1);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    await driver.wait(async()=>await driver.executeScript(
+      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:first-child').disabled"),5000);
+    await driver.executeScript("document.querySelector('#qa-existing-attachment').remove()");
     await start.click();
     await waitSends(1);
     // A restored terminal from the previous response cannot confirm a fresh
