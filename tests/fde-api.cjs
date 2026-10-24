@@ -234,6 +234,28 @@ async function main(){
   }
   assert.equal((await command({type:'chat-queue/v1',action:'remove',tabId,payload:{id:second.id}})).ok,true);
   assert.deepEqual(await orderOf(),[itemId]);
+  stage='durable-sequenced-enqueue';
+  const sequenced={type:'chat-queue/v1',action:'enqueueSequenced',tabId,
+    payload:{text:'Single synthetic sequenced enqueue',sequence:1}};
+  const once=await command(sequenced);
+  assert.equal(once.ok,true);
+  assert.equal((await command(sequenced)).error,'replayed-request');
+  assert.equal((await command({...sequenced,payload:{...sequenced.payload,sequence:0}})).error,'invalid-request-sequence');
+  assert.deepEqual((await command({type:'chat-queue/v1',action:'status',tabId})).items.map(x=>x.text),
+    ['Synthetic updated message','Single synthetic sequenced enqueue']);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  // High-water marks survive a full content-script reload rather than relying
+  // on the background event page's volatile in-memory state.
+  await driver.navigate().refresh();
+  await driver.wait(async()=>await driver.executeScript(
+    "return Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('run'))&&document.documentElement.dataset.qaApiClientReady==='yes'"),12000);
+  assert.equal((await command(sequenced)).error,'replayed-request');
+  const nextSequence=await command({...sequenced,payload:{text:'Another synthetic sequenced enqueue',sequence:2}});
+  assert.equal(nextSequence.ok,true);
+  assert.equal((await command(sequenced)).error,'replayed-request');
+  assert.deepEqual((await command({type:'chat-queue/v1',action:'status',tabId})).items.map(x=>x.text),
+    ['Synthetic updated message','Single synthetic sequenced enqueue','Another synthetic sequenced enqueue']);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
