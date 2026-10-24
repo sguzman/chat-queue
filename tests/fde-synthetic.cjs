@@ -46,6 +46,11 @@ async function main(){
     const defaultHeartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
     assert.equal(content.split(defaultHeartbeat).length,2);
     content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
+    // QA-only slow async read reproduces A -> B -> A while B is still loading.
+    const navigationLoad='api.storage.local.get(newKey)';
+    assert.equal(content.split(navigationLoad).length,2);
+    content=content.replace(navigationLoad,
+      "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : api.storage.local.get(newKey))");
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
@@ -498,6 +503,29 @@ async function main(){
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('queue-empty')`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='rapid-aba-conversation-navigation';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/aba-home`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),12000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Preserved home queue';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),8000);
+    await driver.executeScript("history.pushState({},'', '/c/route-delay')");
+    await driver.sleep(1500);
+    await driver.executeScript("history.pushState({},'', '/c/aba-home')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Conversation changed; manually start queue')`),7500);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='After interrupted navigation';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),8000);
+    // The delayed B load must not overwrite A when it eventually resolves.
+    await driver.sleep(4300);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript("history.pushState({},'', '/c/route-delay')");
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),8500);
+    await driver.executeScript("history.pushState({},'', '/c/aba-home')");
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),8000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
