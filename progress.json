@@ -256,9 +256,10 @@
                   "id": "M1-09",
                   "emoji": "🔀",
                   "title": "Drag/drop reorder with predictable insertion boundaries",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Drop handler exists; real Firefox drag/drop QA pending"
+                    "Drop handler exists; real Firefox drag/drop QA pending",
+                    "Actual headless Firefox Developer Edition performed pointer down/move/up reordering before first and after last row, keyboard reversals and persisted order after reload; both CI jobs passed. https://github.com/sguzman/chat-queue/actions/runs/40043411053"
                   ]
                 },
                 {

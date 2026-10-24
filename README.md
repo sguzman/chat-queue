@@ -89,3 +89,7 @@ A pinned checkout of the **actual Chat Signals v0.3.13 source** is loaded alongs
 ## 🔌 Actual legacy Signal disconnection gate (synthetic Firefox)
 
 In disposable Firefox Developer Edition, the test uninstalls the pinned real Chat Signals v0.3.13 add-on, reloads Chat Queue with a pending message, and injects a spoofed page `finished` attribute. Start still refuses without the authenticated publisher and no Send click occurs. [Passing disconnect QA](https://github.com/sguzman/chat-queue/actions/runs/40042829569). This verifies the absent/outdated/disconnected behavior within a synthetic page; live ChatGPT and a genuine publisher remain separate acceptance gates.
+
+## 🖱️ Pointer reorder accepted in Firefox
+
+The floating HUD uses captured pointer drag movements with visible **before/after** insertion boundaries; keyboard Up/Down remains an equivalent control. Real headless Firefox Developer Edition verified both insertion directions, reverse keyboard operation and queue-order persistence after reload in [run 40043411053](https://github.com/sguzman/chat-queue/actions/runs/40043411053). This is synthetic-page UI acceptance, not authenticated ChatGPT sending.

@@ -102,3 +102,7 @@ Headless Firefox Developer Edition with two separate QA add-ons opens two tabs t
 ## 🔌 Legacy provider removed during a queued message
 
 The extended `tests/fde-coexist.cjs` test removes the real pinned Chat Signals add-on, reloads the synthetic ChatGPT-shaped page, verifies the queued message remains, injects a page-forged `finished` status, and asserts no Send. [Accepted run 40042829569](https://github.com/sguzman/chat-queue/actions/runs/40042829569). No real ChatGPT account or signed release profile is involved; interruption of the future authenticated provider remains a separate integration gate.
+
+## 🖱️ Native pointer reordering in Firefox Developer Edition
+
+The test uses actual WebDriver pointer gestures, not dispatched fake drag/drop events. Gecko did not emit HTML5 `dragover`/`drop` for the initial native sequence, so the production HUD now uses a captured-pointer handler with explicit before/after zones. Firefox QA verifies movement before the first item, insertion after the last item, keyboard reversal, and the saved order after reload. [Passing run 40043411053](https://github.com/sguzman/chat-queue/actions/runs/40043411053).
