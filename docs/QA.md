@@ -114,3 +114,7 @@ A screenshot audit found the original Add/Clear/Start footer clipped by the pane
 ## 📦 Firefox local queue backup and retention acceptance
 
 Headless Firefox Developer Edition tested real local file input into a synthetic ChatGPT HUD, required a second import confirmation, preserved pending/uncertain statuses, read actual downloaded JSON bytes, and verified two-click recent-history deletion after reload, with no Send. [Acceptance CI 40044676209](https://github.com/sguzman/chat-queue/actions/runs/40044676209). The common 16 MiB input/output cap, schema rejection, and regenerated roadmap are checked in [CI 40044824317](https://github.com/sguzman/chat-queue/actions/runs/40044824317). This is local file lifecycle acceptance, not live ChatGPT submission.
+
+## 🔌 Wire-version and event privacy acceptance
+
+A real Firefox Developer Edition addon-to-addon fixture confirms v1 capability negotiation advertises `protocolVersion:1` and the separate v2 permission policy, retaining the historic `version:2` key. It receives a `ready` event with a wire version. Background tests confirm `stateChanged` events include the same version but no prompt or history content, and unknown/unapproved clients remain denied. [Green run 40045093724](https://github.com/sguzman/chat-queue/actions/runs/40045093724). Real authenticated ChatGPT Send remains a separate acceptance gate.

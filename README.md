@@ -101,3 +101,7 @@ The first visual QA screenshot run exposed clipped Add/Clear/Start controls. The
 ## 📦 Local backup and retention
 
 The floating HUD's **Recently submitted / backup** disclosure offers JSON export, manual import with separate confirmation, and two-click recent-history deletion. No import can auto-start the queue; uncertain messages still require review. Backups intentionally omit route, tab, document, epoch, and authorization metadata. [Full backup contract](docs/BACKUP.md) · [Passing Firefox import/download/deletion QA](https://github.com/sguzman/chat-queue/actions/runs/40044676209). This does not provide automatic recovery after a tab-ID change.
+
+## 🔌 Versioned cross-extension API
+
+The API's message type remains `chat-queue/v1`. Capability negotiation now exposes `protocolVersion:1` and `grantVersion:2` while retaining the older `version:2` grant field. The subscription's `ready` and `stateChanged` events carry `protocolVersion:1` without private message text. [Protocol and error contract](API.md) · [Independent Firefox client acceptance](https://github.com/sguzman/chat-queue/actions/runs/40045093724). This does not authorize clients without explicit scoped grants or make live automatic Send available.

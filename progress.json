@@ -718,9 +718,10 @@
                   "id": "M5-01",
                   "emoji": "🔌",
                   "title": "Expose versioned Firefox external message actions",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/background.js chat-queue/v1; native FDE QA pending"
+                    "src/background.js chat-queue/v1; native FDE QA pending",
+                    "Actual Firefox Developer Edition separate extension client invokes chat-queue/v1 actions under scoped grants and observes additive protocolVersion=1 negotiation without changing existing v1 response fields. https://github.com/sguzman/chat-queue/actions/runs/40045093724"
                   ]
                 },
                 {
@@ -799,9 +800,10 @@
                   "id": "M5-09",
                   "emoji": "🏷️",
                   "title": "Version response/event schemas and document compatibility guarantees",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "API.md v1 exists; public contract audit pending"
+                    "API.md v1 exists; public contract audit pending",
+                    "Capability responses advertise distinct protocolVersion=1 and grantVersion=2 while preserving legacy version=2, and ready/stateChanged port events include wire version without prompts; API.md documents stable error/compatibility expectations. Pure tests and real separate Firefox extension pass. https://github.com/sguzman/chat-queue/actions/runs/40045093724"
                   ]
                 },
                 {
