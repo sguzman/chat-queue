@@ -433,6 +433,24 @@ async function main(){
     const clearStale=await driver.executeScript(`return ${jsEl('clear')}`);
     await clearStale.click();await clearStale.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
+    // The import itself must roll back on a rejected durable write, disarm its
+    // one-use confirmation, and remain empty after a real Firefox reload.
+    qaStage='rejected-backup-persistence';
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`const input=${jsEl('backup-file')};input.hidden=false;input.value=''`);
+    await (await driver.executeScript(`return ${jsEl('backup-file')}`)).sendKeys(backupPath);
+    await driver.wait(async()=>await driver.executeScript(`return !${jsEl('backup-confirm')}.hidden`),5000);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='yes'");
+    await driver.executeScript(`return ${jsEl('backup-confirm')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Import could not be stored')`),6000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript(`return ${jsEl('backup-confirm')}.hidden`),true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='0 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // QA seeds the unsupported record only once. If a queue edit clobbers
     // it, a reload will reveal that corruption instead of resetting the test.
     await driver.get(`http://127.0.0.1:${server.address().port}/c/future-record`);
