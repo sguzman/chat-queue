@@ -37,6 +37,12 @@ async function main(){
     const marker="attachShadow({mode:'closed'})";
     assert.equal(content.split(marker).length,2,'QA must make exactly one scoped Shadow DOM substitution');
     content=content.replace(marker,"attachShadow({mode:'open'})");
+    // QA-only error injection in the queue write boundary. This never changes
+    // the production content script or accesses the user's browser profile.
+    const persistence="api.storage.local.set({[key]:data})";
+    assert.equal(content.split(persistence).length,2);
+    content=content.replace(persistence,
+      "(document.documentElement.dataset.qaRejectQueueSave==='yes' ? Promise.reject(new Error('qa-storage-rejected')) : api.storage.local.set({[key]:data}))");
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
@@ -394,6 +400,32 @@ async function main(){
     await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('data-note')}.textContent.includes('No other compatible queue')`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='storage-failure';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/storage-fail`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='yes'");
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Message with failed persistence';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('qa-storage-rejected')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('storage-unavailable')`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // A subsequent successfully persisted edit clears the fault but does not
+    // automatically start sending, even when the earlier write had failed.
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Second saved message';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Storage restored')`),5000);
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
