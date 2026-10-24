@@ -13,3 +13,9 @@ Chat Queue runs `node scripts/security-audit.mjs` inside `npm run check` on ever
 **Limits:** this is a conservative source-level check, not an independent review of all JavaScript behavior, CSP enforcement, data exfiltration through ChatGPT's own composer, storage corruption, library provenance, extension impersonation, or browser bugs. The live ChatGPT site, real Chat Signals publisher, cross-extension authorization changes, and authenticated Send remain separate adversarial acceptance gates. A malicious or compromised already-authorized extension is outside the static audit's guarantee. The audit itself can be bypassed by changes to its code or to CI; such edits require review.
 
 Do not represent a passing source audit as Mozilla signing, full privacy validation, or permission to run unattended sends in a personal Firefox profile.
+
+## CI action dependency integrity
+
+All third-party GitHub Actions in `.github/workflows/check.yml` are pinned to immutable **40-character Git commit SHAs**, including checkout, Node setup, artifact upload, Firefox Developer Edition setup, and geckodriver setup. `scripts/ci-supply-chain-audit.mjs`, enforced by `npm run check`, allows only those five reviewed action repositories and rejects mutable tags, unknown action owners, `pull_request_target` and broad `permissions: write-all` declarations. `tests/ci-supply-chain-audit.test.js` mutates a disposable copy of the workflow to prove each class of regression fails.
+
+Pinning source commits prevents tag movement from silently changing executed CI steps. It does **not** independently audit the pinned upstream code, Ubuntu runner images, npm registry tarballs, the Firefox binary, system packages, or AMO signing infrastructure. Upgrades must deliberately update and review the pinned commit and audit policy; the static audit must not treat a new repo or tag as trusted solely because it parses.
