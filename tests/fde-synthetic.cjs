@@ -51,6 +51,14 @@ async function main(){
     assert.equal(content.split(navigationLoad).length,2);
     content=content.replace(navigationLoad,
       "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : newKey.endsWith('/c/load-fail') ? Promise.reject(new Error('qa-read-failure')) : api.storage.local.get(newKey))");
+    // Test-only source tampering between Find and Confirm; the installed
+    // production script contains only the read/revalidation guard.
+    const recoveryRead='latest=await api.storage.local.get(draft.sourceKey);';
+    assert.equal(content.split(recoveryRead).length,2);
+    content=content.replace(recoveryRead,
+      "if(document.documentElement.dataset.qaMutateRecoverySource==='future')"+
+      "await api.storage.local.set({[draft.sourceKey]:{version:99,items:[]}});"+
+      recoveryRead);
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
@@ -58,8 +66,8 @@ async function main(){
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
-          if(msg.route==='/c/recovery-record'){
-            const oldKey='chatqueue:v1:tab:987654321:/c/recovery-record';
+          if(msg.route==='/c/recovery-record'||msg.route==='/c/recovery-mutate'){
+            const oldKey='chatqueue:v1:tab:987654321:'+msg.route;
             return browser.storage.local.get(oldKey).then(saved=>{
               if(Object.hasOwn(saved,oldKey))return {ok:true,tabId:sender.tab.id};
               const oldRecord={version:1,items:[
@@ -486,7 +494,9 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden===false`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued',
       'Discovery alone must never modify the active queue');
-    await confirmOld.click();
+    // A double click must only copy the source once, even though the first
+    // handler yields during its source recheck.
+    await driver.executeScript(`const button=${jsEl('recovery-confirm')};button.click();button.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),5000);
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
@@ -500,6 +510,28 @@ async function main(){
     await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('data-note')}.textContent.includes('No other compatible queue')`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='recovery-source-mutated-after-discovery';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/recovery-mutate`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('recovery-confirm')}?.hidden===false`),5000);
+    await driver.executeScript("document.documentElement.dataset.qaMutateRecoverySource='future'");
+    await driver.executeScript(`return ${jsEl('recovery-confirm')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Earlier queue changed')`),6000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued',
+      'A changed future-version source must not be imported');
+    assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('data-note')}.textContent.includes('No other compatible queue')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='storage-failure';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/storage-fail`);
