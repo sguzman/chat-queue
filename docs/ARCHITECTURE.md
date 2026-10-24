@@ -38,7 +38,7 @@ The consumer rejects mismatched routes, stale sequences, old completion, unknown
 
 ## Queue storage and lifecycle
 
-The prototype persists bounded prompt text inside `browser.storage.local`, keyed by Firefox tab ID and current page path. It never uses cloud sync. This permits recovery on ordinary tab reload but **does not** reliably recover when tab IDs change after restart, or deduplicate independent queues in two tabs opened on the same conversation. Future storage schema separates stable conversation scope from transient tab ownership and stores explicit attempt journals. It requires a conscious migration; do not silently merge similarly named chats.
+The prototype persists bounded prompt text inside `browser.storage.local`, keyed by Firefox tab ID and current page path. It never uses cloud sync. This permits ordinary tab reload recovery. For a changed tab ID, a user can explicitly discover and confirm copying compatible older records with the **exact same conversation pathname**, leaving sources intact and marking all copied items uncertain. This is not automatic browser-restart recovery and does not unify live queues from multiple tabs. A future storage schema must separate stable conversation scope from transient tab ownership while preserving the current single-owner route lease and attempt journals; migration requires explicit review, never a silent merge of similarly named chats.
 
 The executor's `running` state is volatile. Installing or reloading an extension, switching conversation, or restarting Firefox cannot resume automatic sends silently. An exception must be an explicit user-granted policy with rigorous idempotency and live acceptance.
 
