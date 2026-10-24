@@ -74,15 +74,13 @@ async function main(){
     assert.equal(await driver.installAddon(addon,true),manifest.browser_specific_settings.gecko.id);
     await driver.get(url);
     await driver.wait(async()=>driver.executeScript(`return Boolean(${el('count')})`),15000);
-    let restoredBy='same-tab-key';
     const count=await driver.executeScript(`return ${el('count')}.textContent`);
+    let reusedTabKey=count==='1 queued';
     if(count==='0 queued'){
-      // Firefox may allocate a new tab ID after relaunch. Never automatically
-      // transfer that prior tab's unsent queue into a fresh dispatchable item.
-      restoredBy='explicit-previous-tab-recovery';
+      // Some Firefox sessions assign a different tab ID on the first page.
+      // Recover explicitly before testing a second, guaranteed-distinct tab.
       await driver.executeScript(`document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;${el('recovery-find')}.click()`);
       await driver.wait(async()=>driver.executeScript(`return ${el('recovery-confirm')}?.hidden===false`),10000);
-      assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'0 queued');
       await driver.executeScript(`return ${el('recovery-confirm')}.click()`);
       await driver.wait(async()=>driver.executeScript(
         `return ${el('count')}.textContent==='1 queued' && !${el('recovery-confirm')}.disabled`),10000);
@@ -94,15 +92,46 @@ async function main(){
     stage='paused-after-relaunch';
     assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript('return window.__sent'),0);
+    const originalWindow=await driver.getWindowHandle();
+    // Browser restarts may reuse old tab IDs. Force the changed-tab-ID path
+    // in a separate actual Firefox tab, so both recovery cases are tested.
+    stage='different-tab-after-browser-restart';
+    await driver.switchTo().newWindow('tab');
+    const secondWindow=await driver.getWindowHandle();
+    assert.notEqual(secondWindow,originalWindow);
+    await driver.get(url);
+    await driver.wait(async()=>driver.executeScript(`return Boolean(${el('count')})`),15000);
+    assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'0 queued',
+      'A new tab must not silently adopt the other tab ID queue');
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    await driver.executeScript(`document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;${el('recovery-find')}.click()`);
+    await driver.wait(async()=>driver.executeScript(`return ${el('recovery-confirm')}?.hidden===false`),10000);
+    assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'0 queued');
+    await driver.executeScript(`return ${el('recovery-confirm')}.click()`);
+    await driver.wait(async()=>driver.executeScript(
+      `return ${el('count')}.textContent==='1 queued' && !${el('recovery-confirm')}.disabled`),10000);
+    assert.equal(await driver.executeScript(
+      `return ${shadow}.querySelectorAll('.item.uncertain').length`),1,
+      'Every copied prompt must become uncertain after an actual browser restart');
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
     await driver.executeScript(`return ${el('run')}.click()`);
     await driver.wait(async()=>driver.executeScript(
-      `return /authenticated-chat-signals-required|resolve-uncertain-message/.test(${el('status')}.textContent)`),6000);
+      `return ${el('status')}.textContent.includes('resolve-uncertain-message')`),6000);
     assert.equal(await driver.executeScript('return window.__sent'),0);
-    await driver.navigate().refresh();
-    await driver.wait(async()=>driver.executeScript(`return ${el('count')}?.textContent==='1 queued'`),10000);
+    // Recovery must not remove or rewrite its original tab's saved queue.
+    await driver.switchTo().window(originalWindow);
+    assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'1 queued');
     assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript('return window.__sent'),0);
-    console.log('Full Firefox Developer Edition restart: durable queue remained paused; restore path='+restoredBy+'; no Send');
+    await driver.switchTo().window(secondWindow);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>driver.executeScript(`return ${el('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(
+      `return ${shadow}.querySelectorAll('.item.uncertain').length`),1);
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    console.log('Full Firefox Developer Edition restart: original queue paused, reused-tab-key='+reusedTabKey+
+      ', new-tab explicit recovery uncertain and durable, no Send');
   }catch(error){
     throw new Error(stage+': '+error.message);
   }finally{
