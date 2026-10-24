@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 46 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 56 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -118,3 +118,7 @@ Headless Firefox Developer Edition tested real local file input into a synthetic
 ## 🔌 Wire-version and event privacy acceptance
 
 A real Firefox Developer Edition addon-to-addon fixture confirms v1 capability negotiation advertises `protocolVersion:1` and the separate v2 permission policy, retaining the historic `version:2` key. It receives a `ready` event with a wire version. Background tests confirm `stateChanged` events include the same version but no prompt or history content, and unknown/unapproved clients remain denied. [Green run 40045093724](https://github.com/sguzman/chat-queue/actions/runs/40045093724). Real authenticated ChatGPT Send remains a separate acceptance gate.
+
+## 🗂️ Exact-conversation orphan recovery acceptance
+
+Native headless Firefox Developer Edition seeds a compatible v1 queue under a previous tab ID, opens the same route with a new tab, and requires separate **Find earlier queues** and **Recover for review** actions. The finder must not change the active queue; confirmation copies items as uncertain and never clicks Send. After reload, the restored items must persist without offering the same source again. Different routes and unsupported versions are separately excluded by unit tests. [Verified synthetic Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40045727469). Live authenticated restart/multi-tab checks remain pending.
