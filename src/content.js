@@ -644,8 +644,23 @@
       }
       if (action==='enqueue') {
         const text=payload?.text;
+        if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         if (state.items.length>=core.MAX_ITEMS) return {ok:false,error:'queue-full'};
-        const item=core.makeItem(text,uid());state.items.push(item);await save();render();
+        const item=core.makeItem(text,uid());
+        const before=state.items.slice(),key=state.key,revision=state.revision;
+        state.items.push(item);
+        try{await save();}
+        catch{
+          // A rejected local-storage append must not remain in memory and
+          // then get persisted twice when the user deliberately retries.
+          if(state.key===key&&state.revision===revision+1){
+            state.items=before;
+            state.revision++;state.etag=uid();
+            render();publish();
+          }
+          return {ok:false,error:'queue-save-failed'};
+        }
+        render();
         if(state.running&&!state.awaiting)planNext();
         return {ok:true,id:item.id,etag:state.etag};
       }

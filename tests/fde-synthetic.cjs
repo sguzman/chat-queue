@@ -967,6 +967,44 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
 
+
+    qaStage='rejected-add-write-and-manual-retry';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rejected-add-rollback');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft'))),10000);
+    await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const draft=sh.getElementById('draft');
+      draft.value='Synthetic append must survive manual retry once';
+      draft.dispatchEvent(new Event('input',{bubbles:true}));
+      document.documentElement.dataset.qaRejectQueueSave='yes';
+      sh.getElementById('add').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('queue-save-failed')),8000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent),
+      '0 queued','Rejected Add cannot retain an unsaved phantom queue item');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value),
+      'Synthetic append must survive manual retry once');
+    await driver.executeScript(() => {
+      document.documentElement.dataset.qaRejectQueueSave='';
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value==='' &&
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'),9000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('count')?.textContent==='1 queued'),10000);
+    assert.deepEqual(await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')]
+        .map(x=>x.textContent)),
+      ['Synthetic append must survive manual retry once']);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='100-item-status-render-workload';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/max-queue-performance');
     await driver.wait(async()=>await driver.executeScript(()=>

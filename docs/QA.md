@@ -226,3 +226,7 @@ An isolated real Firefox Developer Edition fixture preloads **100 bounded synthe
 ## 🖱️ Duplicate Add click prevention
 
 The native Firefox synthetic fixture double-clicks **Add** during a delayed durable queue write, verifies only one prompt is queued, and checks the control locks synchronously until the write finishes. It then types and queues a distinct second prompt; both persist without duplicate entries after reload, while the newer draft survives the first completion. This is a HUD click-level safety property; external API clients have separate sequenced-idempotency controls.
+
+## 🧷 Rejected ordinary Add and retry
+
+The disposable Firefox HUD fault-injection fixture rejects the first `storage.local.set` for a normal **Add**, checks that the failed message is absent from the in-memory queue while its draft remains available, then allows an explicitly repeated Add to commit exactly once. It reloads Firefox and checks that the single message persists with zero Send clicks. Ordinary enqueues now refuse overlapping unsaved writes and use revision-scoped rollback on a rejected write. This is not a claim of cross-tab storage transactions or automatic retry; the user must deliberately initiate the second Add.
