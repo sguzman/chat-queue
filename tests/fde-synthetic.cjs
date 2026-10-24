@@ -296,7 +296,7 @@ async function main(){
     const backupFile=await driver.executeScript(`return ${jsEl('backup-file')}`);
     // WebDriver needs a visible QA input to supply an explicit fixture path;
     // the production control remains hidden behind its Import JSON button.
-    await driver.executeScript(`return ${jsEl('backup-file')}.hidden=false`);
+    await driver.executeScript(`const el=${jsEl('backup-file')};el.hidden=false`);
     await backupFile.sendKeys(backupPath);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('backup-confirm')}&&! ${jsEl('backup-confirm')}.hidden`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
