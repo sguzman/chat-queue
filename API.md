@@ -35,6 +35,7 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | `listTabs` | None, no `tabId` | Discover registered content-script tabs |
 | `status` | None | Read active queue, history and state |
 | `enqueue` | `{text}` | Append a pending message; returns `id` |
+| `enqueueSequenced` | `{text,sequence}` | Append at most once per strictly increasing browser-attested client sequence and exact saved queue; rejects replay |
 | `update` | `{id,text}` | Update pending message text |
 | `reorder` | `{ids: [...]}` | Replace exact ordering with a permutation of all item IDs |
 | `move` | `{id,beforeId}` | Move an existing item before another existing ID, or append with `beforeId:null`; unknown IDs and self-moves return `invalid-order` without changing the queue |
@@ -43,6 +44,14 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | `start` | None | Start or resume conservatively gated sending |
 | `pause` | None | Pause; an in-progress send may remain uncertain |
 | `resolve` | `{id,decision:'retry'\|'discard'}` | Explicitly handle an uncertain submission |
+
+## Durable sequenced enqueue (opt-in, experimental)
+
+For an append-only client that may lose a response after a successful write, prefer `enqueueSequenced` with `payload:{text,sequence}`. Sequence must be a **positive safe integer** that strictly increases for each **Firefox-verified caller ID** targeting the same saved queue. The client owns sequence generation and must preserve its next number across process restarts; do not reset it to 1 after a network timeout or extension restart.
+
+The queue stores only a high-watermark number per calling extension ID, not the request text, document token or response. It is stored **in the same `browser.storage.local` queue record as the appended prompt**, so when that write commits, the operation's replay marker also commits. A reused or lower sequence returns `{ok:false,error:'replayed-request'}` and cannot append again. Missing, negative or unsafe sequence values return `invalid-request-sequence`. To bound metadata, only 32 distinct caller IDs may establish high-watermarks for a particular queue; exceeding the cap returns `request-client-limit`. The existing `append` grant permits this operation without disclosing earlier prompts. Optional `ifMatch` still works when a caller also has a recent revision token.
+
+The replay guarantee is scoped to the **same stored queue key, Firefox profile and retained storage record**. It does not survive profile erasure, manual removal of queue data, a new tab-ID key, or changes to the caller's extension ID; it does not deduplicate the legacy `enqueue` action. No Send or rule execution occurs on a sequenced enqueue. A lost response means the client should use a **higher sequence only for a genuinely new intended append**; repeating a possibly accepted request with a higher sequence intentionally creates a second message. This is safer than treating an ambiguous callback as authorization to retry automatically.
 
 ## Optimistic queue edits (experimental)
 
@@ -69,12 +78,12 @@ A subscription requires the `discover` grant and is disconnected if that scope i
 | --- | --- | --- |
 | `discover` | `listTabs`, connect/subscribe | No |
 | `read` | `status` | Yes; opt in consciously |
-| `append` | `enqueue` | No response text; controls submitted new text |
+| `append` | `enqueue`, `enqueueSequenced` | No response text; controls newly submitted text |
 | `edit` | `update`, `remove`, `reorder`, `move`, `clear`, `resolve` | No unsolicited prompt reads |
 | `control` | `start`, `pause` | No; sending can have external side effects |
 | `rules` | `previewRules` | No; accepts only caller-provided simulated data |
 
-API schemas remain experimental pending live FDE acceptance. Only one extension scope check is implemented per request; automatic retry/replay-safe mutation IDs, content redaction for errors, and browser event-page restart resilience are still open milestones.
+API schemas remain experimental pending live FDE acceptance. The new `enqueueSequenced` is an opt-in durable anti-replay operation. Legacy `enqueue` and other mutations do not automatically gain replay safety; authenticated live browser execution, multi-client adversarial coverage and full event-page restart resilience remain separate gates.
 
 ## Preview-only conditional message contract (no dispatch)
 
