@@ -22,6 +22,7 @@ async function main(){
   const src=path.resolve(__dirname,'..');
   const server=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);});
   let driver;
+  let qaStage='setup';
   try{
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const manifest=JSON.parse(fs.readFileSync(path.join(src,'manifest.json'),'utf8'));
@@ -100,6 +101,7 @@ async function main(){
     await down.sendKeys(Key.ENTER);
     order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
+    qaStage='native-pointer-before';
     // Exercise native Firefox HTML5 pointer drag, not synthetic JS drag/drop.
     await driver.executeScript(`window.__qaDragEvents=[];
       const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
@@ -123,7 +125,7 @@ async function main(){
     }catch(error){
       const diag=await driver.executeScript(`return {events:window.__qaDragEvents,
         rows:[...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')].map(x=>x.textContent)}`);
-      throw new Error('Native Firefox drag did not reorder: '+JSON.stringify(diag)+'; '+error.message);
+      throw new Error('Native Firefox drag before row did not reorder: '+JSON.stringify(diag)+'; '+error.message);
     }
     // Reverse the drag through the keyboard alternative; future reload must
     // preserve this explicit final order.
@@ -131,6 +133,7 @@ async function main(){
     await downAfterDrag.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    qaStage='native-pointer-after';
     // The lower half of the last row must insert AFTER it, not before it.
     const dragFirst=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')");
     const dropLast=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2)')");
@@ -139,12 +142,20 @@ async function main(){
       .move({origin:dragFirst}).press().pause(200)
       .move({origin:dropLast,x:0,y:Math.max(7,Math.floor(dropRect.height/4)),duration:750}).pause(250)
       .release().perform();
-    await driver.wait(async()=>await driver.executeScript(
-      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    try {
+      await driver.wait(async()=>await driver.executeScript(
+        "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    }catch(error){
+      const diag=await driver.executeScript(`const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+        return {rows:[...sh.querySelectorAll('.item')].map(x=>({preview:x.querySelector('.preview')?.textContent,rect:x.getBoundingClientRect().toJSON()})),
+          list:sh.getElementById('items').getBoundingClientRect().toJSON(),body:sh.getElementById('body').getBoundingClientRect().toJSON()}`);
+      throw new Error('Native Firefox drag after row failed: '+JSON.stringify(diag)+'; '+error.message);
+    }
     const upAfterLowerDrop=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:first-child')");
     await upAfterLowerDrop.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    qaStage='toggle';
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
@@ -166,6 +177,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
     assert.equal(await driver.executeScript(`return ${jsEl('theme')}.value`),'dark');
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
+    qaStage='layout-reload';
     // Keyboard-positioned HUD placement and collapse persist across reload.
     const header=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.top')");
     const startRight=Number.parseInt(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),10);
@@ -189,6 +201,7 @@ async function main(){
     await start.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='geometry-zoom';
     // Firefox geometry at a constrained desktop viewport and 175% page zoom.
     const oldRect=await driver.manage().window().getRect();
     await driver.manage().window().setRect({width:440,height:640});
@@ -239,6 +252,7 @@ async function main(){
         fs.writeFileSync(path.join(process.env.CQ_QA_SCREENSHOT_DIR,'hud-'+themeName+'.png'),Buffer.from(png,'base64'));
       }
     }
+    qaStage='clear-confirmation';
     // Verify individual deletion, then require two separate clicks to clear.
     const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
     await del.click();
@@ -274,6 +288,7 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
   }finally{
