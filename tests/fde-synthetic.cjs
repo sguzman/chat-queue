@@ -43,10 +43,13 @@ async function main(){
     assert.equal(content.split(persistence).length,2);
     content=content.replace(persistence,
       "(document.documentElement.dataset.qaRejectQueueSave==='yes' ? Promise.reject(new Error('qa-storage-rejected')) : document.documentElement.dataset.qaRejectQueueSave==='delay' ? new Promise(resolve=>setTimeout(resolve,2500)).then(()=>api.storage.local.set({[key]:data})) : api.storage.local.set({[key]:data}))");
+    const defaultHeartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
+    assert.equal(content.split(defaultHeartbeat).length,2);
+    content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
-      `let qaRegistryMissing=true;
+      `let qaRegistryMissing=true,qaHeartbeatStates=0;
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
@@ -75,6 +78,10 @@ async function main(){
           return Promise.resolve({ok:true,tabId:sender.tab.id});
         }
         if(msg.action==='state'){
+          if(sender.tab.url.includes('/c/heartbeat-loss') && msg.size===0){
+            qaHeartbeatStates++;
+            if(qaHeartbeatStates===2)return Promise.resolve({ok:false,error:'route-mismatch'});
+          }
           if(qaRegistryMissing && sender.tab.url.includes('/c/registry-loss') && msg.size===1){
             qaRegistryMissing=false;
             return Promise.resolve({ok:false,error:'route-mismatch'});
@@ -481,6 +488,16 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='idle-registry-heartbeat-recovery';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/heartbeat-loss`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),10000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Signal registry restarted')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('queue-empty')`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
