@@ -106,3 +106,7 @@ The extended `tests/fde-coexist.cjs` test removes the real pinned Chat Signals a
 ## 🖱️ Native pointer reordering in Firefox Developer Edition
 
 The test uses actual WebDriver pointer gestures, not dispatched fake drag/drop events. Gecko did not emit HTML5 `dragover`/`drop` for the initial native sequence, so the production HUD now uses a captured-pointer handler with explicit before/after zones. Firefox QA verifies movement before the first item, insertion after the last item, keyboard reversal, and the saved order after reload. [Passing run 40043411053](https://github.com/sguzman/chat-queue/actions/runs/40043411053).
+
+## 🎨 Visible footer and synthetic visual audit
+
+A screenshot audit found the original Add/Clear/Start footer clipped by the panel boundary. The repaired flex layout independently scrolls messages and keeps primary actions visible on the desktop fixture, with constrained viewport handling. The Firefox test checks each action button's entire bounding box stays within the panel and captures synthetic light/dark screenshots with their corresponding theme selector choice. Both screenshots were inspected, and the full [Firefox run 40044138955](https://github.com/sguzman/chat-queue/actions/runs/40044138955) passed. The images contain hard-coded fixtures only; this does not validate the authenticated site or screen readers.

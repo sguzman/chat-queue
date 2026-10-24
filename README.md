@@ -93,3 +93,7 @@ In disposable Firefox Developer Edition, the test uninstalls the pinned real Cha
 ## 🖱️ Pointer reorder accepted in Firefox
 
 The floating HUD uses captured pointer drag movements with visible **before/after** insertion boundaries; keyboard Up/Down remains an equivalent control. Real headless Firefox Developer Edition verified both insertion directions, reverse keyboard operation and queue-order persistence after reload in [run 40043411053](https://github.com/sguzman/chat-queue/actions/runs/40043411053). This is synthetic-page UI acceptance, not authenticated ChatGPT sending.
+
+## 🎨 Verified Firefox HUD composition
+
+The first visual QA screenshot run exposed clipped Add/Clear/Start controls. The HUD now scrolls its queue list independently and keeps the controls within the panel. The desktop height cap accommodates pointer insertion zones, while narrow viewports can scroll the body. Headless Firefox Developer Edition asserts full footer geometry, and light/dark synthetic screenshots were visually inspected; the theme selector reflects each screenshot. [Passing acceptance run 40044138955](https://github.com/sguzman/chat-queue/actions/runs/40044138955). This does not establish authenticated-site nonintrusion or sending safety.

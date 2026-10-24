@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 46/96 verified (47%) · ████░░░░░░ · 34 implemented awaiting acceptance.**
+**Overall: 47/96 verified (48%) · ████░░░░░░ · 33 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -59,7 +59,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **HUD surfaces**
 
-- [~] `M1-06` 🪟 Display nonintrusive floating panel, collapse and queue count _(implemented; acceptance pending)_
+- [x] `M1-06` 🪟 Display nonintrusive floating panel, collapse and queue count
 - [x] `M1-07` ✍️ Add and edit queued prompts without losing draft input
 - [x] `M1-08` 🗑️ Remove individual prompts and clear queue safely
 - [x] `M1-09` 🔀 Drag/drop reorder with predictable insertion boundaries
@@ -67,7 +67,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M1-11` ♿ Verify contrast, spacing, small viewports, zoom, reduced motion
 - [x] `M1-12` 🪄 Remember HUD placement/collapsed state with reset control
 
-**M1 acceptance:** 11/12 verified (91%) · █████████░ · 1 implemented but not accepted.
+**M1 acceptance:** 12/12 verified (100%) · ██████████ · 0 implemented but not accepted.
 
 ### 📦 M2 — Queue model & persistence
 

@@ -102,7 +102,7 @@ async function main(){
     order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
     qaStage='native-pointer-before';
-    // Exercise native Firefox HTML5 pointer drag, not synthetic JS drag/drop.
+    // Exercise native Firefox pointer drag, not synthetic JS drag/drop.
     await driver.executeScript(`window.__qaDragEvents=[];
       const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
       for(const name of ['dragstart','dragover','drop','dragend'])

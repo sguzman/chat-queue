@@ -229,9 +229,10 @@
                   "id": "M1-06",
                   "emoji": "🪟",
                   "title": "Display nonintrusive floating panel, collapse and queue count",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Shadow DOM HUD in src/content.js; visual QA pending"
+                    "Shadow DOM HUD in src/content.js; visual QA pending",
+                    "Real headless Firefox Developer Edition verifies floating panel queue count, collapse/expand, and Add/Clear/Start visibility; synthetic light/dark screenshots manually inspected after flex layout repair and footer geometry assertion; full CI success. https://github.com/sguzman/chat-queue/actions/runs/40044138955"
                   ]
                 },
                 {
