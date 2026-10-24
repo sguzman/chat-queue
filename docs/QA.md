@@ -137,6 +137,12 @@ The disposable Firefox Developer Edition cross-tab regression now opens **16 ind
 
 This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, whole-browser crash/relaunch or full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
 
+## 📦 One-use backup import concurrency acceptance
+
+Disposable Firefox Developer Edition now runs three additional native UI scenarios: (1) select a two-message JSON backup, delay the local queue storage write, and double-click **Confirm import** in the same browser task; only two messages may exist after reload, with Add/Start temporarily locked; (2) preview the same backup, change the queue, then confirm: the stale revision must reject without appending; (3) inject a rejected storage write, confirm once, verify in-memory rollback and no Send, then reload to find no imported messages. [Passed Firefox CI](https://github.com/sguzman/chat-queue/actions/runs/40126117606).
+
+The implementation makes confirmation one-use, binds the preview to an exact key, route generation and revision, and rejects mutation during the storage commit. This is synthetic Firefox storage fault injection, not a claim that `storage.local` supplies atomic cross-tab compare-and-swap or that a real browser power loss has been simulated.
+
 ## 🔐 Closed-shadow page script privacy regression
 
 A dedicated native Firefox Developer Edition test installs an unmodified **closed** ShadowRoot HUD (changing only the synthetic localhost match scope and mock registration background). A QA-only pending message is seeded in extension-local storage; page scripts cannot read its text through `body.innerText`, `outerHTML`, the host's `shadowRoot`, or page-realm `ChatQueueCore`/`ChatQueueSignal`. Reload preserves non-disclosure and makes no Send. [Accepted CI run](https://github.com/sguzman/chat-queue/actions/runs/40051837389). This is not a confidentiality guarantee against privileged extensions, side channels or the real authenticated site.
