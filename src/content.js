@@ -505,6 +505,9 @@
     if (state.key===newKey&&!state.routing)return;
     const generation=++routeGeneration;
     state.routing=true;
+    // Never display the previous conversation's private prompts while
+    // a new path is waiting on slow or failed extension-storage reads.
+    host.style.setProperty('visibility','hidden');
     state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;state.pendingRecovery=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
@@ -524,6 +527,7 @@
       state.revision=0;state.etag=uid();state.editing=null;
       state.running=false;state.awaiting=false;state.routing=false;
       statusNote('Could not load conversation queue; reload to retry');
+      host.style.removeProperty('visibility');
       return;
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
@@ -539,7 +543,7 @@
     // A new route also invalidates the background's Signal document sequence.
     try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
-    state.routing=false;render();publish();
+    state.routing=false;render();host.style.removeProperty('visibility');publish();
   }
   async function act(action,payload,local=false,requester=null) {
     if (!state.initialized) return {ok:false,error:'not-ready'};
