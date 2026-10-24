@@ -111,7 +111,12 @@ async function main(){
     // draggable row, and drop in the first row's upper half.
     const dragSource=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .preview')");
     const dragTarget=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(1) .preview')");
-    await driver.actions({async:true}).dragAndDrop(dragSource,dragTarget).perform();
+    // Firefox requires drag motion and a hover interval before release;
+    // WebDriver's single-hop dragAndDrop can emit dragstart but no drop.
+    await driver.actions({async:true})
+      .move({origin:dragSource}).press().pause(200)
+      .move({origin:dragTarget,duration:850}).pause(350)
+      .release().perform();
     try{
       await driver.wait(async()=>await driver.executeScript(
         "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
