@@ -52,6 +52,8 @@ test('unknown persisted states fail closed as uncertain, without automatic retry
 
 test('unrecognized future queue schemas are explicitly read-only; legacy records remain readable',()=>{
   assert.deepEqual(q.savedRecordSupport(undefined),{ok:true});
+  assert.deepEqual(q.savedRecordSupport(null),{ok:false,error:'unsupported-saved-queue'},
+    'explicit null is an existing damaged record, not a missing key');
   assert.deepEqual(q.savedRecordSupport({version:1,items:[]}),{ok:true});
   assert.deepEqual(q.savedRecordSupport({items:[{id:'aaaaaaaa',text:'legacy'}]}),{ok:true});
   for(const bad of [{version:2,items:[]},{version:'1',items:[]},{version:1,items:null},[],42,'bad']){
