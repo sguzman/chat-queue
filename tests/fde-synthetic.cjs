@@ -329,6 +329,21 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),5000);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Retry uses the same guarded action as the external API and cannot
+    // trigger a Send without another, separate Start.
+    const retryImported=await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
+    assert.equal(await retryImported.getText(),'Retry');
+    await retryImported.click();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length===0"),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.match(await driver.executeScript(`return ${jsEl('status')}.textContent`),/Paused/);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),0);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     const exportButton=await driver.executeScript(`return ${jsEl('backup-export')}`);
     await exportButton.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('download requested')`),5000);
@@ -336,7 +351,7 @@ async function main(){
     await driver.wait(async()=>fs.existsSync(downloaded),10000);
     assert.deepEqual(JSON.parse(fs.readFileSync(downloaded,'utf8')),{kind:'chat-queue-message-backup',version:1,items:[
       {text:'Imported fixture pending',status:'pending'},
-      {text:'Imported fixture uncertain',status:'uncertain'}
+      {text:'Imported fixture uncertain',status:'pending'}
     ]},'Actual Firefox download must contain parseable, metadata-free JSON');
     // Clean up fixture queue using the normal confirmed UI.
     const clearImported=await driver.executeScript(`return ${jsEl('clear')}`);
