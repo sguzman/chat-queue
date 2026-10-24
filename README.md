@@ -10,6 +10,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - [📊 Progress ledger](progress.json) — canonical machine-readable status and bounded evidence for each task; `npm run progress` prints current percentages.
 - [🏗️ Architecture](docs/ARCHITECTURE.md) — independent ownership, signal flow, identity/epoch contract, UI and queue lifecycle.
 - [📡 Signal contract](docs/SIGNAL-CONTRACT.md) — authenticated consumer envelope, attribution and pending provider work.
+- [🔌 Provider handoff](docs/SIGNAL-PUBLISHER-HANDOFF.md) — detailed, independent Chat Signals publisher phases and Firefox acceptance gates.
 - [🛡️ Security](docs/SECURITY.md) — browser privacy, threat model and single-send guarantees.
 - [🔍 Static security audit](docs/SECURITY-AUDIT.md) — automated permission, local-asset and no-network regression checks.
 - [🦊 Firefox QA](docs/QA.md) — dedicated profile, synthetic and authenticated acceptance tiers.
