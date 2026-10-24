@@ -487,6 +487,7 @@ async function main(){
       `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
     await driver.executeScript(`const d=${hud('draft')};d.value='Project-route competing prompt';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
+    const crossRouteContender=await driver.getWindowHandle();
     await emit('idle',0,72,'observed','fresh',alternateRoute);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await waitNote('Another tab owns this conversation');
@@ -496,7 +497,7 @@ async function main(){
     await driver.switchTo().window(crossRouteOwner);
     await emit('finished',1,72,'inferred','fresh','/c/cross-route-owner');
     await waitNote('Queue completed');
-    await driver.switchTo().window((await driver.getAllWindowHandles()).at(-1));
+    await driver.switchTo().window(crossRouteContender);
     await emit('idle',0,73,'observed','fresh',alternateRoute);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await waitSends(1);
