@@ -46,7 +46,8 @@ async function main(){
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
-      `browser.runtime.onMessage.addListener((msg,sender)=>{
+      `let qaRegistryMissing=true;
+      browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
           if(msg.route==='/c/recovery-record'){
@@ -73,7 +74,13 @@ async function main(){
           }
           return Promise.resolve({ok:true,tabId:sender.tab.id});
         }
-        if(msg.action==='state')return Promise.resolve({ok:true});
+        if(msg.action==='state'){
+          if(qaRegistryMissing && sender.tab.url.includes('/c/registry-loss') && msg.size===1){
+            qaRegistryMissing=false;
+            return Promise.resolve({ok:false,error:'route-mismatch'});
+          }
+          return Promise.resolve({ok:true});
+        }
        });`);
     // Exercise actual Firefox reduced-motion preference, not a mocked media query.
     const options=new firefox.Options().setBinary(binary).addArguments('-headless')
@@ -441,6 +448,21 @@ async function main(){
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='event-page-registry-loss';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/registry-loss`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Registered metadata only';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Signal registry restarted')`),6000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
