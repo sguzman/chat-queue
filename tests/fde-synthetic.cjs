@@ -576,10 +576,18 @@ async function main(){
     await driver.executeScript(`return ${jsEl('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),8000);
     await driver.executeScript("history.pushState({},'', '/c/route-delay')");
-    await driver.sleep(1500);
+    await driver.wait(async()=>await driver.executeScript(
+      "return getComputedStyle(document.getElementById('chat-queue-extension-root')).visibility==='hidden'"),4000);
+    // The old chat's queue remains stored, but must be invisible while
+    // the new conversation's storage read is deliberately delayed.
+    assert.equal(await driver.executeScript(
+      "return getComputedStyle(document.getElementById('chat-queue-extension-root')).visibility"),'hidden');
     await driver.executeScript("history.pushState({},'', '/c/aba-home')");
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('Conversation changed; manually start queue')`),7500);
+    assert.equal(await driver.executeScript(
+      "return getComputedStyle(document.getElementById('chat-queue-extension-root')).visibility"),'visible',
+      'Only the winning loaded conversation may restore the HUD');
     await driver.executeScript(`const d=${jsEl('draft')};d.value='After interrupted navigation';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),8000);
@@ -596,6 +604,9 @@ async function main(){
     await driver.executeScript("history.pushState({},'', '/c/load-fail')");
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('Could not load conversation queue; reload to retry')`),7000);
+    assert.equal(await driver.executeScript(
+      "return getComputedStyle(document.getElementById('chat-queue-extension-root')).visibility"),'visible',
+      'Failed storage load must show only the empty read-only failure HUD');
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Must never overwrite unreadable queue';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
