@@ -697,8 +697,10 @@
                   "id": "M4-12",
                   "emoji": "🧪",
                   "title": "Test duplicate avoidance, error recovery and wrong-conversation races",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Native synthetic Firefox Developer Edition tests cover stale/old epoch, duplicate prevention after Signal uncertainty, manual retry, simultaneous same-route owner leases, page draft preservation and History API route transition during delayed pre-Send authorization. Old route retains uncertain queue and new route sends nothing: https://github.com/sguzman/chat-queue/actions/runs/40052236598. Real authenticated ChatGPT rerender, error and network recovery remain unaccepted."
+                  ]
                 }
               ]
             }
