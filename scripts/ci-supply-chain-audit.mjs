@@ -23,6 +23,10 @@ for(const action of uses){
 }
 for(const name of required)if(!uses.some(x=>x.startsWith(name+'@')))
   fail.push('Required action missing: '+name);
+if(!/^permissions:\n  contents: read\n/m.test(workflow))
+  fail.push('Workflow needs explicit top-level read-only contents permission');
+if(/^\s+[a-z_-]+:\s*write\b/m.test(workflow))
+  fail.push('Workflow requests unreviewed write permission');
 if(/^\s*pull_request_target\s*:/m.test(workflow)||
    /^\s*permissions\s*:\s*write-all\b/m.test(workflow))
   fail.push('Dangerous workflow trigger or broad permission');

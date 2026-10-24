@@ -23,7 +23,9 @@ test('CI pins audited actions and rejects mutable, untrusted and broad-rights ch
       source=>source.replace(/actions\/checkout@[0-9a-f]{40}/,'actions/checkout@v4'),
       source=>source.replace(/actions\/checkout@[0-9a-f]{40}/,'untrusted/other@'+'f'.repeat(40)),
       source=>source+'\npull_request_target:\n',
-      source=>source+'\npermissions: write-all\n'
+      source=>source+'\npermissions: write-all\n',
+      source=>source.replace('permissions:\n  contents: read\n',''),
+      source=>source.replace('  contents: read','  contents: write')
     ]){
       const modified=mutation(baseline);
       assert.notEqual(modified,baseline,'adversarial fixture should change a real workflow');
