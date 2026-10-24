@@ -34,6 +34,7 @@ function prepareQueue(dir,source){
   // QA-only local rule definitions; production Options libraries are never
   // auto-enabled or read until the user explicitly opts in per document.
   m.background.scripts.unshift('qa-rules-seed.js');
+  m.content_scripts[0].js.push('qa-rule-config-change.js');
   m.content_scripts[0].matches=['http://127.0.0.1/*'];
   fs.writeFileSync(path.join(dir,'manifest.json'),JSON.stringify(m));
   for(const part of ['src','options'])fs.cpSync(path.join(source,part),path.join(dir,part),{recursive:true});
@@ -43,6 +44,16 @@ function prepareQueue(dir,source){
         priority:50,when:{phase:'finished'},
         then:{type:'propose',text:'Synthetic approved follow-up'}}]
     }});`);
+  fs.writeFileSync(path.join(dir,'qa-rule-config-change.js'),`
+    document.documentElement.dataset.qaRuleMutationReady='yes';
+    window.addEventListener('message',event=>{
+      if(event.source!==window||event.data?.kind!=='qa-change-rule-config')return;
+      browser.storage.local.set({'chatqueue:conditional-rules:v1':{
+        version:1,rules:[{version:1,id:'synthetic-changed',enabled:true,
+          priority:10,when:{phase:'failed'},then:{type:'pause'}}]
+      }}).then(()=>document.documentElement.dataset.qaRuleMutationDone='yes')
+        .catch(()=>document.documentElement.dataset.qaRuleMutationDone='failed');
+    });`);
   const contentPath=path.join(dir,'src/content.js');
   const original=fs.readFileSync(contentPath,'utf8');
   assert.equal(original.split("attachShadow({mode:'closed'})").length,2);
@@ -50,6 +61,10 @@ function prepareQueue(dir,source){
     // Widen only the rapid-terminal fixture's confirmation polling interval.
     .replace('const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));',
       "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:ms));")
+    // QA-only deferred policy read: expose the race where an onChanged
+    // invalidation arrives before a previously initiated read settles.
+    .replace('const data=await api.storage.local.get(ruleStore.KEY);',
+      "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -647,7 +662,29 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),'Enable previews');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending');
+
+    qaStage='inflight-rule-library-revocation';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-config-race');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('rules-toggle')}.textContent==='Loading rules'`),4000);
+    await driver.executeScript("window.postMessage({kind:'qa-change-rule-config'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),5000);
+    await driver.sleep(1500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),
+      'Enable previews','A stale read must never resurrect revoked policy consent');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    await emit('finished',1,110,'observed','fresh','/c/rule-config-race');
+    await driver.sleep(400);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Policy mutation while reading must not produce a stale rule offer');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

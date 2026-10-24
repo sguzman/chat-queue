@@ -85,6 +85,9 @@
   // Keep at most 32 volatile, exact-route drafts within this tab; never sync
   // or expose them to the page. Persisted queued items have separate storage.
   const routeDrafts=new Map();
+  // Rule-store changes revoke pending asynchronous opt-in reads as well as
+  // existing offers. Never reinstate a policy from an obsolete snapshot.
+  let ruleLibraryGeneration=0;
   function rememberDraft(key) {
     if(!key)return;
     const value=els.draft.value;
@@ -1049,7 +1052,7 @@
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
-    const key=state.key,generation=routeGeneration;
+    const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
     state.rulesLoading=true;render();
     try{
       const data=await api.storage.local.get(ruleStore.KEY);
@@ -1057,13 +1060,18 @@
       if(!decoded.ok)throw new Error(decoded.error);
       if(state.destroyed||state.key!==key||routeGeneration!==generation||
          storageKey()!==key)throw new Error('conversation-changed');
+      if(ruleLibraryGeneration!==libraryGeneration)throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
       state.rulesEnabled=true;
       statusNote('Conditional previews enabled; future authenticated events only');
     }catch(error){
-      state.rulesEnabled=false;
-      state.ruleLibrary=[];state.ruleOffer=null;
-      statusNote('Conditional previews unavailable: '+String(error?.message||error));
+      // An earlier route's pending read must not overwrite this route's
+      // own opt-in, nor let a superseded library snapshot become active.
+      if(!state.destroyed&&state.key===key&&routeGeneration===generation){
+        state.rulesEnabled=false;
+        state.ruleLibrary=[];state.ruleOffer=null;
+        statusNote('Conditional previews unavailable: '+String(error?.message||error));
+      }
     }finally{state.rulesLoading=false;if(!state.destroyed)render();}
   });
   els['rules-dismiss'].addEventListener('click',()=>{
@@ -1100,6 +1108,7 @@
     // conditional-rule configuration can affect this document.
     let relevant=false;
     if(changes[ruleStore.KEY]){
+      ruleLibraryGeneration++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
       relevant=true;

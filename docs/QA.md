@@ -258,3 +258,7 @@ A disposable Firefox Developer Edition two-tab test observes the second tab's Qu
 ## 🛑 Pending conditional approval blocks explicit Start
 
 A native two-extension Firefox QA scenario attempts HUD **Start** after an authenticated finished-phase proposal has paused a two-message queue. The command must return `review-conditional-proposal`, keep the offer visible, leave the second message unsent, and require an independent Approve or Dismiss action before the user may start again. The same `act('start')` authorization gate serves permissioned external clients; an isolated browser fixture verifies the HUD invocation, not a real Chat Signals publisher or live ChatGPT send.
+
+## 🔄 Native Firefox rule-policy race
+
+A disposable two-extension Firefox Developer Edition fixture delays the Queue's opt-in rule read only on one QA pathname. A separate temporary content-script helper changes the Queue's own synthetic `storage.local` rule definitions while the read is pending. After the obsolete read settles, the HUD must remain disabled, keep Approve hidden and reject a fresh authenticated terminal event as a rule offer. The helper and delay substitution are QA-only and absent from the production extension. This does not validate the real Chat Signals publisher or genuine ChatGPT execution.
