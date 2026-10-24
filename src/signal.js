@@ -9,6 +9,13 @@
   const TOKEN=/^[0-9a-f]{32}$/;
   const validRoute=route=>typeof route==='string'&&route.length<=512&&
     /^\/[a-zA-Z0-9/_%.-]*$/.test(route);
+  // Only an existing named conversation can anchor unattended queue
+  // dispatch. ChatGPT home, GPT landing, shared/scheduled views and
+  // unassigned /c routes cannot distinguish successive conversations.
+  // Add other verified site URL shapes only after real FDE acceptance.
+  const assignedConversationRoute=route=>validRoute(route)&&
+    (/^\\/c\\/[A-Za-z0-9_-]+$/.test(route)||
+     /^\\/g\\/[A-Za-z0-9_-]+\\/c\\/[A-Za-z0-9_-]+$/.test(route));
   function parse(input){
     if(!input||typeof input!=='object'||input.type!==TYPE)return null;
     const x=input.signal;
@@ -44,7 +51,7 @@
       signal.route===waiting.route&&signal.origin==='fresh'&&signal.confidence!=='unknown'&&
       signal.phase==='finished'&&signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
   }
-  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,parse,advance,ready,newBusy,completed});
+  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,assignedConversationRoute,parse,advance,ready,newBusy,completed});
   root.ChatQueueSignal=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
