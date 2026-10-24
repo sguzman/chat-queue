@@ -15,6 +15,10 @@
   const ROUTES = new Map();
   // Do not expose ordering metadata through the public tab API.
   const STATE_SEQUENCES = new Map();
+  // Unique per-registration lease generations prevent old async state reads
+  // from becoming current when a tab re-registers the same conversation.
+  const REGISTRATIONS = new Map();
+  let nextRegistration=0;
   // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
@@ -96,6 +100,7 @@
         releaseOwner(tab.id);
         ROUTES.set(tab.id,message.route);
         STATE_SEQUENCES.set(tab.id,0);
+        REGISTRATIONS.set(tab.id,++nextRegistration);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
         return {ok:true,tabId:tab.id};
@@ -129,10 +134,13 @@
       // Delayed state publication from the previous SPA route cannot recreate
       // its tab entry or advertise stale queue controls to API clients.
       const registered=ROUTES.get(tab.id);
-      if(!TABS.has(tab.id)||!registered)return Promise.resolve({ok:false,error:'route-mismatch'});
+      const generation=REGISTRATIONS.get(tab.id);
+      if(!TABS.has(tab.id)||!registered||!generation)return Promise.resolve({ok:false,error:'route-mismatch'});
       return currentRoute(sender).then(live=>{
         if(ROUTES.get(tab.id)!==registered||live!==registered||!TABS.has(tab.id))
           return {ok:false,error:'route-mismatch'};
+        if(REGISTRATIONS.get(tab.id)!==generation)
+          return {ok:false,error:'stale-state'};
         // Test after the asynchronous browser URL read: the read's callbacks
         // may resolve out of order, including after a newer pause/Start.
         if(message.sequence<=(STATE_SEQUENCES.get(tab.id)||0))
@@ -296,6 +304,7 @@
       SIGNALS.delete(message.tabId);
       ROUTES.delete(message.tabId);
       STATE_SEQUENCES.delete(message.tabId);
+      REGISTRATIONS.delete(message.tabId);
       return { ok: false, error: 'tab-unavailable' };
     }
   });
@@ -303,7 +312,7 @@
   function invalidate(tabId){
     if(!ROUTES.has(tabId))return;
     releaseOwner(tabId);
-    ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);
+    ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
   }
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
