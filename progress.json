@@ -1100,8 +1100,10 @@
                   "id": "M7-11",
                   "emoji": "🪪",
                   "title": "Establish Mozilla unlisted signing path without profile changes",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "scripts/release-gate.mjs refuses any release before all 96 tasks have nonempty verified evidence; tests exercise both denial and synthetic all-complete fixture. scripts/sign-unlisted.mjs stages fixed production files, uses pinned web-ext@10.8.0, unlisted channel, official AMO API v5 and environment-isolated credentials with no browser-profile changes. Fake local npm tests verify subprocess order/no-network and credential isolation. https://github.com/sguzman/chat-queue/actions/runs/40054407230 (static-and-unit success, 75 tests). Mozilla signing, signed XPI QA and deployment deliberately not attempted."
+                  ]
                 },
                 {
                   "id": "M7-12",
