@@ -136,3 +136,11 @@ A QA-only content-script substitution makes `browser.storage.local.set` reject o
 The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
 
 This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
+
+## 🔐 Closed-shadow page script privacy regression
+
+A dedicated native Firefox Developer Edition test installs an unmodified **closed** ShadowRoot HUD (changing only the synthetic localhost match scope and mock registration background). A QA-only pending message is seeded in extension-local storage; page scripts cannot read its text through `body.innerText`, `outerHTML`, the host's `shadowRoot`, or page-realm `ChatQueueCore`/`ChatQueueSignal`. Reload preserves non-disclosure and makes no Send. [Accepted CI run](https://github.com/sguzman/chat-queue/actions/runs/40051837389). This is not a confidentiality guarantee against privileged extensions, side channels or the real authenticated site.
+
+## 📎 Multiple native file-input collision
+
+The authenticated synthetic Signal fixture now includes an empty first composer file input and a second, genuinely selected Firefox file input. Start must reject the attachment without mutating it, even though the first input is empty. The production adapter checks **all** file inputs at both initial handoff and final pre-Send validation. It still needs authenticated-site testing for uploaded attachment chips which may no longer have a populated file input. [Browser regression](../tests/fde-signal.cjs).
