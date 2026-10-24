@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 53/96 verified (55%) · █████░░░░░ · 34 implemented awaiting acceptance.**
+**Overall: 53/96 verified (55%) · █████░░░░░ · 35 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -141,11 +141,11 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M4-07` 🧾 Durably journal attempted/accepted/uncertain sends before repetition _(implemented; acceptance pending)_
 - [~] `M4-08` 🧭 Recheck origin route/document across every async boundary _(implemented; acceptance pending)_
 - [x] `M4-09` 🚧 Expose ambiguous submissions for explicit human resolution
-- [ ] `M4-10` 👥 Prevent clashes with live user edits and simultaneous API writes
+- [~] `M4-10` 👥 Prevent clashes with live user edits and simultaneous API writes _(implemented; acceptance pending)_
 - [~] `M4-11` 🛑 Refuse automatic resumption after browser or event-page restart _(implemented; acceptance pending)_
 - [ ] `M4-12` 🧪 Test duplicate avoidance, error recovery and wrong-conversation races
 
-**M4 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 7 implemented but not accepted.
+**M4 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 8 implemented but not accepted.
 
 ### 🔌 M5 — External extension API
 
