@@ -836,9 +836,9 @@
                   "id": "M5-12",
                   "emoji": "🧪",
                   "title": "Fuzz malformed payloads, unload, revocation and concurrent callers",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Four unit adversarial IPC tests cover cycles, malicious serializer, oversize and unknown caller; independent synthetic Firefox API client checks cyclic/oversize no-forwarding; https://github.com/sguzman/chat-queue/actions/runs/40045489196. Complete fuzzing, unload and concurrent-client coverage remain pending."
+                    "Native Firefox Developer Edition independent client tests two overlapping external API edits with the same compare-and-swap token: exactly one succeeds, one fails with revision-conflict; revoking the grant disconnects the event port and prevents new access; uninstalling the peer extension leaves all three queued prompts intact and causes no Send. https://github.com/sguzman/chat-queue/actions/runs/40057945052. Pure Node adversarial IPC coverage includes cyclic/hostile JSON, oversize requests and 128 deterministic malformed frames without unauthorized forwarding or text leakage; https://github.com/sguzman/chat-queue/actions/runs/40057980573. Synthetic fixtures, not authenticated ChatGPT acceptance."
                   ]
                 }
               ]
