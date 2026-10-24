@@ -133,3 +133,28 @@ test('corrupt v1 queue entries fail read-only instead of being silently dropped'
     {...a,status:'submitted'}, {id:'bbbbbbbb',text:'Unknown status',status:'historic'}
   ]}).ok,true,'supported legacy statuses remain readable but uncertain');
 });
+
+test('malformed history and recovery markers are never silently lost on save',()=>{
+  const item={id:'aaaaaaaa',text:'Keep the queued prompt',status:'pending'};
+  const history={id:'history0001',text:'Keep the prior prompt',at:1730000000000,status:'finished'};
+  const source='chatqueue:v1:tab:987654321:/c/synthetic';
+  const good={version:1,items:[item],history:[history],recoveredSources:[source]};
+  assert.equal(q.savedRecordSupport(good).ok,true);
+  for(const corrupted of [
+    {...good,history:null},
+    {...good,history:[history,{...history,text:''}]},
+    {...good,history:[history,{...history,status:'future'}]},
+    {...good,history:Array.from({length:21},()=>history)},
+    {...good,recoveredSources:null},
+    {...good,recoveredSources:[source,source]},
+    {...good,recoveredSources:['invalid-foreign-path']},
+    {...good,recoveredSources:Array.from({length:33},(_,i)=>
+      'chatqueue:v1:tab:'+i+':/c/synthetic')}
+  ]){
+    const snapshot=JSON.stringify(corrupted);
+    assert.equal(q.savedRecordSupport(corrupted).error,'unsupported-saved-queue');
+    assert.equal(JSON.stringify(corrupted),snapshot);
+  }
+  assert.equal(q.savedRecordSupport({items:[item]}).ok,true,
+    'legacy queue records may omit history and recovery markers');
+});
