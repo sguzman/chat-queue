@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], storageFault: false, pendingSaves: 0, registryRecovering: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -272,7 +272,7 @@
   function save() {
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
     state.clearArmed=false;
-    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20),recoveredSources:state.recoveredSources.slice(-32)};
+    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20),recoveredSources:state.recoveredSources.slice(-32),requestHighWatermarks:{...state.requestHighWatermarks}};
     // Synchronous pending-write accounting prevents a fast Start from
     // dispatching a message whose local queue write has not committed.
     state.pendingSaves++;
@@ -508,7 +508,7 @@
       // persistent record, and let a later navigation/reload retry.
       state.key=newKey;
       state.storageFault=true;state.blockedRecord=true;
-      state.items=[];state.history=[];state.recoveredSources=[];
+      state.items=[];state.history=[];state.recoveredSources=[];state.requestHighWatermarks=Object.create(null);
       state.revision=0;state.etag=uid();state.editing=null;
       state.running=false;state.awaiting=false;state.routing=false;
       statusNote('Could not load conversation queue; reload to retry');
@@ -522,13 +522,14 @@
     state.items=state.blockedRecord?[]:core.normalizeSaved(stored[newKey]);
     state.history=state.blockedRecord?[]:readHistory(stored[newKey]);
     state.recoveredSources=state.blockedRecord?[]:readRecoverySources(stored[newKey]);
+    state.requestHighWatermarks=state.blockedRecord?Object.create(null):core.readRequestHighWatermarks(stored[newKey]);
     state.observedSignal=signalFromPage();state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Conversation changed; manually start queue';state.editing=null;
     // A new route also invalidates the background's Signal document sequence.
     try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.routing=false;render();publish();
   }
-  async function act(action,payload,local=false) {
+  async function act(action,payload,local=false,requester=null) {
     if (!state.initialized) return {ok:false,error:'not-ready'};
     if(state.routing)return {ok:false,error:'route-transition'};
     if(state.key!==storageKey())await handleRouteChange();
@@ -541,6 +542,31 @@
       if (['enqueue','update','reorder','move','remove','clear','resolve'].includes(action) &&
           payload && Object.hasOwn(payload,'ifMatch') && payload.ifMatch!==state.etag)
         return {ok:false,error:'revision-conflict',revision:state.revision};
+      if (action==='enqueueSequenced') {
+        // Caller identity comes from the browser-authenticated background,
+        // never an external caller-supplied payload field. Persist the
+        // strictly increasing high-water mark in the SAME queue record as the
+        // new item: an ambiguous callback cannot enqueue a second copy.
+        const id=requester;
+        const seq=payload?.sequence;
+        if(local||typeof id!=='string'||!id.length||id.length>256)
+          return {ok:false,error:'invalid-client'};
+        if(!Number.isSafeInteger(seq)||seq<=0)
+          return {ok:false,error:'invalid-request-sequence'};
+        if(Object.hasOwn(state.requestHighWatermarks,id)){
+          if(seq<=state.requestHighWatermarks[id])
+            return {ok:false,error:'replayed-request'};
+        }else if(Object.keys(state.requestHighWatermarks).length>=core.MAX_REQUEST_CLIENTS){
+          return {ok:false,error:'request-client-limit'};
+        }
+        if(state.items.length>=core.MAX_ITEMS)return {ok:false,error:'queue-full'};
+        const item=core.makeItem(payload?.text,uid());
+        state.items.push(item);
+        state.requestHighWatermarks[id]=seq;
+        await save();render();
+        if(state.running&&!state.awaiting)planNext();
+        return {ok:true,id:item.id,etag:state.etag};
+      }
       if (action==='enqueue') {
         const text=payload?.text;
         if (state.items.length>=core.MAX_ITEMS) return {ok:false,error:'queue-full'};
@@ -781,7 +807,7 @@
       return Promise.resolve({ok:true});
     }
     if (message?.type!=='chat-queue-api/v1') return;
-    return act(message.action,message.payload);
+    return act(message.action,message.payload,false,message.requester);
   });
   const signalObserver=new MutationObserver(records=>{
     if (records.some(r=>r.attributeName==='data-chat-signals-state')){
@@ -836,6 +862,7 @@
       state.items=state.blockedRecord?[]:core.normalizeSaved(stored[state.key]);
       state.history=state.blockedRecord?[]:readHistory(stored[state.key]);
       state.recoveredSources=state.blockedRecord?[]:readRecoverySources(stored[state.key]);
+      state.requestHighWatermarks=state.blockedRecord?Object.create(null):core.readRequestHighWatermarks(stored[state.key]);
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
       (document.body||document.documentElement).append(host);
       state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';render();publish();
