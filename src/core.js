@@ -43,7 +43,10 @@
   // Backward-compatible missing version is allowed only for recognizable
   // legacy records. Unknown future versions must be preserved, not rewritten.
   function savedRecordSupport(value) {
-    if (value==null) return {ok:true};
+    // An absent key is an empty queue. An existing explicit null is damaged
+    // data and must remain untouched rather than being rewritten on save.
+    if (value===undefined) return {ok:true};
+    if (value===null) return {ok:false,error:'unsupported-saved-queue'};
     if (typeof value!=='object'||Array.isArray(value)||
         (value.version!==undefined&&value.version!==1)||
         !Array.isArray(value.items)||value.items.length>MAX_ITEMS||
