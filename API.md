@@ -4,7 +4,7 @@
 
 All cross-extension access is denied unless the exact caller extension ID is explicitly granted the necessary **independent scopes** in Chat Queue's Options page. Firefox's verified `sender.id` is authoritative, never a client-supplied ID. The request protocol remains `chat-queue/v1`; its permission storage uses `chatqueue:api-grants:v2`.
 
-Each line in Options is `exact-extension-id | scope,scope`. Allowed scopes are `discover` (metadata and events), `read` (private prompt text and history), `append` (new pending message), `edit` (update, remove, reorder and explicit uncertain-item resolution), `control` (Start/Pause), and `rules` (pure conditional preview, no live data or actions). An ID with `append` only cannot list tabs, read prompts, or start dispatch. An ID with only `discover` cannot read prompt bodies. The user must choose the minimum needed scopes; no implicit read/write grants.
+Each line in Options is `exact-extension-id | scope,scope`. Allowed scopes are `discover` (metadata and events), `read` (private prompt text and history), `append` (new pending message), `edit` (update, remove, reorder and explicit uncertain-item resolution), `control` (Start/Pause), and `rules` (caller-scoped synthetic rule preview and persistent rule-library editing; no live data or dispatch actions). An ID with `append` only cannot list tabs, read prompts, or start dispatch. An ID with only `discover` cannot read prompt bodies. The user must choose the minimum needed scopes; no implicit read/write grants.
 
 **Migration:** the legacy `allowedExtensionIds` broad allowlist is now ignored. Existing clients must be manually reauthorized in Options with v2 scopes. No silent migration grants unrestricted access. A grant is permission to call the API, not an indication that sending is safe or that Chat Signals integration is live.
 
@@ -32,6 +32,8 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | --- | --- | --- |
 | `capabilities` | None, no `tabId` | Report exact granted scopes (requires at least one grant) |
 | `previewRules` | `{rules,signal,consumedKeys?:[],context?:{stateDurationMs?,completedRuleIds?:string[]}}`, no `tabId` | Evaluate caller-provided synthetic rules and event only; no queue interactions |
+| `rulesGet` | None, no `tabId` | Read only this exact caller extension ID's saved rule definitions and revision; requires `rules` |
+| `rulesPut` | `{revision,rules}`, no `tabId` | Replace only this caller's stored definitions after bounded normalization and exact revision match; requires `rules` |
 | `listTabs` | None, no `tabId` | Discover registered content-script tabs |
 | `status` | None | Read active queue, history and state |
 | `enqueue` | `{text}` | Append a pending message; returns `id` |
@@ -70,7 +72,7 @@ port.onMessage.addListener(message => {
 });
 ```
 
-A subscription requires the `discover` grant and is disconnected if that scope is revoked (not just when the entire extension ID is deleted). Message contents are never sent on the event stream; call `status` to request them.
+A subscription requires the `discover` grant and is disconnected if that scope is revoked (not just when the entire extension ID is deleted). Message contents are never sent on the event stream; call `status` to request them. Clients that also retain `rules` receive additive `rulesChanged` events with only `{revision}` after a successful rule-library write. If `rules` is revoked but `discover` remains, the metadata port stays connected while `rulesChanged` is suppressed.
 
 ## Scope-to-action summary
 
@@ -81,9 +83,30 @@ A subscription requires the `discover` grant and is disconnected if that scope i
 | `append` | `enqueue`, `enqueueSequenced` | No response text; controls newly submitted text |
 | `edit` | `update`, `remove`, `reorder`, `move`, `clear`, `resolve` | No unsolicited prompt reads |
 | `control` | `start`, `pause` | No; sending can have external side effects |
-| `rules` | `previewRules` | No; accepts only caller-provided simulated data |
+| `rules` | `previewRules`, `rulesGet`, `rulesPut`; `rulesChanged` events additionally require `discover` | Stored proposals in **this caller's own** library only; no ChatGPT prompt/history reads |
 
 API schemas remain experimental pending live FDE acceptance. The new `enqueueSequenced` is an opt-in durable anti-replay operation. Legacy `enqueue` and other mutations do not automatically gain replay safety; authenticated live browser execution, multi-client adversarial coverage and full event-page restart resilience remain separate gates.
+
+## Per-extension rule libraries (preview-only, revisioned)
+
+A client granted `rules` may persist up to 32 validated, bounded definitions **under its own Firefox-attested extension ID**. These definitions are independent of Chat Queue's Options rule library, other extension IDs and live conversations.
+
+```javascript
+const current = await browser.runtime.sendMessage(target, envelope('rulesGet'));
+// {ok:true,revision:0,rules:[]} if this extension has no saved rules yet
+const saved = await browser.runtime.sendMessage(target, envelope('rulesPut', null, {
+  revision:current.revision,
+  rules:[{version:1,id:'pause-on-failure',enabled:true,priority:50,
+          when:{phase:'failed'},then:{type:'pause'}}]
+}));
+// {ok:true,revision:1}, if there was no conflicting edit
+```
+
+Each `rulesPut` is a complete replacement. The sender must provide the **exact last stored revision**, starting at 0; concurrent writes from the same caller serialize, so only one same-revision update succeeds. Stale revisions return `rule-revision-conflict`. Malformed revisions return `invalid-rule-write`, malformed definitions return the corresponding rule-validator error, and a malformed/future-version saved record fails closed with `unsupported-rule-record` without overwriting it. Storage failures return `rule-storage-unavailable`. A caller cannot select another principal's storage key through any API field. The internal key prefix is `chatqueue:external-rules:v1:`, followed by Firefox's verified `sender.id`.
+
+If a background write was already committed when access was revoked, it cannot be undone retroactively. Revoking `rules` blocks subsequent reads/writes and suppresses rule-change notifications, including late completions of in-flight writes. The `rulesChanged` event exposes only a revision integer (no IDs, rule texts, events, routes or tokens). Installed rules are **inert**: `rulesPut` does not attach them to Chat Signals or trigger a queue mutation, Start or Send.
+
+Native synthetic Firefox Developer Edition tests verify persistence, exact revisions, concurrent writes, `rulesChanged` metadata and revocation. See [rules QA](tests/fde-api.cjs) and [conditional contract](docs/CONDITIONAL-RULES.md). These are not authenticated ChatGPT rule-execution tests.
 
 ## Preview-only conditional message contract (no dispatch)
 
