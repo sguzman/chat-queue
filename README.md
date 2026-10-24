@@ -130,3 +130,7 @@ This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic lar
 ## 🧾 Dry-run decision audit
 
 The Options rule simulator keeps a bounded, in-memory trace of preview outcomes without proposed text, conversation route or document token; it disappears on refresh. This helps inspect dependency/skip branches without connecting rules to real messages. [Preview and privacy contract](docs/CONDITIONAL-RULES.md).
+
+## 🔢 Replay-safe API append (experimental)
+
+`enqueueSequenced` stores a bounded per-client high-watermark in local storage together with the pending queue item and rejects old request numbers. It does not Send, deduplicate legacy `enqueue`, or survive deletion of that queue record. [API contract](API.md).
