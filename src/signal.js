@@ -14,8 +14,8 @@
   // unassigned /c routes cannot distinguish successive conversations.
   // Add other verified site URL shapes only after real FDE acceptance.
   const assignedConversationRoute=route=>validRoute(route)&&
-    (/^\\/c\\/[A-Za-z0-9_-]+$/.test(route)||
-     /^\\/g\\/[A-Za-z0-9_-]+\\/c\\/[A-Za-z0-9_-]+$/.test(route));
+    (/^\/c\/[A-Za-z0-9_-]+$/.test(route)||
+     /^\/g\/[A-Za-z0-9_-]+\/c\/[A-Za-z0-9_-]+$/.test(route));
   function parse(input){
     if(!input||typeof input!=='object'||input.type!==TYPE)return null;
     const x=input.signal;
