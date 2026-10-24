@@ -138,3 +138,22 @@ test('simulated completion context is explicit, bounded and cannot be forged as 
   assert.equal(rules.evaluate(linked,e('finished','restored'),[],{completedRuleIds:['first']}).reason,'not-actionable');
   assert.equal(rules.evaluate(linked,e('finished','fresh',0),[],{completedRuleIds:['first']}).reason,'not-actionable');
 });
+
+test('dry-run audit contains outcome but never leaks proposed text, route or document token',()=>{
+  const payload='Synthetic private preview proposal';
+  const signal={...e(),route:'/c/private-synthetic-route',documentToken:'z'.repeat(32)};
+  const set=[{...r('review','finished'),then:{type:'propose',text:payload}}];
+  const result=rules.evaluate(set,signal);
+  const audit=rules.auditPreview(result,signal);
+  assert.deepEqual(audit,{
+    version:1,phase:'finished',reason:'preview-only',
+    ruleId:'review',action:'propose',approvalRequired:true
+  });
+  assert.equal(Object.isFrozen(audit),true);
+  const serialized=JSON.stringify(audit);
+  for(const secret of [payload,'private-synthetic-route','z'.repeat(32),result.decision.eventKey])
+    assert.equal(serialized.includes(secret),false);
+  const rejected=rules.auditPreview({ok:false,error:'unexpected prompt'},signal);
+  assert.equal(rejected.reason,'rejected');
+  assert.equal(JSON.stringify(rejected).includes('unexpected prompt'),false);
+});
