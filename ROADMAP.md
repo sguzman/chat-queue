@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 53/96 verified (55%) · █████░░░░░ · 35 implemented awaiting acceptance.**
+**Overall: 53/96 verified (55%) · █████░░░░░ · 37 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -183,7 +183,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M6-02` ✅ Support successful completed-response branches _(implemented; acceptance pending)_
 - [~] `M6-03` ⚠️ Support failure/interruption/limit branches and recoveries _(implemented; acceptance pending)_
 - [~] `M6-04` ⏰ Support bounded deadlines and state duration predicates _(implemented; acceptance pending)_
-- [ ] `M6-05` 🔗 Support dependencies, explicit priorities and skip conditions
+- [~] `M6-05` 🔗 Support dependencies, explicit priorities and skip conditions _(implemented; acceptance pending)_
 - [x] `M6-06` 📝 Offer visual rule editor and non-destructive dry run
 
 **F13 · Rule execution**
@@ -193,11 +193,11 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M6-07` 🧮 Evaluate conditions deterministically once per signal epoch _(implemented; acceptance pending)_
 - [~] `M6-08` 🔁 Reject cycles, unbounded loops and silent auto-retry _(implemented; acceptance pending)_
 - [~] `M6-09` 🔐 Require explicit user policy for sensitive retries and sends _(implemented; acceptance pending)_
-- [ ] `M6-10` 📬 Emit auditable outcomes without recording response text
+- [~] `M6-10` 📬 Emit auditable outcomes without recording response text _(implemented; acceptance pending)_
 - [~] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API _(implemented; acceptance pending)_
 - [~] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases _(implemented; acceptance pending)_
 
-**M6 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 8 implemented but not accepted.
+**M6 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 10 implemented but not accepted.
 
 ### 🦊 M7 — Firefox QA & release
 
