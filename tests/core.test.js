@@ -90,3 +90,24 @@ test('malformed, oversize, and future backup versions fail closed without mutati
   assert.throws(()=>q.backupItems(Array.from({length:2},()=>({id:'aaaaaaaa',text:'same',status:'pending'}))));
   assert.equal(valid.items[0].status,'pending','validator never edits input');
 });
+
+test('sequenced peer enqueues persist bounded high-water marks without prompt content',()=>{
+  const caller='synthetic-client@sguzman.github';
+  const marks={[caller]:7};
+  assert.equal(q.validRequestHighWatermarks(marks),true);
+  assert.equal(q.savedRecordSupport({version:1,items:[],requestHighWatermarks:marks}).ok,true);
+  const restored=q.readRequestHighWatermarks({requestHighWatermarks:marks});
+  assert.equal(restored[caller],7);
+  assert.equal(Object.getPrototypeOf(restored),null);
+  marks[caller]=3;
+  assert.equal(restored[caller],7,'snapshot must not mutate with source');
+  assert.equal(JSON.stringify(restored).includes('Synthetic private prompt'),false);
+  for(const invalid of [
+    {version:1,items:[],requestHighWatermarks:{bad:0}},
+    {version:1,items:[],requestHighWatermarks:{bad:-1}},
+    {version:1,items:[],requestHighWatermarks:{bad:'1'}},
+    {version:1,items:[],requestHighWatermarks:[1]},
+    {version:1,items:[],requestHighWatermarks:Object.fromEntries(
+      Array.from({length:q.MAX_REQUEST_CLIENTS+1},(_,i)=>['client'+i,i+1]))}
+  ])assert.equal(q.savedRecordSupport(invalid).ok,false,'future/invalid high-water marks remain read-only');
+});
