@@ -603,7 +603,45 @@ async function main(){
       'Enable previews','Rule previews must require fresh opt-in after browser reload');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals and guarded synthetic sending');
+
+    qaStage='conditional-proposal-preempts-next-send';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-preempts-next');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    for(const [index,prompt] of ['Original synthetic A','Original synthetic B'].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];d.dispatchEvent(new Event('input',{bubbles:true}));`,prompt);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0] && ${hud('draft')}.value===''`,
+        (index+1)+' queued'),10000);
+    }
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('idle',0,100,'observed','fresh','/c/rule-preempts-next');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,101,'observed','fresh','/c/rule-preempts-next');
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',1,102,'observed','fresh','/c/rule-preempts-next');
+    await waitNote('Conditional proposal awaiting approval; queue paused');
+    await driver.sleep(1000); // More than the executor's 350-ms next-send delay
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Awaiting a user-reviewed conditional decision must cancel next Send');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    assert.equal(await driver.executeScript(`return !${hud('rules-approve')}.hidden`),true);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='2 queued' && ${hud('rules-approve')}.hidden`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Explicit approval adds a proposed message but never resumes dispatch');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='2 queued'`),12000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),'Enable previews');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

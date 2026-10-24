@@ -427,7 +427,13 @@
     state.ruleSeen.push(result.decision.eventKey);
     if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
     state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,action:result.decision.action};
-    statusNote('Conditional proposal requires explicit approval');
+    // A proposal requiring manual review must stop any already-scheduled
+    // next Send synchronously. processSignal may have just scheduled it on
+    // the terminal event; the timeout cannot fire until this listener ends.
+    state.running=false;
+    if(state.scheduler)clearTimeout(state.scheduler);
+    state.scheduler=null;
+    statusNote('Conditional proposal awaiting approval; queue paused');
   }
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function dispatchOne() {

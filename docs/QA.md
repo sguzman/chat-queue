@@ -246,3 +246,7 @@ The production HUD's local **Edit**, **Delete**, arrow-keyboard reorder, and poi
 ## 🔐 Authenticated, opt-in conditional proposal review
 
 A synthetic independent Firefox provider exercises the new HUD **Conditional proposals** setting. Native FDE must show no action on page-forged phases or before opt-in, then display one manually reviewable offer on a fresh authenticated v1 terminal event. Only a separate Approve click may enqueue bounded text, and the scheduler must remain paused with **zero Send clicks**. SPA navigation and reload remove preview consent and any offer without losing already queued items. This establishes only synthetic Firefox integration, not a live Chat Signals publisher or authenticated ChatGPT behavior.
+
+## ⏸️ Conditional proposal preempts the next Send
+
+A second independent-provider native Firefox scenario starts an explicitly authorized synthetic two-message queue, observes Send for the first message and its authenticated generating→finished epoch, then enables a matching finished-rule review boundary. The proposed rule must synchronously pause the Queue and cancel its pending 350-ms next dispatch; after a full 1-second interval the second Send count must remain zero. Manual approval may enqueue additional proposed text but cannot resume Send, and the paused queue remains persistent after a full tab refresh. The test exercises an isolated synthetic provider; the real Chat Signals publisher remains missing.
