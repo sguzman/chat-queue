@@ -8,7 +8,7 @@ Chat Queue runs `node scripts/security-audit.mjs` inside `npm run check` on ever
 - **Network:** production JavaScript cannot introduce `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` without the audit failing. The only permitted URL literal in production scripts is the ChatGPT origin guard.
 - **Dependencies:** the package is private and has no runtime dependencies or dependency-install declaration. CI installs explicitly pinned, QA-only tools separately.
 
-`tests/security-audit.test.js` copies the public extension source into disposable directories and verifies that permission escalation, network code, and a remote Options script are all rejected. These intentionally bad fixtures are never shipped in the production extension.
+`tests/security-audit.test.js` copies the public extension source into disposable directories and verifies that permission escalation, network code, a remote Options script and an unreviewed local Options script are all rejected. These intentionally bad fixtures are never shipped in the production extension.
 
 **Limits:** this is a conservative source-level check, not an independent review of all JavaScript behavior, CSP enforcement, data exfiltration through ChatGPT's own composer, storage corruption, library provenance, extension impersonation, or browser bugs. The live ChatGPT site, real Chat Signals publisher, cross-extension authorization changes, and authenticated Send remain separate adversarial acceptance gates. A malicious or compromised already-authorized extension is outside the static audit's guarantee. The audit itself can be bypassed by changes to its code or to CI; such edits require review.
 
