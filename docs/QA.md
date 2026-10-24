@@ -194,3 +194,7 @@ The native disposable Firefox fixture stages a compatible old-tab queue, then ch
 ## 🧷 Cross-route conversation-ID ownership collision
 
 The Firefox two-addon provider fixture opens an ordinary `/c/<id>` tab and a `/g/<group>/c/<id>` tab sharing the same assigned conversation-ID segment. The first owns an in-flight response; Start in the alternate route must be denied without changing its composer or queue. A terminal response releases the lease and a separately authorized Start in the second route sends exactly once. [Accepted Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40124851739). The owner key is conservatively shared; exact pathname/epoch authentication is **not** relaxed, and actual ChatGPT project URLs remain unverified.
+
+## 🔄 Full browser shutdown/relaunch (synthetic)
+
+`tests/fde-browser-restart.cjs` runs the production queue scripts in a disposable Firefox Developer Edition profile, shuts the entire Firefox process down, relaunches that same isolated profile and reinstalls its temporary QA add-on. The test requires a previously persisted queue to remain paused and never click synthetic Send. If Firefox chooses a new tab ID, restoring the former queue requires explicit previous-tab discovery and confirmation, and every copied item is uncertain. If Firefox reuses the same tab ID, persisted items remain paused. This is a new Q1/Q5 regression path; authenticated ChatGPT recovery and true crash recovery remain separate acceptance gates.

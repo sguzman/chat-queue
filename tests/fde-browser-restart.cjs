@@ -1,0 +1,114 @@
+'use strict';
+// Full Firefox Developer Edition process shutdown/relaunch on one disposable
+// profile. Actual production persistence and HUD code; synthetic host only.
+// A temporary add-on is deliberately reinstalled after Firefox quits.
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const http=require('node:http');
+const {Builder}=require('selenium-webdriver');
+const firefox=require('selenium-webdriver/firefox');
+
+const page='<!doctype html><html><body><form>'+
+  '<div id="prompt-textarea" role="textbox" contenteditable="true"></div>'+
+  '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
+  '</form><script>window.__sent=0</script></body></html>';
+const shadow="document.querySelector('#chat-queue-extension-root')?.shadowRoot";
+const el=id=>`${shadow}?.getElementById(${JSON.stringify(id)})`;
+
+async function main(){
+  const binary=process.env.FDE_BINARY;
+  if(!binary||!path.isAbsolute(binary)||!fs.existsSync(binary))
+    throw Error('FDE_BINARY must identify Firefox Developer Edition');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-restart-'));
+  const addon=path.join(root,'addon'),profile=path.join(root,'profile');
+  fs.mkdirSync(addon);fs.mkdirSync(profile);
+  const src=path.resolve(__dirname,'..');
+  const server=http.createServer((_request,response)=>{
+    response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
+    response.end(page);
+  });
+  let driver=null,stage='setup';
+  try{
+    const manifest=JSON.parse(fs.readFileSync(path.join(src,'manifest.json'),'utf8'));
+    manifest.browser_specific_settings.gecko.id='chat-queue-restart-qa@sguzman.github';
+    manifest.content_scripts[0].matches=['http://127.0.0.1/*'];
+    fs.writeFileSync(path.join(addon,'manifest.json'),JSON.stringify(manifest));
+    fs.cpSync(path.join(src,'src'),path.join(addon,'src'),{recursive:true});
+    fs.cpSync(path.join(src,'options'),path.join(addon,'options'),{recursive:true});
+    const contentFile=path.join(addon,'src/content.js');
+    const content=fs.readFileSync(contentFile,'utf8');
+    const closed="attachShadow({mode:'closed'})";
+    assert.equal(content.split(closed).length,2,'Exactly one isolated QA Shadow DOM override');
+    fs.writeFileSync(contentFile,content.replace(closed,"attachShadow({mode:'open'})"));
+    // The production background needs only a QA localhost origin substitution.
+    const bgFile=path.join(addon,'src/background.js');
+    let bg=fs.readFileSync(bgFile,'utf8');
+    const original=String.raw`if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;`;
+    const local=String.raw`if (!/^http:\/\/127\.0\.0\.1:\d+\//.test(sender.url || tab.url || '')) return;`;
+    assert.equal(bg.split(original).length,2,'Expected production origin gate');
+    bg=bg.replace(original,local);
+    const nav="!change.url.startsWith('https://chatgpt.com/')";
+    assert.equal(bg.split(nav).length,2);
+    fs.writeFileSync(bgFile,bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')"));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const url=`http://127.0.0.1:${server.address().port}/c/full-browser-restart`;
+    const open=()=>new Builder().forBrowser('firefox').setFirefoxOptions(
+      new firefox.Options().setBinary(binary)
+        .addArguments('-headless','-profile',profile)
+        .setPreference('browser.sessionstore.resume_from_crash',false)).build();
+    stage='first-browser-start';
+    driver=await open();
+    assert.equal(await driver.installAddon(addon,true),manifest.browser_specific_settings.gecko.id);
+    await driver.get(url);
+    await driver.wait(async()=>driver.executeScript(`return Boolean(${el('draft')})`),15000);
+    await driver.executeScript(`const d=${el('draft')};d.value='Synthetic pending queue item from prior browser process';${el('add')}.click()`);
+    await driver.wait(async()=>driver.executeScript(
+      `return ${el('count')}?.textContent==='1 queued' && !${el('backup-export')}.disabled`),10000);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    stage='complete-browser-shutdown';
+    await driver.quit();driver=null;
+    stage='second-browser-start';
+    driver=await open();
+    assert.equal(await driver.installAddon(addon,true),manifest.browser_specific_settings.gecko.id);
+    await driver.get(url);
+    await driver.wait(async()=>driver.executeScript(`return Boolean(${el('count')})`),15000);
+    let restoredBy='same-tab-key';
+    const count=await driver.executeScript(`return ${el('count')}.textContent`);
+    if(count==='0 queued'){
+      // Firefox may allocate a new tab ID after relaunch. Never automatically
+      // transfer that prior tab's unsent queue into a fresh dispatchable item.
+      restoredBy='explicit-previous-tab-recovery';
+      await driver.executeScript(`document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;${el('recovery-find')}.click()`);
+      await driver.wait(async()=>driver.executeScript(`return ${el('recovery-confirm')}?.hidden===false`),10000);
+      assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'0 queued');
+      await driver.executeScript(`return ${el('recovery-confirm')}.click()`);
+      await driver.wait(async()=>driver.executeScript(
+        `return ${el('count')}.textContent==='1 queued' && !${el('recovery-confirm')}.disabled`),10000);
+      assert.equal(await driver.executeScript(
+        `return ${shadow}.querySelectorAll('.item.uncertain').length`),1);
+    }else{
+      assert.equal(count,'1 queued','Unrecognized queue contents after Firefox relaunch');
+    }
+    stage='paused-after-relaunch';
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    await driver.executeScript(`return ${el('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(
+      `return /authenticated-chat-signals-required|resolve-uncertain-message/.test(${el('status')}.textContent)`),6000);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>driver.executeScript(`return ${el('count')}?.textContent==='1 queued'`),10000);
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    console.log('Full Firefox Developer Edition restart: durable queue remained paused; restore path='+restoredBy+'; no Send');
+  }catch(error){
+    throw new Error(stage+': '+error.message);
+  }finally{
+    if(driver)await driver.quit();
+    await new Promise(resolve=>server.close(resolve));
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+main().catch(error=>{console.error('FDE browser-restart QA failed:',error.message);process.exitCode=1});

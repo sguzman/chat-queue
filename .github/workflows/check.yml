@@ -101,6 +101,10 @@ jobs:
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-event-page.cjs
+      - name: Headless FDE full browser shutdown and restored queue safety
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-browser-restart.cjs
       - name: Headless FDE scoped cross-extension API, deny and revocation
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
