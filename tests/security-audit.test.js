@@ -48,3 +48,12 @@ test('a remotely hosted Options script fails the audit',()=>{
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/remote assets or inline executable Options HTML/);
 });
+
+test('a new unreviewed local Options script fails the audit',()=>{
+  const result=runAudit(dir=>{
+    fs.appendFileSync(path.join(dir,'options/options.html'),
+      '<script src="unreviewed-local.js"></script>');
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/unreviewed local Options script/);
+});
