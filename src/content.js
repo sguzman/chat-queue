@@ -490,7 +490,7 @@
     if(state.blockedRecord||state.attempting||state.routing){statusNote('Backup unavailable while queue changes');return;}
     try{
       const payload=core.backupItems(state.items);
-      const blob=new Blob([JSON.stringify(payload,null,2)+'\\n'],{type:'application/json'});
+      const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'});
       const url=URL.createObjectURL(blob);
       const link=document.createElement('a');link.href=url;link.download='chat-queue-messages.json';
       shadow.append(link);link.click();link.remove();
