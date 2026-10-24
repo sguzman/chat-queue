@@ -147,7 +147,10 @@
     els['recovery-confirm'].hidden=!state.pendingRecovery;
     els['recovery-confirm'].textContent=state.pendingRecovery?'Recover '+state.pendingRecovery.items.length+' for review':'Recover for review';
     els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing||state.importing;
-    els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
+    els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting)||state.importing;
+    els['backup-export'].disabled=state.importing;
+    els['backup-choose'].disabled=state.importing;
+    els['recovery-confirm'].disabled=state.importing;
     els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
     els.add.disabled=state.importing;
     els.run.disabled=state.importing;
@@ -727,7 +730,7 @@
   // Never auto-import from an old tab ID: even a former pending item might
   // have been submitted before an unobserved browser shutdown.
   els['recovery-find'].addEventListener('click',async()=>{
-    if(state.blockedRecord||state.running||state.awaiting||state.attempting||state.routing)return;
+    if(state.blockedRecord||state.running||state.awaiting||state.attempting||state.routing||state.importing)return;
     state.pendingRecovery=null;
     const key=state.key,generation=routeGeneration,revision=state.revision;
     try{
@@ -752,7 +755,7 @@
     const draft=state.pendingRecovery;
     if(!draft||draft.key!==state.key||storageKey()!==state.key||
        draft.revision!==state.revision||state.blockedRecord||state.running||
-       state.awaiting||state.attempting||state.routing)return;
+       state.awaiting||state.attempting||state.routing||state.importing)return;
     // Disarm confirmation synchronously. Two fast clicks must not import
     // the same staged record twice while an asynchronous read is pending.
     state.pendingRecovery=null;
@@ -788,7 +791,7 @@
     }
   });
   els['history-clear'].addEventListener('click',async()=>{
-    if(state.running||state.awaiting||state.attempting||!state.history.length)return;
+    if(state.running||state.awaiting||state.attempting||state.importing||!state.history.length)return;
     if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
     state.historyClearArmed=false;
     const oldHistory=state.history.slice();state.history=[];
@@ -818,7 +821,7 @@
     }
   },true);
   els.clear.addEventListener('click',async()=>{
-    if(state.attempting||!state.items.length)return;
+    if(state.attempting||state.importing||!state.items.length)return;
     if(!state.clearArmed){
       state.clearArmed=true;
       statusNote('Press Confirm clear to remove every queued message');
