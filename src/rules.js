@@ -104,7 +104,26 @@
     return {ok:true,decision:Object.freeze({ruleId:match.id,eventKey:key,
       action:match.then,approvalRequired:true}),reason:'preview-only'};
   }
-  const api=Object.freeze({VERSION,MAX_RULES,MAX_SEEN,MAX_DURATION_MS,MAX_RULE_LINKS,PHASES,normalize,evaluate});
+  // Local dry-run audit summary: deliberately exclude route, document
+  // token, event key and proposed prompt text. Never persisted or sent.
+  function auditPreview(result,event){
+    const validEvent=contract?.parse({type:contract.TYPE,signal:event});
+    const phase=validEvent&&PHASES.has(validEvent.phase)?validEvent.phase:'unknown';
+    const decision=result?.ok===true&&result.decision&&typeof result.decision==='object'
+      ? result.decision:null;
+    const ruleId=decision&&typeof decision.ruleId==='string'&&ID.test(decision.ruleId)
+      ? decision.ruleId:null;
+    const action=ruleId&&ACTIONS.has(decision.action?.type)
+      ? decision.action.type:null;
+    const allowedReasons=new Set(['preview-only','no-match','already-considered','not-actionable']);
+    const reason=result?.ok===true&&allowedReasons.has(result.reason)
+      ? result.reason:'rejected';
+    return Object.freeze({
+      version:1,phase,reason,ruleId,action,
+      approvalRequired:decision?.approvalRequired===true
+    });
+  }
+  const api=Object.freeze({VERSION,MAX_RULES,MAX_SEEN,MAX_DURATION_MS,MAX_RULE_LINKS,PHASES,normalize,evaluate,auditPreview});
   root.ChatQueueRules=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
