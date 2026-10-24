@@ -59,6 +59,28 @@
       seen.add(item.id); return true;
     }).map(item => ({ id: item.id, text: item.text, status: item.status === 'pending' ? 'pending' : 'uncertain' }));
   }
+  // Recovery discovery is metadata-only. Exact pathname matching prevents a
+  // queue from another conversation being offered after a tab-ID change.
+  // Never auto-resume old items; the HUD must explicitly stage and confirm.
+  function recoveryCandidates(records,route,currentKey,alreadyRecovered=[]) {
+    if(!records||typeof records!=='object'||Array.isArray(records)||
+       typeof route!=='string'||!route.startsWith('/')||
+       !Array.isArray(alreadyRecovered))return [];
+    const excluded=new Set(alreadyRecovered.filter(x=>typeof x==='string'));
+    const prefix='chatqueue:v1:tab:';
+    const candidates=[];
+    for(const [key,value] of Object.entries(records)){
+      if(candidates.length>=32)break;
+      if(key===currentKey||excluded.has(key)||!key.startsWith(prefix))continue;
+      const suffix=key.slice(prefix.length);
+      const colon=suffix.indexOf(':');
+      if(colon<0||!/^\\d{1,16}$/.test(suffix.slice(0,colon))||
+         suffix.slice(colon+1)!==route||!savedRecordSupport(value).ok)continue;
+      const items=normalizeSaved(value);
+      if(items.length)candidates.push({key,count:items.length});
+    }
+    return candidates;
+  }
   const BACKUP_KIND = 'chat-queue-message-backup';
   const BACKUP_VERSION = 1;
   const MAX_BACKUP_BYTES = 16 * 1024 * 1024;
@@ -102,7 +124,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, recoveryCandidates, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
