@@ -77,6 +77,8 @@ function prepareQueue(dir,source){
     "if(globalThis.__qaLateChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
     "if(globalThis.__qaRouteChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "        if(message.sequence===50){globalThis.__qaFileChecks=(globalThis.__qaFileChecks||0)+1;"+
+    "if(globalThis.__qaFileChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(live!==message.route || SIGNALS.get(tab.id)!==last ||");
   fs.writeFileSync(bgPath,bg);
 }
@@ -403,7 +405,28 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Accepted synthetic A','Blocked synthetic B']);
-    console.log('Headless FDE synthetic Signal: journal-before-handoff, trusted edit race, route-race and single-owner gate');
+    // A file selected during the asynchronous pre-click provider check
+    // must never get bundled into an automatic queued prompt.
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/late-attachment`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('draft')})`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Never send newly attached file';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,50,'observed','fresh','/c/late-attachment');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText==='Never send newly attached file'"),10000);
+    await driver.executeScript("const empty=document.createElement('input');empty.type='file';empty.id='qa-late-empty-file';document.querySelector('main form').append(empty)");
+    const lateFile=await driver.executeScript(
+      "const file=document.createElement('input');file.type='file';file.id='qa-late-selected-file';document.querySelector('main form').append(file);return file");
+    await lateFile.sendKeys(fixtureAttachment);
+    await waitNote('Composer changed before Send; no send attempted');
+    assert.equal(await driver.executeScript("return document.querySelector('#qa-late-selected-file').files.length"),1);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Late selected file input must block queued Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    console.log('Headless FDE synthetic Signal: unknown confidence, late attachment, trusted edit and route guards');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
