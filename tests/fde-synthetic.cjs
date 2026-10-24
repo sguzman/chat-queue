@@ -373,9 +373,13 @@ async function main(){
     // Only one staging confirmation may be consumed; no duplicate queue items
     // and no start/control mutation while the save is pending.
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='delay'");
-    await driver.executeScript(`const button=${jsEl('backup-confirm')};button.click();button.click()`);
-    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
-    assert.equal(await driver.executeScript(`return ${jsEl('add')}.disabled && ${jsEl('run')}.disabled`),true);
+    const importLock=await driver.executeScript(`
+      const button=${jsEl('backup-confirm')};button.click();button.click();
+      return {count:${jsEl('count')}.textContent,
+        locked:${jsEl('add')}.disabled && ${jsEl('run')}.disabled};
+    `);
+    assert.deepEqual(importLock,{count:'2 queued',locked:true},
+      'Confirmation must synchronously lock queue actions before yielding to storage');
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('data-note')}.textContent.includes('Imported 2 messages') && !${jsEl('add')}.disabled`),9000);
@@ -588,11 +592,16 @@ async function main(){
     // A double click must only copy the source once, even though the first
     // handler yields during its source recheck.
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='delay'");
-    await driver.executeScript(`const button=${jsEl('recovery-confirm')};button.click();button.click()`);
-    assert.equal(await driver.executeScript(
-      `return ${jsEl('add')}.disabled && ${jsEl('clear')}.disabled && ${jsEl('run')}.disabled && ${jsEl('backup-export')}.disabled`),true,
-      'Recovery must lock queue mutation, Start and export while source read or save is in flight');
-    await driver.executeScript(`const d=${jsEl('draft')};d.value='Must not race recovery';${jsEl('add')}.click()`);
+    const recoveryLock=await driver.executeScript(`
+      const button=${jsEl('recovery-confirm')};button.click();button.click();
+      const locked=${jsEl('add')}.disabled && ${jsEl('clear')}.disabled &&
+        ${jsEl('run')}.disabled && ${jsEl('backup-export')}.disabled;
+      const d=${jsEl('draft')};d.value='Must not race recovery';
+      ${jsEl('add')}.click();
+      return {locked,queued:${jsEl('count')}.textContent};
+    `);
+    assert.deepEqual(recoveryLock,{locked:true,queued:'0 queued'},
+      'Recovery must synchronously lock all mutations before the source recheck yields');
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('count')}.textContent==='1 queued' && !${jsEl('add')}.disabled`),9000);
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
