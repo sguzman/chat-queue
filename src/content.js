@@ -197,12 +197,13 @@
         delete row.dataset.dragging;
       };
       row.addEventListener('pointerdown',event=>{
-        if(state.attempting||event.button!==0||!event.target?.closest?.('.preview'))return;
+        if(state.attempting||state.importing||event.button!==0||!event.target?.closest?.('.preview'))return;
         pointer={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
         try{row.setPointerCapture(event.pointerId);}catch{pointer=null;}
       });
       row.addEventListener('pointermove',event=>{
         if(!pointer||pointer.id!==event.pointerId)return;
+        if(state.importing){pointer=null;clearDrop();return;}
         if(!pointer.moved && Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<8)return;
         pointer.moved=true;
         clearDrop();row.dataset.dragging='true';
@@ -212,7 +213,7 @@
       function endPointer(event,cancelled=false){
         if(!pointer||pointer.id!==event.pointerId)return;
         const drag=pointer;pointer=null;
-        const target=!cancelled&&drag.moved&&!state.attempting?locate(event.clientX,event.clientY):null;
+        const target=!cancelled&&drag.moved&&!state.attempting&&!state.importing?locate(event.clientX,event.clientY):null;
         clearDrop();
         try{if(row.hasPointerCapture(event.pointerId))row.releasePointerCapture(event.pointerId);}catch{}
         if(!target)return;
@@ -225,7 +226,7 @@
       if (state.editing === item.id) {
         const textarea=document.createElement('textarea');textarea.value=item.text;textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
         const ctrls=document.createElement('div');ctrls.className='controls';
-        ctrls.append(button('Save','Save edit',()=>{if (!core.validText(textarea.value)) return;item.text=textarea.value;state.editing=null;void save();render();}),button('Cancel','Cancel edit',()=>{state.editing=null;render();}));row.append(ctrls);
+        ctrls.append(button('Save','Save edit',()=>{if (state.importing||!core.validText(textarea.value)) return;item.text=textarea.value;state.editing=null;void save();render();},state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
       } else {
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Remove or resolve before restarting.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
