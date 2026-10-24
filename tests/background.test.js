@@ -119,6 +119,15 @@ test('scoped API closes revoked event ports and refuses new calls',async()=>{
   assert.equal(seen[0].protocolVersion,1);
   assert.equal(seen[0].type,'chat-queue/v1');
   assert.equal(disconnected,0);
+  const syntheticTab={tab:{id:72,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'},syntheticTab);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:3,running:true,awaiting:true,revision:5},syntheticTab);
+  const change=seen.find(x=>x.event==='stateChanged');
+  assert.equal(change?.protocolVersion,1);
+  assert.equal(change?.state?.size,3);
+  assert.equal(change?.state?.phase,'generating');
+  assert.equal('items' in change?.state,false);
+  assert.equal('history' in change?.state,false);
   const oldValue=state['chatqueue:api-grants:v2'];
   const newValue={version:2,grants:{'approved@example.test':['discover','read']}};
   state['chatqueue:api-grants:v2']=newValue;
