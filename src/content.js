@@ -222,7 +222,10 @@
           button('↓','Move later',()=>{state.items=core.nextPosition(state.items,item.id,1);void save();render();},index===state.items.length-1||locked),
           button('Edit','Edit message',()=>{state.editing=item.id;render();},locked),
           button('Delete','Remove message',()=>{state.items=state.items.filter(x=>x.id!==item.id);void save();render();},locked));
-        if (item.status==='uncertain') ctrls.append(button('Retry','Allow manually requested retry',()=>{item.status='pending';state.note='Retry explicitly allowed';void save();render();}));
+        if (item.status==='uncertain') ctrls.append(button('Retry','Allow manually requested retry',async()=>{
+          const reply=await act('resolve',{id:item.id,decision:'retry'},true);
+          if(!reply.ok)statusNote(reply.error);
+        },locked||state.running||state.awaiting));
         row.append(ctrls);
       }
       els.items.append(row);
@@ -555,6 +558,10 @@
         state.items=action==='clear'?[]:state.items.filter(i=>i.id!==payload?.id);await save();render();return {ok:true};
       }
       if (action==='resolve') {
+        // Recovery is never an implicit continuation of an active or
+        // in-flight response; a separate Start must follow deliberate review.
+        if(state.running||state.awaiting||state.attempting)
+          return {ok:false,error:'pause-before-resolving-uncertain'};
         const item=state.items.find(i=>i.id===payload?.id && i.status==='uncertain');
         if(!item)return {ok:false,error:'not-uncertain'};
         if(payload?.decision==='retry')item.status='pending';
