@@ -136,7 +136,7 @@ async function main(){
     assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'Human draft remains here');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     await driver.wait(async()=>await driver.executeScript(
-      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:first-child').disabled"),5000);
+      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:nth-child(4)').disabled"),5000);
     await driver.executeScript("document.getElementById('prompt-textarea').textContent=''");
     // Use a real local Firefox file input, not a fabricated FileList, to
     // exercise the production existing-attachment guard.
@@ -151,7 +151,7 @@ async function main(){
     assert.equal(await driver.executeScript("return document.querySelector('#qa-existing-attachment').files.length"),1);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     await driver.wait(async()=>await driver.executeScript(
-      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:first-child').disabled"),5000);
+      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:nth-child(4)').disabled"),5000);
     await driver.executeScript("document.querySelector('#qa-existing-attachment').remove()");
     await start.click();
     await waitSends(1);
