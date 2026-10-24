@@ -25,7 +25,7 @@ A `then` action may be `pause`, or `propose` with a bounded, nonempty `text` str
 
 At most one enabled matching rule wins per phase/response event. The evaluator returns an immutable decision with `approvalRequired: true` and a stable event key containing route, document token, epoch and phase. A bounded caller-owned list of consumed event keys suppresses repeated evaluation of that same phase in that response epoch. Later recovery to another phase remains distinguishable; actual execution will need a higher-level policy for resolving conflicting terminal and transient outcomes.
 
-This version has no active timers, authenticated state-duration clocks, rule execution, recursive actions, network requests, persistent decision audit trail or automatic dispatch. Those are intentionally unimplemented, and the source's unit tests should not be presented as Firefox/HUD acceptance. The actual use of the rules module will require user-visible permission controls, a dry-run editor, persistence, exact origin bindings, and adverse lifecycle tests before any conditional queue action can be enabled.
+This version has no active timers, authenticated state-duration clocks, rule execution, recursive actions, network requests, persistent decision audit trail or automatic dispatch. Those are intentionally unimplemented, and the source's unit tests should not be presented as Firefox/HUD acceptance. The dry-run editor and local definition persistence exist. Activating rules against live events still requires authenticated origin/epoch binding, explicit user approval policy, safe conflict resolution and adversarial lifecycle acceptance.
 
 ## 🗂️ Local definition library (preview-only)
 
@@ -33,7 +33,7 @@ The Options editor can add, replace, load, edit, remove and clear stored declara
 
 After reloading Options, rule definitions return; simulated event replay history deliberately does not. Unknown future schema versions, malformed records and unreadable storage stop edits without silently migrating or deleting user data. Clearing all definitions requires two clicks. The external `rules` scope remains a pure caller-supplied evaluation API and cannot read this local library. **Saved does not mean enabled for automatic execution.**
 
-Synthetic Firefox Developer Edition QA must verify save → reload → edit → reload → two-step clear → reload, including that reload triggers no queue action. A future, separate acceptance gate must cover concurrent Options windows and storage errors before rule execution is even considered.
+Synthetic Firefox Developer Edition QA verifies save → reload → edit → reload → two-step clear → reload without queue action ([accepted browser run](https://github.com/sguzman/chat-queue/actions/runs/40038729574)). A future, separate acceptance gate must cover concurrent Options windows and storage errors before rule execution is even considered.
 
 ## ⏱️ Optional duration-filter previews
 
