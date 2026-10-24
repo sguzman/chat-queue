@@ -432,3 +432,46 @@ test('rulesChanged events stop after rules grant revocation while discover remai
   assert.equal((await put(2)).error,'forbidden-scope');
   assert.equal(forwards.length,0);
 });
+
+test('out-of-order metadata cannot release newer conversation dispatch ownership',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/owner-race';
+  const first={tab:{id:801,url},url};
+  const second={tab:{id:802,url},url};
+  for(const tab of [first,second])
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/owner-race'},tab)).ok,true);
+  const provider={id:'chat-signals@sguzman.github'};
+  for(const tab of [first,second]){
+    const signal={version:1,route:'/c/owner-race',documentToken:'b'.repeat(32),
+      sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+    assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:tab.tab.id,signal},provider)).ok,true);
+  }
+  const check=tab=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/owner-race',documentToken:'b'.repeat(32),
+    epoch:1,sequence:1},tab);
+  assert.equal((await check(first)).ok,true);
+  const older={type:'chat-queue-internal/v1',action:'state',
+    phase:'idle',size:1,running:false,awaiting:false,sequence:2};
+  const newer={...older,running:true,awaiting:true,phase:'generating',sequence:3};
+  const realGet=context.browser.tabs.get;
+  const pending=[];
+  context.browser.tabs.get=id=>new Promise(resolve=>pending.push({id,resolve}));
+  const stale= listeners.internal(older,first);
+  const fresh= listeners.internal(newer,first);
+  assert.equal(pending.length,2);
+  pending[1].resolve({id:801,url});
+  assert.equal((await fresh).ok,true);
+  pending[0].resolve({id:801,url});
+  assert.equal((await stale).error,'stale-state');
+  context.browser.tabs.get=realGet;
+  const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},
+    {id:'approved@example.test'});
+  const entry=listed.tabs.find(tab=>tab.tabId===801);
+  assert.equal(entry.running,true);
+  assert.equal(entry.awaiting,true);
+  assert.equal((await check(second)).error,'conversation-owned-by-another-tab',
+    'stale pause must not release the route lease');
+  assert.equal((await listeners.internal({...newer,sequence:3},first)).error,'stale-state');
+  assert.equal((await listeners.internal({...newer,sequence:0},first)).error,'invalid-state-sequence');
+});
