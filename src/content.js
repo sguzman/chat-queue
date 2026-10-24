@@ -705,7 +705,7 @@
     if(draft.key!==state.key||state.key!==storageKey()||
        draft.generation!==routeGeneration||draft.revision!==state.revision||
        state.blockedRecord||state.running||state.awaiting||state.attempting||
-       state.routing||state.storageFault||state.pendingSaves>0){
+       state.routing||state.pendingSaves>0){
       statusNote('Queue changed since import preview; select file again');return;
     }
     if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
