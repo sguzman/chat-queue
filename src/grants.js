@@ -5,7 +5,7 @@
   const SCOPES=Object.freeze(['discover','read','append','edit','control','rules']);
   const SCOPE_SET=new Set(SCOPES);
   const ACTION_SCOPE=Object.freeze({
-    listTabs:'discover',status:'read',enqueue:'append',update:'edit',move:'edit',
+    listTabs:'discover',status:'read',enqueue:'append',enqueueSequenced:'append',update:'edit',move:'edit',
     reorder:'edit',remove:'edit',clear:'edit',resolve:'edit',start:'control',pause:'control',
     previewRules:'rules'
   });
