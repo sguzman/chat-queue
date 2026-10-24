@@ -776,9 +776,20 @@
   // ChatGPT can use history.pushState without popstate, clicks or DOM changes.
   // Sample only pathname, never transcript/DOM. Browser throttling is harmless:
   // every dispatch and API mutation independently rechecks the current route.
+  // Metadata-only heartbeat on the existing route-watch timer. A Firefox
+  // event-page shutdown loses TABS/ROUTES without notifying the content script.
+  // The next heartbeat detects route-mismatch, pauses and re-registers; it
+  // never restores provider authority or automatically clicks Send.
+  const REGISTRY_HEARTBEAT_TICKS=60;
+  let heartbeatTicks=0;
   const routeWatch=setInterval(()=>{
-    if(state.initialized&&!state.destroyed&&routeKey()!==state.keyRoute){
+    if(!state.initialized||state.destroyed)return;
+    if(routeKey()!==state.keyRoute){
+      heartbeatTicks=0;
       state.keyRoute=routeKey();void handleRouteChange();
+    }else if(!state.routing&&state.key===storageKey()&&
+             ++heartbeatTicks>=REGISTRY_HEARTBEAT_TICKS){
+      heartbeatTicks=0;publish();
     }
   },1000);
   window.addEventListener('popstate',()=>void handleRouteChange());
