@@ -59,6 +59,10 @@ The preferences page includes a **visual, dry-run rule editor** for building dec
 
 The pure rule engine and its 8 focused Node regressions passed in [GitHub Actions](https://github.com/sguzman/chat-queue/actions/runs/40035678496). Real headless Firefox Developer Edition accepted the production simulator scripts on a synthetic preferences document (including replay suppression, restored-state rejection and inert HTML text) in [run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429). Neither test is authenticated ChatGPT conditional-send acceptance. See [conditional rule contract](docs/CONDITIONAL-RULES.md).
 
+## 🔗 Conditional dependencies and skip previews
+
+The simulation-only rule engine supports bounded `dependsOn` and `skipIf` rule-ID links, cycle rejection and caller-supplied completed-rule context. The Options editor can save, reload and preview these branches; no saved rule can observe ChatGPT or Send automatically. [Rules contract](docs/CONDITIONAL-RULES.md).
+
 ## 📦 Reordering while generating
 
 The synthetic Firefox Developer Edition two-add-on test now covers adding and reordering pending messages **during** a response: message A is dispatched, C is added and moved ahead of B while A is generating, then subsequent synthetic provider completions produce A → C → B without a duplicate ([accepted CI](https://github.com/sguzman/chat-queue/actions/runs/40036243322)). This is browser-level evidence for queue interaction, not authenticated ChatGPT acceptance.
