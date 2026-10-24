@@ -110,3 +110,7 @@ The test uses actual WebDriver pointer gestures, not dispatched fake drag/drop e
 ## 🎨 Visible footer and synthetic visual audit
 
 A screenshot audit found the original Add/Clear/Start footer clipped by the panel boundary. The repaired flex layout independently scrolls messages and keeps primary actions visible on the desktop fixture, with constrained viewport handling. The Firefox test checks each action button's entire bounding box stays within the panel and captures synthetic light/dark screenshots with their corresponding theme selector choice. Both screenshots were inspected, and the full [Firefox run 40044138955](https://github.com/sguzman/chat-queue/actions/runs/40044138955) passed. The images contain hard-coded fixtures only; this does not validate the authenticated site or screen readers.
+
+## 📦 Firefox local queue backup and retention acceptance
+
+Headless Firefox Developer Edition tested real local file input into a synthetic ChatGPT HUD, required a second import confirmation, preserved pending/uncertain statuses, read actual downloaded JSON bytes, and verified two-click recent-history deletion after reload, with no Send. [Acceptance CI 40044676209](https://github.com/sguzman/chat-queue/actions/runs/40044676209). The common 16 MiB input/output cap, schema rejection, and regenerated roadmap are checked in [CI 40044824317](https://github.com/sguzman/chat-queue/actions/runs/40044824317). This is local file lifecycle acceptance, not live ChatGPT submission.

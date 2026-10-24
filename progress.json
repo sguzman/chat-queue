@@ -420,8 +420,10 @@
                   "id": "M2-12",
                   "emoji": "🧹",
                   "title": "Offer user-controlled retention, export, import and deletion",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Real headless Firefox Developer Edition accepted manual import using local file selection and separate confirmation, preserved uncertain statuses, downloaded valid local JSON and verified its content, and required two-step history deletion persisting after reload; no Send occurred. https://github.com/sguzman/chat-queue/actions/runs/40044676209; 16 MiB limit and complete current code QA: https://github.com/sguzman/chat-queue/actions/runs/40044824317. Future/malformed records rejected by unit tests."
+                  ]
                 }
               ]
             }

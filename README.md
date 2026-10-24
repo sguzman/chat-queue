@@ -97,3 +97,7 @@ The floating HUD uses captured pointer drag movements with visible **before/afte
 ## 🎨 Verified Firefox HUD composition
 
 The first visual QA screenshot run exposed clipped Add/Clear/Start controls. The HUD now scrolls its queue list independently and keeps the controls within the panel. The desktop height cap accommodates pointer insertion zones, while narrow viewports can scroll the body. Headless Firefox Developer Edition asserts full footer geometry, and light/dark synthetic screenshots were visually inspected; the theme selector reflects each screenshot. [Passing acceptance run 40044138955](https://github.com/sguzman/chat-queue/actions/runs/40044138955). This does not establish authenticated-site nonintrusion or sending safety.
+
+## 📦 Local backup and retention
+
+The floating HUD's **Recently submitted / backup** disclosure offers JSON export, manual import with separate confirmation, and two-click recent-history deletion. No import can auto-start the queue; uncertain messages still require review. Backups intentionally omit route, tab, document, epoch, and authorization metadata. [Full backup contract](docs/BACKUP.md) · [Passing Firefox import/download/deletion QA](https://github.com/sguzman/chat-queue/actions/runs/40044676209). This does not provide automatic recovery after a tab-ID change.
