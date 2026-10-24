@@ -107,8 +107,8 @@
   // Accept only the exact still-supported source; malformed values
   // (including unstringifiable/cyclic objects) fail closed.
   function matchesRecoverySnapshot(record,snapshot){
-    if(typeof snapshot!=='string'||!savedRecordSupport(record).ok)return false;
-    try{return JSON.stringify(record)===snapshot;}
+    if(typeof snapshot!=='string')return false;
+    try{return savedRecordSupport(record).ok&&JSON.stringify(record)===snapshot;}
     catch{return false;}
   }
   function normalizeSaved(value) {
