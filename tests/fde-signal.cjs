@@ -386,7 +386,13 @@ async function main(){
     await driver.executeScript(`return ${hud('run')}.click()`);
     await waitSends(1);
     await emit('generating',1,37,'unknown','fresh','/c/uncertain-confidence');
-    await waitNote('Submission not confirmed; manual review required');
+    try{
+      await waitNote('Submission not confirmed; manual review required');
+    }catch(error){
+      const diagnostic=await driver.executeScript(
+        "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent");
+      throw new Error('Unknown-confidence completion did not settle: '+diagnostic+'; '+error.message);
+    }
     assert.equal(await driver.executeScript('return window.__sent.length'),1);
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
