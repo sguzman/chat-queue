@@ -570,7 +570,11 @@
         if(payload?.decision==='retry')item.status='pending';
         else if(payload?.decision==='discard')state.items=state.items.filter(i=>i.id!==item.id);
         else return {ok:false,error:'invalid-decision'};
-        await save();render();return {ok:true};
+        await save();
+        statusNote(payload.decision==='retry'
+          ? 'Retry marked pending; press Start separately'
+          : 'Uncertain message discarded; queue remains paused');
+        return {ok:true};
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
