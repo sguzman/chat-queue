@@ -111,3 +111,25 @@ test('sequenced peer enqueues persist bounded high-water marks without prompt co
       Array.from({length:q.MAX_REQUEST_CLIENTS+1},(_,i)=>['client'+i,i+1]))}
   ])assert.equal(q.savedRecordSupport(invalid).ok,false,'future/invalid high-water marks remain read-only');
 });
+
+test('corrupt v1 queue entries fail read-only instead of being silently dropped',()=>{
+  const a={id:'aaaaaaaa',text:'Preserve synthetic message',status:'pending'};
+  const malformed=[
+    {version:1,items:[a,a]},
+    {version:1,items:[a,{...a,text:'duplicate ID'}]},
+    {version:1,items:[a,{id:'bbbbbbbb',text:''}]},
+    {version:1,items:[a,{id:'short',text:'bad id'}]},
+    {version:1,items:[a,{id:'bbbbbbbb',text:'x'.repeat(q.MAX_CHARS+1)}]},
+    {version:1,items:[a,null]},
+    {version:1,items:Array.from({length:q.MAX_ITEMS+1},(_,i)=>({
+      id:'item-'+String(i).padStart(5,'0'),text:'fixture',status:'pending'}))}
+  ];
+  for(const record of malformed){
+    const snapshot=JSON.stringify(record);
+    assert.deepEqual(q.savedRecordSupport(record),{ok:false,error:'unsupported-saved-queue'});
+    assert.equal(JSON.stringify(record),snapshot,'validation cannot mutate the original record');
+  }
+  assert.equal(q.savedRecordSupport({version:1,items:[
+    {...a,status:'submitted'}, {id:'bbbbbbbb',text:'Unknown status',status:'historic'}
+  ]}).ok,true,'supported legacy statuses remain readable but uncertain');
+});
