@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -54,6 +54,7 @@
     button.danger{color:var(--warning)}button:disabled{opacity:.42;cursor:default}
     .foot{flex:0 0 auto;padding:10px 12px;border-top:1px solid var(--border);background:var(--header)}
     details{flex:0 0 auto;border-top:1px solid var(--border);padding:8px 12px;color:var(--muted)}summary{cursor:pointer}
+    .data-buttons{display:flex;flex-wrap:wrap;gap:5px;padding:8px 0 4px}.data-note{font-size:11px;margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
     .history{max-height:140px;overflow:auto}.historyitem{padding:7px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;align-items:start}
     .historytext{min-width:0;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     textarea{display:block;width:100%;min-height:58px;max-height:160px;resize:vertical;padding:9px;border:1px solid var(--button-border);border-radius:7px;background:var(--input);color:var(--text);font:inherit;margin-bottom:8px}
@@ -67,12 +68,12 @@
   panel.className = 'panel';
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
-    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted</summary><div id="history" class="history"></div></details>
+    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   const button = (label, title, fn, disabled=false) => {
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
@@ -133,6 +134,10 @@
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
     els.clear.textContent=state.clearArmed ? 'Confirm clear' : 'Clear';
+    els.backupConfirm.hidden=!state.pendingImport;
+    els.backupConfirm.textContent=state.pendingImport?'Append '+state.pendingImport.items.length+' messages':'Confirm import';
+    els.historyClear.textContent=state.historyClearArmed?'Confirm forget':'Forget history';
+    els.historyClear.disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
     els.clear.disabled=!state.items.length||Boolean(state.attempting);
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
@@ -391,7 +396,7 @@
     if (state.key===newKey)return;
     const generation=++routeGeneration;
     state.routing=true;
-    state.clearArmed=false;
+    state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -479,6 +484,72 @@
       return {ok:false,error:'unsupported-action'};
     } catch(error) {return {ok:false,error:String(error?.message||error)};}
   }
+  // All file operations are deliberately initiated by a local user gesture.
+  // No backup is transferred to the page, a server, or another extension.
+  els.backupExport.addEventListener('click',()=>{
+    if(state.blockedRecord||state.attempting||state.routing){statusNote('Backup unavailable while queue changes');return;}
+    try{
+      const payload=core.backupItems(state.items);
+      const blob=new Blob([JSON.stringify(payload,null,2)+'\\n'],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');link.href=url;link.download='chat-queue-messages.json';
+      shadow.append(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),10000);
+      statusNote('Queue backup download requested');
+    }catch(error){statusNote('Backup rejected: '+String(error.message||error));}
+  });
+  els.backupChoose.addEventListener('click',()=>{
+    if(state.running||state.awaiting||state.attempting||state.routing||state.blockedRecord){
+      statusNote('Pause and finish the current response before importing');return;
+    }
+    els.backupFile.value='';els.backupFile.click();
+  });
+  els.backupFile.addEventListener('change',async()=>{
+    const file=els.backupFile.files?.[0];
+    if(!file)return;
+    const key=state.key,generation=routeGeneration;
+    state.pendingImport=null;
+    if(file.size>2600000){els.dataNote.textContent='File too large (2.6 MB limit)';render();return;}
+    try{
+      const data=core.parseBackup(JSON.parse(await file.text()));
+      if(state.destroyed||state.key!==key||generation!==routeGeneration||
+         state.running||state.awaiting||state.attempting||state.routing) {
+        els.dataNote.textContent='Conversation or queue changed; import cancelled';return;
+      }
+      if(state.items.length+data.length>core.MAX_ITEMS)
+        throw new Error('Queue would exceed 100 messages');
+      state.pendingImport={key,items:data};
+      els.dataNote.textContent='Review: '+data.length+' messages; no automatic sending. Click Confirm import to append.';
+      render();
+    }catch(error){els.dataNote.textContent='Import rejected: '+String(error?.message||error);render();}
+  });
+  els.backupConfirm.addEventListener('click',async()=>{
+    const draft=state.pendingImport;
+    if(!draft||draft.key!==state.key||state.key!==storageKey()||state.blockedRecord||
+       state.running||state.awaiting||state.attempting||state.routing)return;
+    if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
+    const original=state.items.slice();
+    state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
+    try{
+      await save();state.pendingImport=null;
+      els.dataNote.textContent='Imported '+draft.items.length+' messages; queue remains paused';
+      render();
+    }catch{
+      state.items=original;statusNote('Import could not be stored; queue paused');
+    }
+  });
+  els.historyClear.addEventListener('click',async()=>{
+    if(state.running||state.awaiting||state.attempting||!state.history.length)return;
+    if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
+    state.historyClearArmed=false;
+    const oldHistory=state.history.slice();state.history=[];
+    try{await save();render();}catch{state.history=oldHistory;render();}
+  });
+  shadow.addEventListener('click',event=>{
+    if(state.historyClearArmed&&event.target!==els.historyClear){
+      state.historyClearArmed=false;queueMicrotask(()=>render());
+    }
+  },true);
   els.add.addEventListener('click',async()=>{
     const response=await act('enqueue',{text:els.draft.value},true);
     if(response.ok)els.draft.value='';else statusNote(response.error);
