@@ -291,6 +291,8 @@ async function main(){
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
+  }catch(error){
+    throw new Error('stage '+qaStage+': '+error.message);
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
