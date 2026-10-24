@@ -799,9 +799,9 @@
                   "id": "M5-08",
                   "emoji": "⏱️",
                   "title": "Add bounded API request sizes, replay guard, mutation revisions",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "32 KiB frame limit in src/background.js; optional per-instance optimistic edit token in src/content.js, FDE synthetic API acceptance in tests/fde-api.cjs; durable replay-safe mutation IDs still planned."
+                    "32 KiB external frame bound and fail-closed malformed-object handling; optional CAS edit revision prevents stale mutation; opt-in `enqueueSequenced` now durably stores monotonic per-Firefox-sender sequence alongside appended queue item. Native independent Firefox Developer Edition add-on verifies first append succeeds, stale/replayed sequence rejected before and after a tab reload, malformed sequence denied and newer sequence accepted, with no Send: https://github.com/sguzman/chat-queue/actions/runs/40057681597. Existing v1 legacy `enqueue` deliberately remains unsequenced for compatibility; only sequenced callers gain replay protection. Authenticated ChatGPT sending remains a distinct gate."
                   ]
                 },
                 {
