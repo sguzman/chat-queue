@@ -51,3 +51,12 @@ test('only concrete conversation routes can anchor guarded dispatch',()=>{
   for(const route of bad)assert.equal(signal.assignedConversationRoute(route),false,route);
   assert.equal(signal.assignedConversationRoute(null),false);
 });
+
+test('assigned conversation IDs conservatively collide across supported URL forms',()=>{
+  assert.equal(signal.assignedConversationId('/c/one'), 'one');
+  assert.equal(signal.assignedConversationId('/g/group-123/c/one'), 'one');
+  assert.notEqual(signal.assignedConversationId('/c/one'),signal.assignedConversationId('/c/two'));
+  for(const route of ['/','/c/','/share/one','/g/group/c/one/extra',
+    '/c/one%2Ftwo','/g//c/one'])
+    assert.equal(signal.assignedConversationId(route),null,route);
+});
