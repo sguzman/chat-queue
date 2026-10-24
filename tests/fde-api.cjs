@@ -140,6 +140,41 @@ async function main(){
   assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.route),false);
   assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.documentToken),false);
   assert.equal(await driver.executeScript('return window.__sent'),0);
+  stage='scoped-persistent-rules';
+  const firstLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
+  assert.equal(firstLibrary.ok,true);
+  assert.equal(firstLibrary.revision,0);
+  assert.deepEqual(firstLibrary.rules,[]);
+  assert.equal((await command({action:'subscribe'})).ok,true);
+  await driver.wait(async()=>{const stream=await command({action:'portState'});
+    return stream.events.some(x=>x.event==='ready');},7000);
+  const created=await command({type:'chat-queue/v1',action:'rulesPut',
+    payload:{revision:0,rules:[syntheticRule]}});
+  assert.equal(created.ok,true);
+  assert.equal(created.revision,1);
+  const persisted=await command({type:'chat-queue/v1',action:'rulesGet'});
+  assert.equal(persisted.ok,true);
+  assert.equal(persisted.revision,1);
+  assert.equal(persisted.rules[0].id,syntheticRule.id);
+  assert.equal((await command({type:'chat-queue/v1',action:'rulesPut',
+    payload:{revision:0,rules:[]}})).error,'rule-revision-conflict');
+  const proposals=await Promise.all([
+    command({type:'chat-queue/v1',action:'rulesPut',
+      payload:{revision:1,rules:[{...syntheticRule,priority:41}]}}),
+    command({type:'chat-queue/v1',action:'rulesPut',
+      payload:{revision:1,rules:[{...syntheticRule,priority:42}]}})
+  ]);
+  assert.equal(proposals.filter(x=>x.ok).length,1);
+  assert.equal(proposals.filter(x=>x.error==='rule-revision-conflict').length,1);
+  const raced=await command({type:'chat-queue/v1',action:'rulesGet'});
+  assert.equal(raced.revision,2);
+  assert.ok([41,42].includes(raced.rules[0].priority));
+  await driver.wait(async()=>{const stream=await command({action:'portState'});
+    return stream.events.filter(x=>x.event==='rulesChanged').length>=2;},7000);
+  const ruleEvents=(await command({action:'portState'})).events.filter(x=>x.event==='rulesChanged');
+  assert.deepEqual(ruleEvents.map(x=>x.revision),[1,2]);
+  assert.equal(JSON.stringify(ruleEvents).includes('pause-on-error'),false);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.ok,true);assert.equal(result.tabs.length,1);
   const tabId=result.tabs[0].tabId;
@@ -173,6 +208,11 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
   // The fallback must detect Firefox URL change events when History API updates the route.
   stage='scoped-rules-revocation';
+  const scopedLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
+  assert.equal(scopedLibrary.error,'forbidden-scope');
+  const scopedWrite=await command({type:'chat-queue/v1',action:'rulesPut',
+    payload:{revision:2,rules:[]}});
+  assert.equal(scopedWrite.error,'forbidden-scope');
   const scopedPreview=await command({type:'chat-queue/v1',action:'previewRules',
     payload:{rules:[syntheticRule],signal:syntheticSignal}});
   assert.equal(scopedPreview.error,'forbidden-scope','Removing rules scope revokes preview');
