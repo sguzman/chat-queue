@@ -70,6 +70,10 @@ async function main(){
   assert.equal(await driver.executeScript('return window.__previewXss===undefined'),true);
   assert.equal(await driver.executeScript('return document.querySelectorAll("#preview-output img").length'),0);
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/onerror/);
+  const privateFreeAudit=await driver.findElement(By.id('preview-audit')).getText();
+  assert.match(privateFreeAudit,/finished|failed/);
+  assert.doesNotMatch(privateFreeAudit,/onerror|<img|synthetic-preview|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
+  assert.equal(await driver.executeScript('return document.querySelectorAll("#preview-audit img").length'),0);
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),15000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
@@ -77,6 +81,8 @@ async function main(){
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/5000 ms/);
   // No rules evaluate by themselves after refresh, even with saved proposals.
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/no queue action/i);
+  assert.match(await driver.findElement(By.id('preview-audit')).getText(),/No previews recorded/,
+    'audit trace must not survive page reload or enter persistent rule storage');
   // Change a saved rule after reload and verify its durable action changes.
   await driver.findElement(By.css('#rule-list li button[aria-label^="Edit"]')).click();
   assert.equal(await driver.findElement(By.id('rule-min-duration')).getAttribute('value'),'5000');
