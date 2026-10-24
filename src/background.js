@@ -6,6 +6,7 @@
   const grants = globalThis.ChatQueueGrants;
   const rulesEngine = globalThis.ChatQueueRules;
   const PREFIX = 'chat-queue/v1';
+  const PROTOCOL_VERSION = 1;
   const TABS = new Map();
   // Authenticated provider envelopes never enter public tab metadata, API
   // snapshots, subscription events or persistent browser storage.
@@ -34,7 +35,7 @@
   }
   const notify = (tabId, state) => {
     for (const port of PORTS.keys()) {
-      try { port.postMessage({ type: PREFIX, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
+      try { port.postMessage({ type: PREFIX, protocolVersion: PROTOCOL_VERSION, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
     }
   };
 
@@ -109,7 +110,7 @@
       if(authorizedAt!==grantRevision||!grants.has(config[grants.KEY],id,'discover')) {port.disconnect();return;}
       PORTS.set(port,id);
       port.onDisconnect.addListener(()=>PORTS.delete(port));
-      port.postMessage({type:PREFIX,event:'ready',tabs:Array.from(TABS,([tabId,state])=>({tabId,...state}))});
+      port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,event:'ready',tabs:Array.from(TABS,([tabId,state])=>({tabId,...state}))});
     }).catch(()=>port.disconnect());
   });
   api.storage.onChanged.addListener((changes,area)=>{
@@ -155,7 +156,7 @@
     }
     // Size limits cover all verbs, including metadata-only capability probes.
     if(JSON.stringify(message).length>32768)return {ok:false,error:'request-too-large'};
-    if(message.action==='capabilities')return {ok:true,version:2,scopes:authorized};
+    if(message.action==='capabilities')return {ok:true,version:2,protocolVersion:PROTOCOL_VERSION,grantVersion:2,scopes:authorized};
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
       return {ok:false,error:'forbidden-scope'};
