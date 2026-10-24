@@ -34,6 +34,9 @@ function prepareQueue(dir,source){
   const original=fs.readFileSync(contentPath,'utf8');
   assert.equal(original.split("attachShadow({mode:'closed'})").length,2);
   fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})")
+    // Widen only the rapid-terminal fixture's confirmation polling interval.
+    .replace('const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));',
+      "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:ms));")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -507,7 +510,29 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Project-route competing prompt']);
-    console.log('Headless FDE synthetic Signal: editor replacement, late attachment and route guards');
+
+    qaStage='rapid-authenticated-terminal';
+    // In this synthetic route, polling is deliberately slower than the
+    // arrival of the two authenticated epoch transitions.
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rapid-terminal');
+    await driver.wait(async()=>await driver.executeScript('return Boolean('+hud('run')+')&&document.documentElement.dataset.qaSignalProviderReady==="true"'),12000);
+    for(const prompt of ['Rapid synthetic A','Rapid synthetic B']){
+      await driver.executeScript('const el='+hud('draft')+';el.value=arguments[0]',prompt);
+      await driver.executeScript('return '+hud('add')+'.click()');
+    }
+    await emit('idle',0,80,'observed','fresh','/c/rapid-terminal');
+    await driver.executeScript('return '+hud('run')+'.click()');
+    await waitSends(1);
+    await emit('generating',1,81,'observed','fresh','/c/rapid-terminal');
+    await emit('finished',1,82,'observed','fresh','/c/rapid-terminal');
+    await waitSends(2);
+    await emit('generating',2,83,'observed','fresh','/c/rapid-terminal');
+    await emit('finished',2,84,'observed','fresh','/c/rapid-terminal');
+    await waitNote('Queue completed');
+    assert.deepEqual(await driver.executeScript('return window.__sent'),
+      ['Rapid synthetic A','Rapid synthetic B']);
+    console.log('Headless FDE synthetic Signal: rapid busy/finished attribution, late attachment and route guards');
   }catch(error){
     throw new Error('stage '+qaStage+': '+error.message);
   }finally{

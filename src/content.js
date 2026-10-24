@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -359,7 +359,7 @@
     state.attempting=item.id;
     statusNote('Preparing next message');
     let clicked=false;
-    let editor,send;
+    let editor,send,proof;
     let humanTouched=false;
     const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
     try {
@@ -413,6 +413,9 @@
          [...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length) ||
          findSend(form)!==send)
         throw new Error('Composer changed before Send; no send attempted');
+      // Keep authenticated busy evidence if the response ends before polling.
+      proof={key:attemptKey,baseline,editor,busy:null};
+      state.inflightProof=proof;
       // This initiates exactly one send attempt. We never click again after uncertainty.
       send.click(); clicked=true;
       statusNote('Verifying submission');
@@ -420,9 +423,10 @@
       for (let i=0;i<12;i++) {
         await delay(250);
         if (state.destroyed || !state.running || state.key!==attemptKey ||storageKey()!==attemptKey || !editor.isConnected) break;
-        if (contract.newBusy(state.trusted,baseline) && !editorValue(editor).trim()) {
+        const busy=proof.busy || (contract.newBusy(state.trusted,baseline)?state.trusted:null);
+        if (busy && !editorValue(editor).trim()) {
           state.waiting={documentToken:baseline.documentToken,route:baseline.route,
-            epoch:state.trusted.epoch,sequence:state.trusted.sequence};
+            epoch:busy.epoch,sequence:busy.sequence};
           accepted=true;break;
         }
       }
@@ -447,6 +451,7 @@
         statusNote(error.message || 'Dispatch failed');
       }
     } finally {
+      if(state.inflightProof===proof)state.inflightProof=null;
       if(editor){
         editor.removeEventListener('beforeinput',onHumanInput,true);
         editor.removeEventListener('input',onHumanInput,true);
@@ -880,7 +885,14 @@
       const next=contract.parse({type:contract.TYPE,signal:message.signal});
       if(!state.initialized||!next||next.route!==routeKey()||
          !contract.advance(state.trusted,next))return Promise.resolve({ok:false,error:'invalid-signal'});
-      state.trusted=next;state.trustedAt=performance.now();processSignal();
+      state.trusted=next;state.trustedAt=performance.now();
+      const proof=state.inflightProof;
+      // Only an authenticated new busy epoch can prove this journaled Send.
+      // Retain its first transition across a rapid terminal event.
+      if(proof&&proof.key===state.key&&contract.newBusy(next,proof.baseline)&&
+         proof.editor.isConnected&&!editorValue(proof.editor).trim()&&
+         !proof.busy)proof.busy=next;
+      processSignal();
       return Promise.resolve({ok:true});
     }
     if (message?.type!=='chat-queue-api/v1') return;
