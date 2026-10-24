@@ -404,8 +404,10 @@
                   "id": "M2-10",
                   "emoji": "🗂️",
                   "title": "Recover orphaned queues after tab ID or browser restart changes",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Exact-conversation manual recovery of old-tab v1 records, source preservation, all recovered prompts uncertain, reload/repeat protection in real synthetic Firefox Developer Edition: https://github.com/sguzman/chat-queue/actions/runs/40045727469. Authenticated browser restart untested."
+                  ]
                 },
                 {
                   "id": "M2-11",
@@ -596,9 +598,9 @@
                   "id": "M4-02",
                   "emoji": "✉️",
                   "title": "Reject occupied drafts and existing attachments without mutation",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js draft and file-input guard; QA pending"
+                    "Native Firefox Developer Edition synthetic composer acceptance: existing human draft and selected real file input both block dispatch without mutation, then deliberate clearing allows fresh synthetic send: https://github.com/sguzman/chat-queue/actions/runs/40045489196. Live ChatGPT ProseMirror acceptance pending."
                   ]
                 },
                 {
@@ -826,8 +828,10 @@
                   "id": "M5-12",
                   "emoji": "🧪",
                   "title": "Fuzz malformed payloads, unload, revocation and concurrent callers",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Four unit adversarial IPC tests cover cycles, malicious serializer, oversize and unknown caller; independent synthetic Firefox API client checks cyclic/oversize no-forwarding; https://github.com/sguzman/chat-queue/actions/runs/40045489196. Complete fuzzing, unload and concurrent-client coverage remain pending."
+                  ]
                 }
               ]
             }
@@ -1026,8 +1030,10 @@
                   "id": "M7-06",
                   "emoji": "🪄",
                   "title": "Test System/Light/Dark HUD, keyboard and accessibility in FDE",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Native Firefox synthetic tests cover System/Light/Dark, keyboard controls, contrast, zoom and reduced motion; real assistive-technology and authenticated-site acceptance remain pending."
+                  ]
                 }
               ]
             }
