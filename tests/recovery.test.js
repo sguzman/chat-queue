@@ -60,4 +60,6 @@ test('recovery source snapshot rejects deletion, edits, future versions and malf
   const throwing=structuredClone(saved);
   throwing.extra={toJSON(){throw new Error('synthetic hostile serializer');}};
   assert.equal(core.matchesRecoverySnapshot(throwing,snapshot),false);
+  const malicious=new Proxy(saved,{get(){throw new Error('synthetic invalid stored field');}});
+  assert.equal(core.matchesRecoverySnapshot(malicious,snapshot),false);
 });
