@@ -711,9 +711,9 @@
     if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
     const original=state.items.slice(),key=state.key;
     state.importing=true;
-    state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
-    render();
     try{
+      state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
+      render();
       await save();
       if(state.key===key&&!state.destroyed)
         els['data-note'].textContent='Imported '+draft.items.length+' messages; queue remains paused';
