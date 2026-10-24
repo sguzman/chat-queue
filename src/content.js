@@ -334,7 +334,9 @@
     state.attempting=item.id;
     statusNote('Preparing next message');
     let clicked=false;
-    let editor;
+    let editor,send;
+    let humanTouched=false;
+    const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
     try {
       if (state.key!==attemptKey||storageKey()!==attemptKey)
         throw new Error('Conversation changed before composer handoff');
@@ -348,13 +350,24 @@
         : 'Signal authority lost; no Send attempted');
       if(!state.running||state.destroyed||state.key!==attemptKey||storageKey()!==attemptKey)
         throw new Error('Dispatch context changed before composer handoff');
-      const found=findComposer();editor=found.editor;
-      fillComposer(editor,item.text);
-      const send=findSend(found.form);
-      // A durable pre-click uncertainty marker makes a browser crash safe:
-      // it must never reopen as an automatically retryable pending item.
+      const found=findComposer();
+      // Journal uncertainty BEFORE exposing queue text in the page composer.
+      // A human click during async preflight must not send unjournaled text.
       item.status='uncertain';
       await save();
+      if(!state.running||state.destroyed||state.storageFault||state.pendingSaves>0||
+         state.key!==attemptKey||storageKey()!==attemptKey)
+        throw new Error('Dispatch changed during uncertainty journal');
+      // Another browser/user input may have appeared while storage committed.
+      const current=findComposer();
+      if(current.editor!==found.editor||current.form!==found.form)
+        throw new Error('Composer replaced during uncertainty journal');
+      editor=current.editor;
+      fillComposer(editor,item.text);
+      send=findSend(current.form);
+      editor.addEventListener('beforeinput',onHumanInput,true);
+      editor.addEventListener('input',onHumanInput,true);
+      send.addEventListener('click',onHumanInput,true);
       // Require the event page to still own this authenticated provider
       // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
@@ -362,9 +375,18 @@
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
       if (!state.running || state.destroyed || state.key!==attemptKey ||storageKey()!==attemptKey ||
+          state.storageFault || state.pendingSaves>0 || humanTouched ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
           editorValue(editor).trim()!==item.text.trim())
         throw new Error('Dispatch context changed; no send attempted');
+      // A new attachment, editor, form or Send control after our initial
+      // preflight is a genuine user/DOM conflict even if text still matches.
+      const form=editor.closest('form');
+      if(!form?.isConnected ||
+         [...document.querySelectorAll(editorSelector)].filter(e=>e.isConnected&&e.getClientRects().length&&e.getAttribute('contenteditable')!=='false').length!==1 ||
+         [...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length) ||
+         findSend(form)!==send)
+        throw new Error('Composer changed before Send; no send attempted');
       // This initiates exactly one send attempt. We never click again after uncertainty.
       send.click(); clicked=true;
       statusNote('Verifying submission');
@@ -399,6 +421,11 @@
         statusNote(error.message || 'Dispatch failed');
       }
     } finally {
+      if(editor){
+        editor.removeEventListener('beforeinput',onHumanInput,true);
+        editor.removeEventListener('input',onHumanInput,true);
+      }
+      if(send)send.removeEventListener('click',onHumanInput,true);
       state.attempting=null;
       render();
     }
