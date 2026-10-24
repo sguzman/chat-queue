@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 75 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 77 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -14,7 +14,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## 🔌 Independent scoped API client fixture
 
-`tests/fde-api.cjs` boots headless Firefox Developer Edition with the production queue background/content logic and an independent temporary client add-on. A QA-only grant bootstrap is added to the temporary queue manifest; no production permission bypass, user profile, authenticated account, or real ChatGPT Send is used. It asserts `discover,append` capabilities, metadata-only listing, forbidden `status`/`start`/`remove`, a successful synthetic enqueue, successful event-port subscription, immediate subscription disconnection after QA-only grant revocation, and subsequent unauthorised requests. This exercises actual Firefox sender identity and `browser.storage.local` events. The independent add-on acceptance path passed in https://github.com/sguzman/chat-queue/actions/runs/40034372239. Full Options UX, event-page restart and malicious multi-client browser tests remain unaccepted.
+`tests/fde-api.cjs` boots headless Firefox Developer Edition with the production queue background/content logic and an independent temporary client add-on. A QA-only grant bootstrap is added to the temporary queue manifest; no production permission bypass, user profile, authenticated account, or real ChatGPT Send is used. It asserts `discover,append` capabilities, metadata-only listing, forbidden `status`/`start`/`remove`, a successful synthetic enqueue, successful event-port subscription, immediate subscription disconnection after QA-only grant revocation, and subsequent unauthorised requests. This exercises actual Firefox sender identity and `browser.storage.local` events. The independent add-on acceptance path passed in https://github.com/sguzman/chat-queue/actions/runs/40034372239. Full Options UX and authenticated ChatGPT remain unaccepted; independent Firefox tests now cover concurrent same-revision API edits, uninstallation, revoke-on-connection, and actual event-page idle wakeup.
 
 ## Dedicated QA launch
 
@@ -135,7 +135,7 @@ A QA-only content-script substitution makes `browser.storage.local.set` reject o
 
 The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
 
-This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
+This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, whole-browser crash/relaunch or full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
 
 ## 🔐 Closed-shadow page script privacy regression
 
@@ -156,3 +156,11 @@ The production adapter rejects whitespace-only human drafts as occupied and comp
 ## 🔢 Sequenced API replay after Firefox tab reload
 
 The independent synthetic Firefox API client uses a browser-attested caller ID with the `append` scope, enqueues sequence 1, rejects replay of sequence 1 and invalid 0, reloads the queue tab, and verifies sequence 1 remains rejected while sequence 2 appends exactly once. No automatic Send or authenticated ChatGPT connection is involved. Source acceptance: [Firefox API fixture](../tests/fde-api.cjs). Client high-watermarks live in each exact queue record and are bounded to 32 distinct principals; deleting the record removes that history.
+
+## ♻️ Genuine Firefox MV3 event-page suspension
+
+The [event-page lifecycle fixture](../tests/fde-event-page.cjs) installs production Queue background/content scripts in a disposable localhost-scoped add-on, accelerates the Firefox event-page idle preference and Queue's metadata-only heartbeat **only for QA**, and increments a browser-local marker every time the real background script loads. Firefox recreated the event page (boot counter **2 → 3**), after which the HUD detected lost in-memory registration, re-registered the same route and preserved a queued message without Send. [All jobs green](https://github.com/sguzman/chat-queue/actions/runs/40058326692). This is not a fake `route-mismatch` response; it is a real nonpersistent background lifecycle. It still does not prove whole-browser power loss, full session restore, privileged page crash or authenticated ChatGPT sending.
+
+## 🧪 Adversarial peer API acceptance
+
+Independent Firefox API-client QA concurrently submits two edits under the same optimistic revision, observing exactly one success and one `revision-conflict`; grant removal disconnects subscriptions, and uninstalling the client cannot erase queued messages or click Send. [Accepted Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40057945052). Node's 128-frame deterministic malformed corpus and cyclic/oversize tests fail closed without private-text echoes. [77/77 static test run](https://github.com/sguzman/chat-queue/actions/runs/40057980573). This is synthetic context, not an authorized live ChatGPT end-to-end test.

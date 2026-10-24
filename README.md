@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 75 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 77 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -25,7 +25,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - **Theme selector:** `System` (default), `Light`, `Dark`. `System` follows desktop preferences without synchronizing with ChatGPT's own site theme. Selection is saved locally and mirrored in other open HUDs and the options page.
 - Queued prompts remain editable while ChatGPT generates. Only an active dispatch attempt temporarily locks mutations.
 - Single-attempt dispatch with draft occupancy checks, explicit user authorization, and pause on unknown/interrupted/failed/limit states. No automatic retry after an uncertain submission.
-- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scoped API client, mutation-token conflict handling, and revocation passed synthetic Firefox Developer Edition QA; Options permissions UX and event-page restart remain unaccepted.
+- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scoped API client, mutation-token conflict handling, and revocation passed synthetic Firefox Developer Edition QA; Options permissions UX remains unaccepted end-to-end. Genuine Firefox event-page idle/restart recovery passed; full browser restart and authenticated sending remain separate gates.
 
 ## 📡 Critical limitation: Chat Signals contract
 
@@ -125,7 +125,7 @@ A pending Firefox local-storage write blocks Start; a rejected save pauses the q
 
 The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
 
-This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
+This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, whole-browser restart or full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
 
 ## 🧾 Dry-run decision audit
 
@@ -134,3 +134,7 @@ The Options rule simulator keeps a bounded, in-memory trace of preview outcomes 
 ## 🔢 Replay-safe API append (experimental)
 
 `enqueueSequenced` stores a bounded per-client high-watermark in local storage together with the pending queue item and rejects old request numbers. It does not Send, deduplicate legacy `enqueue`, or survive deletion of that queue record. [API contract](API.md).
+
+## ♻️ Actual Firefox event-page restart acceptance
+
+A disposable headless Firefox Developer Edition test lowers the MV3 event-page idle timeout and shortens only the QA heartbeat. Firefox **actually recreated the background event page** (startup count 2 → 3); the queue recovered its metadata registration and retained its item without Send. [Passing real lifecycle CI](https://github.com/sguzman/chat-queue/actions/runs/40058326692). This is not crash/relaunch of Firefox or authenticated ChatGPT completion.
