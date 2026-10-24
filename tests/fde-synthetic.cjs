@@ -68,7 +68,7 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/corrupt-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
@@ -76,6 +76,10 @@ async function main(){
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
                 : msg.route==='/c/history-record'
                   ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
+                  : msg.route==='/c/metadata-corrupt'
+                    ? {version:1,items:[{id:'metadata01',text:'Retain historical metadata',status:'pending'}],
+                      history:[{id:'oldentry01',text:'Do not silently drop malformed history',at:'invalid',status:'finished'}],
+                      recoveredSources:['chatqueue:v1:tab:9:/c/metadata-corrupt']}
                   : msg.route==='/c/corrupt-record'
                     ? {version:1,items:[
                       {id:'corrupt0001',text:'Preserve full synthetic record',status:'pending'},
@@ -413,6 +417,19 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='malformed-history-read-only';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/metadata-corrupt`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Must not discard prior history';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('unsupported-saved-queue')`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // A recognizable versionless legacy record remains readable. Saving a
     // second queued item writes an accepted v1 record, which reload preserves.
