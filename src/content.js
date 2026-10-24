@@ -290,13 +290,14 @@
   function editorValue(editor) {
     return (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement ? editor.value : editor.innerText || editor.textContent || '').replace(/\r\n/g,'\n');
   }
+  const canonicalComposerText=text=>text.replace(/\r\n/g,'\n').replace(/\u00a0/g,' ');
   function findComposer() {
     const found=[...document.querySelectorAll(editorSelector)].filter(e=>e.isConnected && e.getClientRects().length && e.getAttribute('contenteditable')!=='false');
     if (found.length !== 1) throw new Error('Composer is missing or ambiguous');
     const editor=found[0];
     const form=editor.closest('form');
     if (!form || !form.contains(editor)) throw new Error('Composer form is missing');
-    if (editorValue(editor).trim()) throw new Error('Composer contains a draft; preserved it');
+    if (editorValue(editor).length) throw new Error('Composer contains a draft; preserved it');
     if ([...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length))
       throw new Error('Composer has attachments');
     return {editor,form};
@@ -310,8 +311,8 @@
     } else {
       if (typeof document.execCommand !== 'function' || !document.execCommand('insertText',false,text)) throw new Error('Composer insertion failed');
     }
-    const value=editorValue(editor).trim().replace(/\u00a0/g,' ');
-    if (value !== text.trim().replace(/\u00a0/g,' ')) throw new Error('Composer did not accept the exact message');
+    const value=canonicalComposerText(editorValue(editor));
+    if (value !== canonicalComposerText(text)) throw new Error('Composer did not accept the exact message');
   }
   function findSend(form) {
     const buttons=[...form.querySelectorAll(sendSelector)].filter(e=>!e.disabled && e.getAttribute('aria-disabled')!=='true' && e.getClientRects().length);
@@ -378,7 +379,7 @@
       if (!state.running || state.destroyed || state.key!==attemptKey ||storageKey()!==attemptKey ||
           state.storageFault || state.pendingSaves>0 || humanTouched ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
-          editorValue(editor).trim()!==item.text.trim())
+          canonicalComposerText(editorValue(editor))!==canonicalComposerText(item.text))
         throw new Error('Dispatch context changed; no send attempted');
       // A new attachment, editor, form or Send control after our initial
       // preflight is a genuine user/DOM conflict even if text still matches.
