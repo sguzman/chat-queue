@@ -85,3 +85,7 @@ Two Firefox tabs may display the same ChatGPT conversation, but only one queue m
 ## 🤝 Real Chat Signals coexistence (synthetic Firefox)
 
 A pinned checkout of the **actual Chat Signals v0.3.13 source** is loaded alongside Chat Queue in disposable headless Firefox Developer Edition using localhost-only QA host scopes. Its real DOM phase is displayed as **unverified** by the queue HUD, and the queue refuses Send because the authenticated publisher is not implemented. A forged page `finished` state also cannot authorize dispatch. [Passing coexistence CI](https://github.com/sguzman/chat-queue/actions/runs/40042631264). This is not authenticated ChatGPT integration; the actual publisher and response-epoch acceptance gates remain open.
+
+## 🔌 Actual legacy Signal disconnection gate (synthetic Firefox)
+
+In disposable Firefox Developer Edition, the test uninstalls the pinned real Chat Signals v0.3.13 add-on, reloads Chat Queue with a pending message, and injects a spoofed page `finished` attribute. Start still refuses without the authenticated publisher and no Send click occurs. [Passing disconnect QA](https://github.com/sguzman/chat-queue/actions/runs/40042829569). This verifies the absent/outdated/disconnected behavior within a synthetic page; live ChatGPT and a genuine publisher remain separate acceptance gates.

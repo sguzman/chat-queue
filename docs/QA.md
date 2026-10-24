@@ -98,3 +98,7 @@ Headless Firefox Developer Edition with two separate QA add-ons opens two tabs t
 ## 🤝 Pinned real Chat Signals coexistence QA
 
 `tests/fde-coexist.cjs` installs the real pinned Chat Signals 0.3.13 source and production Chat Queue files into temporary Firefox Developer Edition add-ons, substituting only localhost-only QA origins and an inspectable Queue Shadow DOM. The test asserts the real provider publishes its legacy DOM phase, the queue HUD renders it explicitly as **unverified**, and neither a missing authenticated publisher nor a page-forged `finished` phase can click Send. This passes in [CI run 40042631264](https://github.com/sguzman/chat-queue/actions/runs/40042631264). The checkout is pinned to `102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`. It does not verify actual `chatgpt.com` React compatibility, provider epoch publication, authenticated message submission, profile restart or 16-tab load. Those gates remain open.
+
+## 🔌 Legacy provider removed during a queued message
+
+The extended `tests/fde-coexist.cjs` test removes the real pinned Chat Signals add-on, reloads the synthetic ChatGPT-shaped page, verifies the queued message remains, injects a page-forged `finished` status, and asserts no Send. [Accepted run 40042829569](https://github.com/sguzman/chat-queue/actions/runs/40042829569). No real ChatGPT account or signed release profile is involved; interruption of the future authenticated provider remains a separate integration gate.

@@ -490,9 +490,10 @@
                   "id": "M3-06",
                   "emoji": "🔌",
                   "title": "Handle absent, outdated or disconnected Chat Signals explicitly",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "unknown defaults/Start gate; tests pending"
+                    "unknown defaults/Start gate; tests pending",
+                    "Actual Chat Signals v0.3.13 has no authenticated publisher: headless FDE Start refuses Send; uninstall, reload and forged legacy finished phase also cannot authorize sending. https://github.com/sguzman/chat-queue/actions/runs/40042829569"
                   ]
                 }
               ]
