@@ -239,6 +239,7 @@ async function main(){
     const retry=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
     assert.equal(await retry.getText(),'Retry');
     await retry.click(); // explicit manual decision, never background retry
+    await waitNote('Retry marked pending; press Start separately');
     assert.equal(await driver.executeScript('return window.__sent.length'),3);
     await start.click(); // explicit user Start after resolving uncertainty
     await waitSends(4);
