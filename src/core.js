@@ -74,7 +74,7 @@
       if(key===currentKey||excluded.has(key)||!key.startsWith(prefix))continue;
       const suffix=key.slice(prefix.length);
       const colon=suffix.indexOf(':');
-      if(colon<0||!/^\\d{1,16}$/.test(suffix.slice(0,colon))||
+      if(colon<0||!/^\d{1,16}$/.test(suffix.slice(0,colon))||
          suffix.slice(colon+1)!==route||!savedRecordSupport(value).ok)continue;
       const items=normalizeSaved(value);
       if(items.length)candidates.push({key,count:items.length});
