@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "updatedOn": "2026-10-23",
+  "updatedOn": "2026-10-24",
   "platform": "Firefox Developer Edition",
   "progressPolicy": "Progress is verified atomic tasks / total. Implemented denotes code/doc present but lacks specific acceptance evidence. Never infer live Firefox validation from Node tests; never call implementation alone 100%.",
   "milestones": [
@@ -1041,7 +1041,9 @@
                   "title": "Test navigation, restarts, 16-tab workloads and hidden tabs",
                   "status": "implemented",
                   "evidence": [
-                    "Disposable Firefox Developer Edition test creates 16 distinct conversation-route tabs, verifies local queue isolation and hidden-tab retention, shared theme settings and no Send: https://github.com/sguzman/chat-queue/actions/runs/40046956628. Real authenticated ChatGPT, genuine browser/event-page restarts, prolonged idle and production-size DOM workloads remain unaccepted."
+                    "Disposable Firefox Developer Edition verifies 16 distinct conversation-route tabs, isolated queues, hidden-tab retention, shared theme and no Send: https://github.com/sguzman/chat-queue/actions/runs/40046956628. Authenticated live workload acceptance remains open.",
+                    "Actual Firefox Developer Edition event-page suspension/restart retained the paused queue, invalidated old Signal authority, and refused Send: https://github.com/sguzman/chat-queue/actions/runs/40058326692.",
+                    "Actual Firefox Developer Edition complete process shutdown and relaunch with the same disposable profile retained a paused queue. A new tab required explicit previous-tab recovery; copied messages became uncertain, survived reload, left their source unchanged and never sent: https://github.com/sguzman/chat-queue/actions/runs/40129991817. Authenticated ChatGPT restart, unexpected process crash and prolonged real-site idle acceptance remain open."
                   ]
                 },
                 {
