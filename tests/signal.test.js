@@ -23,10 +23,12 @@ test('historical completion and unrelated busy work cannot authorize advancement
   assert.equal(signal.newBusy(busy,a),true);
   assert.equal(signal.newBusy({...busy,epoch:4},a),false);
   assert.equal(signal.newBusy({...busy,origin:'restored'},a),false);
+  assert.equal(signal.newBusy({...busy,confidence:'unknown'},a),false);
   assert.equal(signal.completed({...a,epoch:5,sequence:12},busy),true);
   assert.equal(signal.completed({...a,epoch:4,sequence:12},busy),false);
   assert.equal(signal.completed({...a,epoch:5,sequence:11},busy),false);
   assert.equal(signal.completed({...a,epoch:5,sequence:12,origin:'restored'},busy),false);
+  assert.equal(signal.completed({...a,epoch:5,sequence:12,confidence:'unknown'},busy),false);
   assert.equal(signal.completed({...a,epoch:5,sequence:12,documentToken:'f'.repeat(32)},busy),false);
 });
 test('queue executor does not use page-controlled status as dispatch authorization',()=>{
