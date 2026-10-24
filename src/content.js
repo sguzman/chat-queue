@@ -743,8 +743,7 @@
     // The source tab can mutate/delete/upgrade its record after discovery.
     // Never recover the stale cached copy or silently interpret a new schema.
     if(!Object.hasOwn(latest,draft.sourceKey)||
-       !core.savedRecordSupport(latest[draft.sourceKey]).ok||
-       JSON.stringify(latest[draft.sourceKey])!==draft.sourceSnapshot){
+       !core.matchesRecoverySnapshot(latest[draft.sourceKey],draft.sourceSnapshot)){
       statusNote('Earlier queue changed; search again before recovering');
       return;
     }
