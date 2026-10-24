@@ -78,6 +78,9 @@ test('least-privilege scopes prevent read or control from discover/append grants
   assert.equal(forwards.length,1);
   const capabilities=await listeners.external({type:'chat-queue/v1',action:'capabilities'},append);
   assert.deepEqual(Array.from(capabilities.scopes),['append']);
+  assert.equal(capabilities.protocolVersion,1);
+  assert.equal(capabilities.grantVersion,2);
+  assert.equal(capabilities.version,2,'legacy version field remains permission-policy version');
 });
 test('only the authenticated Chat Signals extension can supply epochs; stale events are rejected',async()=>{
   const {listeners,forwards}=create();
@@ -113,6 +116,8 @@ test('scoped API closes revoked event ports and refuses new calls',async()=>{
   listeners.connect(port);
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(seen[0].event,'ready');
+  assert.equal(seen[0].protocolVersion,1);
+  assert.equal(seen[0].type,'chat-queue/v1');
   assert.equal(disconnected,0);
   const oldValue=state['chatqueue:api-grants:v2'];
   const newValue={version:2,grants:{'approved@example.test':['discover','read']}};
