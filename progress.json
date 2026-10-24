@@ -766,8 +766,10 @@
                   "id": "M5-06",
                   "emoji": "♻️",
                   "title": "Recover tab registry after event-page shutdown",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Content script pauses and clears stale authenticated Signal authority when its metadata state message reports an empty background registry, then performs exact-route metadata-only registration without auto-Start. Real synthetic Firefox Developer Edition injection passed: https://github.com/sguzman/chat-queue/actions/runs/40046767454. Genuine Firefox event-page suspension, session restart and rediscovery while idle remain untested."
+                  ]
                 }
               ]
             }
