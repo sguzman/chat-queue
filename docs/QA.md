@@ -144,3 +144,11 @@ A dedicated native Firefox Developer Edition test installs an unmodified **close
 ## 📎 Multiple native file-input collision
 
 The authenticated synthetic Signal fixture now includes an empty first composer file input and a second, genuinely selected Firefox file input. Start must reject the attachment without mutating it, even though the first input is empty. The production adapter checks **all** file inputs at both initial handoff and final pre-Send validation. It still needs authenticated-site testing for uploaded attachment chips which may no longer have a populated file input. [Browser regression](../tests/fde-signal.cjs).
+
+## 🧭 Navigation during final Send authorization
+
+A disposable Firefox Developer Edition two-addon regression delays the second authenticated dispatch preflight, inserts a synthetically queued message, and calls `history.pushState()` to select another conversation before authorization returns. The new route must show no carried queue and must make no Send; returning to the original route must expose the message as **uncertain**, never automatically pending. [Accepted native Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40052236598). This is a synthetic History API race, not a live authenticated ChatGPT site or automatic retry approval.
+
+## ✍️ Whitespace and exact composer preservation
+
+The production adapter rejects whitespace-only human drafts as occupied and compares the queued text to the composer without trimming leading or trailing whitespace. Only browser newline/NBSP normalization is tolerated; other differences stop the attempt. The synthetic Firefox test explicitly preserves a whitespace-only draft before dispatch and separately checks user edits during delayed authorization. There is no live ProseMirror acceptance yet.
