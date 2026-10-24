@@ -26,7 +26,7 @@ const snapshot = await browser.runtime.sendMessage(target, envelope('status', ta
 const started = await browser.runtime.sendMessage(target, envelope('start', tabId));
 ```
 
-Every response returns `{ok:boolean}` plus action-specific data or `error`. Missing permissions return `unauthorized` (no grant) or `forbidden-scope` (grant lacks this verb). A metadata-only `capabilities` request requires at least one grant, reports its scopes, and does not disclose prompt content. All requests have a 32 KiB serialized-frame cap. `listTabs` reports registered ChatGPT tabs with `{tabId,phase,size,running,revision}` (no message text). `status` returns `{tabId,phase,running,awaiting,revision,etag,items,history}`; `items` and `history` include message text.
+Every response returns `{ok:boolean}` plus action-specific data or `error`. Missing permissions return `unauthorized` (no grant) or `forbidden-scope` (grant lacks this verb). A metadata-only `capabilities` request requires at least one grant, reports its scopes, and does not disclose prompt content. All requests have a strict **32 KiB UTF-8-encoded serialized-frame cap** (not a UTF-16 character-count cap), including metadata-only probes and multibyte prompt text. `listTabs` reports registered ChatGPT tabs with `{tabId,phase,size,running,revision}` (no message text). `status` returns `{tabId,phase,running,awaiting,revision,etag,items,history}`; `items` and `history` include message text.
 
 | Action | `payload` | Behavior |
 | --- | --- | --- |
