@@ -23,6 +23,18 @@
   // One writer per Firefox-attested peer ID per event page. Persistent
   // monotonic revisions make the record survive event-page recreation.
   const ruleWrites=new Map();
+  // JavaScript string.length counts UTF-16 code units, not bytes. Use
+  // UTF-8 code-point widths for the documented 32 KiB IPC frame boundary.
+  // Lone surrogates encode as replacement characters (three UTF-8 bytes).
+  function exceedsUtf8Bytes(value,maximum=32768){
+    let bytes=0;
+    for(const character of value){
+      const code=character.codePointAt(0);
+      bytes+=code<=0x7f?1:code<=0x7ff?2:code<=0xffff?3:4;
+      if(bytes>maximum)return true;
+    }
+    return false;
+  }
   const RULE_PREFIX='chatqueue:external-rules:v1:';
   const ruleKey=id=>RULE_PREFIX+id;
   function decodePeerRules(record){
@@ -192,7 +204,7 @@
     try { serialized=JSON.stringify(message); }
     catch { return {ok:false,error:'invalid-request'}; }
     if(typeof serialized!=='string')return {ok:false,error:'invalid-request'};
-    if(serialized.length>32768)return {ok:false,error:'request-too-large'};
+    if(exceedsUtf8Bytes(serialized))return {ok:false,error:'request-too-large'};
     if(message.action==='capabilities')return {ok:true,version:2,protocolVersion:PROTOCOL_VERSION,grantVersion:2,scopes:authorized};
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
