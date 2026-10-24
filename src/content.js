@@ -394,8 +394,9 @@
       // A new attachment, editor, form or Send control after our initial
       // preflight is a genuine user/DOM conflict even if text still matches.
       const form=editor.closest('form');
-      if(!form?.isConnected ||
-         [...document.querySelectorAll(editorSelector)].filter(e=>e.isConnected&&e.getClientRects().length&&e.getAttribute('contenteditable')!=='false').length!==1 ||
+      const visibleEditors=[...document.querySelectorAll(editorSelector)].filter(e=>
+        e.isConnected&&e.getClientRects().length&&e.getAttribute('contenteditable')!=='false');
+      if(!form?.isConnected || visibleEditors.length!==1 || visibleEditors[0]!==editor ||
          [...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length) ||
          findSend(form)!==send)
         throw new Error('Composer changed before Send; no send attempted');
