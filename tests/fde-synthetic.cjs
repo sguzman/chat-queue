@@ -54,7 +54,7 @@ async function main(){
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
-      `let qaRegistryMissing=true,qaHeartbeatStates=0;
+      `let qaRegistryMissing=true,qaHeartbeatStates=0,qaStaleReplyPending=true;
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
@@ -92,6 +92,10 @@ async function main(){
           return Promise.resolve({ok:true,tabId:sender.tab.id});
         }
         if(msg.action==='state'){
+          if(qaStaleReplyPending && sender.tab.url.includes('/c/stale-meta-home') && msg.size===1){
+            qaStaleReplyPending=false;
+            return new Promise(resolve=>setTimeout(()=>resolve({ok:false,error:'route-mismatch'}),2500));
+          }
           if(sender.tab.url.includes('/c/heartbeat-loss') && msg.size===0){
             qaHeartbeatStates++;
             if(qaHeartbeatStates===2)return Promise.resolve({ok:false,error:'route-mismatch'});
@@ -601,6 +605,25 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.executeScript("history.pushState({},'', '/c/aba-home')");
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),7000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='delayed-old-route-metadata-rejection';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/stale-meta-home`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Saved in original conversation';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='1 queued'`),7000);
+    await driver.executeScript("history.pushState({},'', '/c/stale-meta-new')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Conversation changed; manually start queue')`),7500);
+    await driver.sleep(2700);
+    assert.equal(await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Signal registry restarted')`),false,
+      'Delayed route-mismatch from earlier pathname must not re-register new queue');
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.executeScript("history.pushState({},'', '/c/stale-meta-home')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='1 queued'`),8000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
