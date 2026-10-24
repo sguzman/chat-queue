@@ -625,6 +625,19 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('count')}.textContent==='1 queued'`),8000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='unassigned-conversation-start-gate';
+    await driver.get(`http://127.0.0.1:${server.address().port}/`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Unassigned route cannot send';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),8000);
+    await driver.executeScript(`return ${jsEl('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('conversation-not-assigned')`),7000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
