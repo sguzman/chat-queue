@@ -57,6 +57,11 @@ if(/\b(?:src|href)\s*=\s*["'](?:https?:|\/\/)/i.test(html)||
    /<script\b(?![^>]*\bsrc\s*=)/i.test(html)||
    /\bon(?:load|error|click|submit|change)\s*=/i.test(html))
   fail('remote assets or inline executable Options HTML');
+// Every local Options script must be on the already-audited production list.
+const optionsScripts=[...html.matchAll(/<script\\b[^>]*\\bsrc\\s*=\\s*["']([^"']+)["'][^>]*>/gi)]
+  .map(match=>path.posix.normalize(path.posix.join('options',match[1])));
+if(!optionsScripts.length||optionsScripts.some(file=>!allJs.includes(file)))
+  fail('unreviewed local Options script');
 if(pkg.private!==true||pkg.dependencies||pkg.devDependencies)
   fail('runtime dependency or package publication policy changed');
 console.log('Security audit: narrow ChatGPT scope, storage-only permission, local assets, no runtime network or dynamic JS passed');
