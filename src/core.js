@@ -46,8 +46,20 @@
     if (value==null) return {ok:true};
     if (typeof value!=='object'||Array.isArray(value)||
         (value.version!==undefined&&value.version!==1)||
-        !Array.isArray(value.items)||!validRequestHighWatermarks(value.requestHighWatermarks))
+        !Array.isArray(value.items)||value.items.length>MAX_ITEMS||
+        !validRequestHighWatermarks(value.requestHighWatermarks))
       return {ok:false,error:'unsupported-saved-queue'};
+    // Restoration must never silently drop a malformed or duplicate item:
+    // subsequent saves would irreversibly replace the original record.
+    const ids=new Set();
+    for(const item of value.items) {
+      if(!item||typeof item!=='object'||Array.isArray(item)||
+         typeof item.id!=='string'||!/^[a-z0-9-]{8,80}$/.test(item.id)||
+         !validText(item.text)||ids.has(item.id))
+        return {ok:false,error:'unsupported-saved-queue'};
+      ids.add(item.id);
+    }
+    // Historical unknown statuses remain readable but restore as uncertain.
     return {ok:true};
   }
   const MAX_REQUEST_CLIENTS=32;
