@@ -679,8 +679,10 @@
                   "id": "M4-10",
                   "emoji": "👥",
                   "title": "Prevent clashes with live user edits and simultaneous API writes",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Composer text is durably journaled uncertain before injection; final pre-Send guard checks trusted human beforeinput/input/click, attachment additions, editor identity, same enabled Send and exact input. Real synthetic Firefox Developer Edition test delays second authorization and simulates trusted user editing then restoring identical text; no automatic Send occurs: https://github.com/sguzman/chat-queue/actions/runs/40047326561. Optimistic edit tokens cover stale API edits; concurrent live user/API races and authenticated ChatGPT acceptance remain unverified."
+                  ]
                 },
                 {
                   "id": "M4-11",
