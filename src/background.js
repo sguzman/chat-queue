@@ -186,7 +186,7 @@
     if (!target) return { ok: false, error: 'tab-not-registered' };
     try {
       const reply=await api.tabs.sendMessage(message.tabId, {
-        type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null
+        type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null, requester
       });
       // Status contains private prompts. An ACL revocation during the content
       // script's asynchronous response must prevent that content from leaving.
