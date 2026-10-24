@@ -527,24 +527,38 @@ async function main(){
     }
     await emit('idle',0,80,'observed','fresh','/c/rapid-terminal');
     await driver.executeScript('return '+hud('run')+'.click()');
+    qaStage='rapid-first-send';
     await waitSends(1);
+    qaStage='rapid-first-provider';
     await emit('generating',1,81,'observed','fresh','/c/rapid-terminal');
     await emit('finished',1,82,'observed','fresh','/c/rapid-terminal');
     assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),
       'Rapid synthetic A','Authenticated busy and terminal must precede React clearing');
     await driver.executeScript('window.__qaPendingClear()');
+    qaStage='rapid-second-send';
     await waitSends(2);
     await emit('generating',2,83,'observed','fresh','/c/rapid-terminal');
     await emit('finished',2,84,'observed','fresh','/c/rapid-terminal');
     assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),
       'Rapid synthetic B','Second response proof must be captured before clear');
     await driver.executeScript('window.__qaPendingClear()');
+    qaStage='rapid-final-completion';
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Rapid synthetic A','Rapid synthetic B']);
     console.log('Headless FDE synthetic Signal: rapid busy/finished attribution, late attachment and route guards');
   }catch(error){
-    throw new Error('stage '+qaStage+': '+error.message);
+    let diagnostics='';
+    if(qaStage.startsWith('rapid-')&&driver){
+      try{diagnostics=JSON.stringify(await driver.executeScript(() => ({
+        sent:window.__sent?.length,acks:window.__acks?.map(x=>({sequence:x.sequence,ok:x.result?.ok})),
+        status:document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('status')?.textContent,
+        queueCount:document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('count')?.textContent,
+        editorLength:document.getElementById('prompt-textarea')?.innerText?.length,
+        hasPendingClear:typeof window.__qaPendingClear==='function'
+      })));}catch{}
+    }
+    throw new Error('stage '+qaStage+': '+error.message+(diagnostics?' diagnostic='+diagnostics:''));
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
