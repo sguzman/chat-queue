@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
-const {Builder}=require('selenium-webdriver');
+const {Builder,By,Key}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 const queueId='chat-queue-signal-qa@sguzman.github';
 const signalId='chat-signals@sguzman.github';
@@ -67,6 +67,15 @@ function prepareQueue(dir,source){
     "    if (message.action === 'dispatch-check' && message.sequence===10) {"+
     "globalThis.__qaFourthChecks=(globalThis.__qaFourthChecks||0)+1;"+
     "if(globalThis.__qaFourthChecks===2) SIGNALS.clear();}\n"+preflight);
+  // QA-only delay on the second authorization check for a later message:
+  // actual production check logic still runs after the pause.
+  const delayedAuth="      return currentRoute(sender).then(live=>{\\n        if(live!==message.route || SIGNALS.get(tab.id)!==last ||";
+  assert.equal(bg.split(delayedAuth).length,2);
+  bg=bg.replace(delayedAuth,
+    "      return currentRoute(sender).then(async live=>{\\n"+
+    "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
+    "if(globalThis.__qaLateChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\\n"+
+    "        if(live!==message.route || SIGNALS.get(tab.id)!==last ||");
   fs.writeFileSync(bgPath,bg);
 }
 function prepareProvider(dir){
@@ -287,7 +296,33 @@ async function main(){
     await contenderStart.click();
     await waitSends(1);
     assert.deepEqual(await driver.executeScript('return window.__sent'),['Synthetic competing message']);
-    console.log('Headless FDE synthetic Signal: requeue, same-conversation single-owner gate, paused-awaiting lock and manual takeover');
+    await emit('generating',1,25);
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',1,26,'inferred');
+    await waitNote('Queue completed');
+    // While the second pre-Send authorization is in flight, simulate real
+    // human input that restores the exact original text. Equality alone would
+    // miss the user interaction; a trusted-input marker must stop the click.
+    const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
+    const lateAdd=await driver.executeScript(`return ${hud('add')}`);
+    await lateDraft.sendKeys('Synthetic human-edit race');
+    await lateAdd.click();
+    await emit('idle',1,27);
+    await waitNote('Signal: idle');
+    await driver.executeScript("window.__trustedInputCount=0;document.getElementById('prompt-textarea').addEventListener('input',e=>{if(e.isTrusted)window.__trustedInputCount++})");
+    await contenderStart.click();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText==='Synthetic human-edit race'"),10000);
+    const siteEditor=await driver.findElement(By.id('prompt-textarea'));
+    await siteEditor.sendKeys(Key.END,'X',Key.BACK_SPACE);
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),'Synthetic human-edit race');
+    assert.ok(await driver.executeScript('return window.__trustedInputCount')>0,'Firefox must produce trusted manual input events');
+    await waitNote('Dispatch context changed; no send attempted');
+    assert.deepEqual(await driver.executeScript('return window.__sent'),['Synthetic competing message']);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'An interrupted composer handoff must preserve uncertainty');
+    console.log('Headless FDE synthetic Signal: journal-before-handoff, trusted user edit race and single-owner gate');
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
