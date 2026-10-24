@@ -287,7 +287,7 @@
           });
         },state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
       } else {
-        const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Remove or resolve before restarting.\n':'')+item.text;row.append(preview);
+        const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Review, then explicitly retry or discard.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
         const locked=Boolean(state.attempting||state.importing);
         const editItems=mutate=>{
@@ -301,14 +301,20 @@
           button('↓','Move later',()=>editItems(()=>{
             state.items=core.nextPosition(state.items,item.id,1);
           }),index===state.items.length-1||locked),
-          button('Edit','Edit message',()=>{state.editing=item.id;render();},locked),
-          button('Delete','Remove message',()=>editItems(()=>{
+          button('Edit','Edit message',()=>{state.editing=item.id;render();},locked||item.status!=='pending'),
+          button('Delete','Remove pending message',()=>editItems(()=>{
             state.items=state.items.filter(x=>x.id!==item.id);
-          }),locked));
-        if (item.status==='uncertain') ctrls.append(button('Retry','Allow manually requested retry',async()=>{
-          const reply=await act('resolve',{id:item.id,decision:'retry'},true);
-          if(!reply.ok)statusNote(reply.error);
-        },locked||state.running||state.awaiting));
+          }),locked||item.status!=='pending'));
+        if (item.status==='uncertain'){
+          ctrls.append(button('Retry','Allow manually requested retry',async()=>{
+            const reply=await act('resolve',{id:item.id,decision:'retry'},true);
+            if(!reply.ok)statusNote(reply.error);
+          },locked||state.running||state.awaiting));
+          ctrls.append(button('Discard','Discard uncertain submission after review',async()=>{
+            const reply=await act('resolve',{id:item.id,decision:'discard'},true);
+            if(!reply.ok)statusNote(reply.error);
+          },locked||state.running||state.awaiting));
+        }
         row.append(ctrls);
       }
       els.items.append(row);
@@ -772,6 +778,7 @@
         if(state.attempting) return {ok:false,error:'dispatch-in-progress'};
         const item=state.items.find(i=>i.id===payload?.id);
         if(!item||!core.validText(payload?.text))return {ok:false,error:'invalid-message'};
+        if(item.status!=='pending')return {ok:false,error:'resolve-uncertain-message'};
         return persistItemMutation(()=>{item.text=payload.text;});
       }
       if (action==='reorder') {
@@ -790,6 +797,11 @@
       }
       if (action==='remove' || action==='clear') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
+        // A generic remove/clear must never erase the payload of a possibly
+        // submitted message. Only resolve(discard) can explicitly do that.
+        if(action==='clear'&&uncertain())return {ok:false,error:'resolve-uncertain-message'};
+        if(action==='remove'&&state.items.some(i=>i.id===payload?.id&&i.status==='uncertain'))
+          return {ok:false,error:'resolve-uncertain-message'};
         return persistItemMutation(()=>{state.items=action==='clear'?[]:state.items.filter(i=>i.id!==payload?.id);});
       }
       if (action==='resolve') {

@@ -131,3 +131,7 @@ For backwards compatibility, `capabilities` retains `version:2` (the historical 
 All handled API errors return `{ok:false,error:"string-code"}`. Known error categories include: `unauthorized`, `forbidden-scope`, `authorization-changed`, `request-too-large`, `invalid-request`, `invalid-order`, `tab-not-registered`, `tab-unavailable`, `revision-conflict`, and protected route/Signal errors. Additional specific codes may appear in minor releases. Treat unknown errors as failures, **not** as retry authorization. Requests with an unsupported wire `type` are not dispatched; clients must never silently retry them as v1 mutations. An uncertain mutation response must not be blindly replayed.
 
 A real synthetic Firefox Developer Edition client now asserts the protocol/grant version distinction and a versioned `ready` event. Pure background tests also verify `stateChanged` version metadata and the absence of prompt/history fields. This does not establish a real authenticated ChatGPT Send.
+
+### Uncertain-item mutation rule
+
+Only pending messages can be updated or removed through ordinary `update`/`remove`. A `clear` request refuses to erase a queue containing any `uncertain` item. These actions return `resolve-uncertain-message` without modifying storage when uncertain material would be affected. Explicit `resolve` with `retry` or `discard` is the only permitted way to clear uncertainty; neither decision implicitly Starts the scheduler or authorizes another Send.

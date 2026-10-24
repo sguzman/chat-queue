@@ -140,3 +140,7 @@ The Options rule simulator keeps a bounded, in-memory trace of preview outcomes 
 ## ♻️ Actual Firefox event-page restart acceptance
 
 A disposable headless Firefox Developer Edition test lowers the MV3 event-page idle timeout and shortens only the QA heartbeat. Firefox **actually recreated the background event page** (startup count 2 → 3); the queue recovered its metadata registration and retained its item without Send. [Passing real lifecycle CI](https://github.com/sguzman/chat-queue/actions/runs/40058326692). This is not crash/relaunch of Firefox or authenticated ChatGPT completion.
+
+### Uncertain message review safety
+
+A possibly submitted item cannot be edited or deleted through ordinary controls or wiped by bulk Clear. The HUD exposes separate, deliberate **Retry** and **Discard** controls; retry only marks the item pending, and never resumes sending automatically. The same restrictions apply to the external extension API.

@@ -266,3 +266,7 @@ A disposable two-extension Firefox Developer Edition fixture delays the Queue's 
 ## 🧪 Superseded conditional proposal
 
 A disposable Firefox two-extension fixture publishes a fresh authenticated finished-phase event and verifies that its matching proposal is visible. The synthetic provider then advances to a new generating response epoch. The old offer must expire, stay expired when its old Approve control is invoked programmatically, and leave the queue empty with zero Send clicks. A later independently authenticated fresh finish may show a new reviewable offer that can be dismissed. This uses the synthetic v1 publisher rather than the unimplemented real publisher.
+
+## ⚠️ Explicit uncertain-item resolution
+
+A disposable Firefox Developer Edition QA scenario recovers an old tab's message as `uncertain`, verifies Edit and generic Delete are disabled and the separate Retry/Discard decisions remain accessible. It tries the normal two-step bulk Clear, which must return `resolve-uncertain-message` and retain the original uncertain text. Only an explicit Discard removes the item, with persistence after refresh and zero Send clicks. This is synthetic safety acceptance, not live delivery confirmation.

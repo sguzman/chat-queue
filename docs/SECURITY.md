@@ -54,3 +54,7 @@ Per-conversation conditional preview consent is volatile and is invalidated when
 ## Conditional proposal epoch binding
 
 An approval is never a reusable authorization token: it is tied to the original authenticated provider document, response epoch, phase and confidence. A superseding provider transition discards it and pauses further dispatch. Even an obsolete button callback must recheck the current authenticated Signal before a proposed queue addition. This does not supply the missing real Chat Signals publisher or establish authenticated ChatGPT acceptance.
+
+## 🧷 Preserve uncertain submission payload until explicit resolution
+
+`uncertain` means an earlier message may already have been submitted. Ordinary editing, deleting and bulk clearing cannot replace or erase that item's original text. The HUD disables Edit/Delete for uncertain rows and exposes distinct **Retry** and **Discard** review actions; the external API must use `resolve` with an explicit decision. `resolve(retry)` changes the item to `pending` but never automatically Starts or Sends it, while `resolve(discard)` deliberately removes it. Synthetic Firefox QA verifies normal Clear is refused and the original payload survives until explicit Discard. This protects review evidence; it is not an exactly-once delivery guarantee.

@@ -715,6 +715,47 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='uncertain-message-explicit-resolution-only';
+    const uncertainBefore=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item.uncertain .preview').textContent);
+    const lockedUncertain=await driver.executeScript(() => {
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=root.querySelector('.item.uncertain');
+      return {
+        editDisabled:row.querySelector('[aria-label="Edit message"]').disabled,
+        deleteDisabled:row.querySelector('[aria-label="Remove pending message"]').disabled,
+        retryEnabled:!row.querySelector('[aria-label="Allow manually requested retry"]').disabled,
+        discardEnabled:!row.querySelector('[aria-label="Discard uncertain submission after review"]').disabled
+      };
+    });
+    assert.deepEqual(lockedUncertain,{
+      editDisabled:true,deleteDisabled:true,retryEnabled:true,discardEnabled:true
+    },'Uncertain items can only be explicitly resolved, not silently edited or deleted');
+    await driver.executeScript(() => {
+      const clear=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('clear');
+      clear.click();clear.click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('resolve-uncertain-message')),6000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item.uncertain .preview').textContent),uncertainBefore,
+      'Bulk clear must not destroy an uncertain submission');
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('[aria-label="Discard uncertain submission after review"]').click());
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count')
+        .textContent==='0 queued'),9000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('count')
+        ?.textContent==='0 queued'),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='recovery-source-mutated-after-discovery';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/recovery-mutate`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
