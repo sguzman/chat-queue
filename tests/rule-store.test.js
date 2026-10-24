@@ -32,3 +32,20 @@ test('rule text has a strict size budget and never yields an executable action',
   assert.equal(result.rules[0].then.type,'propose');
   assert.equal(result.rules[0].then.text,'<img onerror=bad>');
 });
+
+test('linked rules roundtrip with exact references; orphaned deletion is rejected',()=>{
+  const root={...sample,id:'root'};
+  const child={...sample,id:'child',priority:80,
+    when:{...sample.when,dependsOn:['root'],skipIf:['guard']}};
+  const guard={...sample,id:'guard',priority:20};
+  const saved=store.encode([child,root,guard]);
+  assert.equal(saved.ok,true);
+  const reloaded=store.decode(JSON.parse(JSON.stringify(saved.value)));
+  assert.equal(reloaded.ok,true);
+  const linked=reloaded.rules.find(rule=>rule.id==='child');
+  assert.deepEqual(Array.from(linked.when.dependsOn),['root']);
+  assert.deepEqual(Array.from(linked.when.skipIf),['guard']);
+  assert.equal(Object.isFrozen(linked.when.dependsOn),true);
+  assert.equal(store.encode(reloaded.rules.filter(rule=>rule.id!=='root')).error,'invalid-dependency');
+  assert.equal(store.encode(reloaded.rules.filter(rule=>rule.id!=='guard')).error,'invalid-dependency');
+});
