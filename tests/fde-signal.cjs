@@ -258,6 +258,14 @@ async function main(){
     qaStage='manual-uncertain-retry';
     await input.sendKeys('Synthetic unsent D');
     await add.click();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),8000);
+    // Keep the pending item's editor open across a failed authorization.
+    // An earlier Save callback must not rewrite an uncertain submission.
+    await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button[aria-label=\"Edit message\"]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return !!document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('textarea[aria-label=\"Edit queued message\"]')"),5000);
     await emit('idle',3,10);
     await start.click();
     await waitNote('Signal authority lost');
@@ -265,6 +273,15 @@ async function main(){
       'Lost provider authorization must prevent the fourth Send');
     const uncertain=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item')?.textContent||''");
     assert.match(uncertain,/uncertain/i,'Interrupted attempt must not requeue an unverified submission');
+    const protectedRow=await driver.executeScript(()=>{
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=root.querySelector('.item.uncertain');
+      return {editorOpen:!!row.querySelector('textarea'),editDisabled:
+        row.querySelector('button[aria-label="Edit message"]').disabled,
+        originalText:row.querySelector('.preview')?.textContent.includes('Synthetic unsent D')};
+    });
+    assert.deepEqual(protectedRow,{editorOpen:false,editDisabled:true,originalText:true},
+      'A previously open edit must close when a Send becomes uncertain');
     // A later ready event must not revive an uncertain attempt by itself.
     await emit('idle',3,11);
     assert.equal(await driver.executeScript('return window.__sent.length'),3);

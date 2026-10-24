@@ -274,3 +274,7 @@ A disposable Firefox Developer Edition QA scenario recovers an old tab's message
 ## 🦊 Independent Firefox API uncertain-item guard
 
 A separate granted Firefox extension exercises a QA-only seeded, versioned queue record containing one `uncertain` item. External `update`, `remove` and `clear` all must reject with `resolve-uncertain-message` while preserving the original items exactly. Only a deliberate `resolve(discard)` may remove it; switching back to the prior conversation must recover its unrelated existing queue without Send. This tests the actual extension-to-extension API under Firefox rather than only disabled HUD controls.
+
+## 🦊 Editing during uncertain Send transition
+
+A native Firefox Developer Edition two-extension regression opens Edit on a pending message, starts an authenticated synthetic dispatch, and deliberately loses provider authorization during the pre-Send check. Once the message becomes uncertain, its stale edit textarea must close, the regular Edit button must be disabled, and the original text must remain available for explicit resolution. The editor Save action also routes through the guarded pending-only `update` action rather than a lower-level mutation. No synthetic Send click is accepted in the failed preflight case; real ChatGPT confirmation remains unverified.

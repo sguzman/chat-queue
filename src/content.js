@@ -193,6 +193,10 @@
     // A failed persistent write can restore a previous array without
     // incrementing revision again. Include the actual collection identities
     // and sizes so rollback re-paints its restored rows/history immediately.
+    // An editor opened while an item was pending must not stay actionable
+    // after a failed or interrupted Send changes that item to uncertain.
+    if(state.editing&&!state.items.some(item=>
+      item.id===state.editing&&item.status==='pending'))state.editing=null;
     const rowsState=[state.key,state.revision,state.items,state.items.length,
       state.history,state.history.length,state.editing,state.attempting,
       state.importing,state.running,state.awaiting,state.blockedRecord];
@@ -271,21 +275,25 @@
       }
       row.addEventListener('pointerup',event=>endPointer(event));
       row.addEventListener('pointercancel',event=>endPointer(event,true));
-      if (state.editing === item.id) {
+      if (state.editing === item.id && item.status==='pending') {
         const textarea=document.createElement('textarea');
         textarea.value=editorDraft===undefined?item.text:editorDraft;
         textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
         const ctrls=document.createElement('div');ctrls.className='controls';
         ctrls.append(button('Save','Save edit',()=>{
-          if(state.importing||!core.validText(textarea.value))return;
+          if(state.importing||state.attempting||item.status!=='pending'||
+             !core.validText(textarea.value))return;
           const text=textarea.value,id=item.id;
-          void persistItemMutation(()=>{item.text=text;}).then(result=>{
+          // Use exactly the same pending-only API guard as external edits.
+          // A formerly pending row may have become uncertain since Edit.
+          void act('update',{id,text},true).then(result=>{
             if(!result.ok){statusNote(result.error);return;}
             const current=els.items.querySelector('textarea[aria-label="Edit queued message"]');
             // Preserve fresh keystrokes entered while storage was pending.
             if(state.editing===id&&current?.value===text){state.editing=null;render();}
           });
-        },state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
+        },state.importing||Boolean(state.attempting)),
+        button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
       } else {
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Review, then explicitly retry or discard.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';

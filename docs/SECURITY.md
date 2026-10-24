@@ -58,3 +58,7 @@ An approval is never a reusable authorization token: it is tied to the original 
 ## 🧷 Preserve uncertain submission payload until explicit resolution
 
 `uncertain` means an earlier message may already have been submitted. Ordinary editing, deleting and bulk clearing cannot replace or erase that item's original text. The HUD disables Edit/Delete for uncertain rows and exposes distinct **Retry** and **Discard** review actions; the external API must use `resolve` with an explicit decision. `resolve(retry)` changes the item to `pending` but never automatically Starts or Sends it, while `resolve(discard)` deliberately removes it. Synthetic Firefox QA verifies normal Clear is refused and the original payload survives until explicit Discard. This protects review evidence; it is not an exactly-once delivery guarantee.
+
+## Previously opened editors cannot rewrite uncertain items
+
+The content HUD closes an already-open item editor when a preflight or Send attempt makes its formerly pending message uncertain. Its Save action goes through the same guarded `update` validation used for permissioned callers, not directly through the persistence helper; an old user-interface callback cannot bypass the pending-only mutation rule. The initial possibly submitted payload remains preserved until an explicit Retry or Discard.
