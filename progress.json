@@ -1068,8 +1068,10 @@
                   "id": "M7-09",
                   "emoji": "🔒",
                   "title": "Audit permissions, CSP, storage, private data and supply chain",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "scripts/security-audit.mjs runs in npm check and Firefox CI; adversarial fixture tests reject permission creep, network code and remote UI assets. docs/SECURITY-AUDIT.md documents CSP/storage/dependency review and remaining threats. Passing static audit and unit tests: https://github.com/sguzman/chat-queue/actions/runs/40046051894. Full independent privacy/security audit and authenticated delivery acceptance pending."
+                  ]
                 },
                 {
                   "id": "M7-10",
