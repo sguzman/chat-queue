@@ -816,8 +816,10 @@
                   "id": "M5-10",
                   "emoji": "🛡️",
                   "title": "Protect prompts from unapproved page scripts and extension principals",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Production closed Shadow DOM and Firefox isolated content-script globals protect queued prompt text from ordinary page DOM queries; synthetic private queued item is absent from page text/serialized DOM, with zero Send: https://github.com/sguzman/chat-queue/actions/runs/40051837389. Exact sender.id scoped extension ACL and prompt-read revocation tested separately. Authenticated page instrumentation, privileged add-on adversaries and independent privacy review remain outstanding."
+                  ]
                 },
                 {
                   "id": "M5-11",
