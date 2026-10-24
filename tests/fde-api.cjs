@@ -189,6 +189,11 @@ async function main(){
   const oversized=await command({type:'chat-queue/v1',action:'enqueue',tabId,
     payload:{text:'X'.repeat(33000)}});
   assert.equal(oversized.error,'request-too-large');
+  // 12,000 CJK characters fit under the former UTF-16 count but exceed
+  // 32 KiB on the actual Firefox extension transport.
+  const unicodeOversized=await command({type:'chat-queue/v1',
+    action:'capabilities',padding:'漢'.repeat(12000)});
+  assert.equal(unicodeOversized.error,'request-too-large');
   assert.equal(await driver.executeScript(
     'return document.querySelector("#chat-queue-extension-root").shadowRoot.getElementById("count").textContent'),'0 queued');
   assert.equal(await driver.executeScript('return window.__sent'),0);
