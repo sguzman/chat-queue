@@ -846,6 +846,44 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='inflight-add-draft-preservation';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/inflight-add-draft');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft'))),10000);
+    await driver.executeScript(() => {
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const draft=root.getElementById('draft');
+      draft.value='First slow synthetic prompt';
+      draft.dispatchEvent(new Event('input',{bubbles:true}));
+      document.documentElement.dataset.qaRejectQueueSave='delay';
+      root.getElementById('add').click();
+      // A newer user draft arrives while the first save is still delayed.
+      draft.value='Second protected synthetic draft';
+      draft.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await driver.sleep(2950);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value),
+      'Second protected synthetic draft',
+      'Earlier Add completion must never clear the newer draft');
+    await driver.executeScript(() => {
+      document.documentElement.dataset.qaRejectQueueSave='';
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='2 queued'),9000);
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value===''),9000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('count')?.textContent==='2 queued'),9000);
+    assert.deepEqual(await driver.executeScript(() =>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')]
+        .map(x=>x.textContent)),
+      ['First slow synthetic prompt','Second protected synthetic draft']);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');

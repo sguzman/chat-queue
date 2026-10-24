@@ -206,3 +206,7 @@ A native two-extension synthetic FDE fixture tests `generating` followed by matc
 ## 🔏 Rejected sequenced enqueue writes
 
 The independent-client Firefox Developer Edition API fixture now rejects one actual content-script `storage.local.set` through a **QA-only** fault. The operation must return `queue-save-failed`, restore the in-memory item list and caller-specific sequence watermark, allow the exact same caller request to persist on a later deliberate retry, reject subsequent duplicates, and never trigger Send. This is bounded storage-fault acceptance, not proof of atomicity across independent Firefox tabs or profile-level power loss.
+
+## ✍️ Draft preservation during an in-flight Add
+
+The synthetic Firefox fixture delays the first actual extension-storage queue write, types a second draft while that Add is pending, and verifies the earlier completion never clears the newer draft. The second message is then added and both persist after reload without Send. This fixes an actual asynchronous HUD correctness race surfaced by repeated two-message rapid-terminal Firefox QA. The rapid-terminal fixture also waits for each durable Add before starting; a UI count alone is not treated as authenticated submission evidence.

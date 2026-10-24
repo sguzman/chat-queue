@@ -839,9 +839,16 @@
       state.historyClearArmed=false;queueMicrotask(()=>render());
     }
   },true);
+  // A first Add may be waiting on extension storage while the user types
+  // the next draft. The older completion must never erase newer input.
+  let draftInputVersion=0;
+  els.draft.addEventListener('input',()=>{draftInputVersion++;});
   els.add.addEventListener('click',async()=>{
-    const response=await act('enqueue',{text:els.draft.value},true);
-    if(response.ok)els.draft.value='';else statusNote(response.error);
+    const text=els.draft.value,version=draftInputVersion;
+    const response=await act('enqueue',{text},true);
+    if(response.ok){
+      if(draftInputVersion===version&&els.draft.value===text)els.draft.value='';
+    }else statusNote(response.error);
   });
   // Confirm clear must require consecutive intent. Any unrelated click
   // cancels an armed confirmation, including clicks outside the HUD.

@@ -521,9 +521,13 @@ async function main(){
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/rapid-terminal');
     await driver.wait(async()=>await driver.executeScript('return Boolean('+hud('run')+')&&document.documentElement.dataset.qaSignalProviderReady==="true"'),12000);
-    for(const prompt of ['Rapid synthetic A','Rapid synthetic B']){
-      await driver.executeScript('const el='+hud('draft')+';el.value=arguments[0]',prompt);
+    for(const [index,prompt] of ['Rapid synthetic A','Rapid synthetic B'].entries()){
+      await driver.executeScript('const el='+hud('draft')+';el.value=arguments[0];el.dispatchEvent(new Event("input",{bubbles:true}))',prompt);
       await driver.executeScript('return '+hud('add')+'.click()');
+      // Don't start a two-prompt scenario while the test itself has only
+      // submitted one asynchronous Add operation to extension storage.
+      await driver.wait(async()=>await driver.executeScript(
+        'return '+hud('count')+'.textContent===arguments[0]',(index+1)+' queued'),9000);
     }
     await emit('idle',0,80,'observed','fresh','/c/rapid-terminal');
     await driver.executeScript('return '+hud('run')+'.click()');
