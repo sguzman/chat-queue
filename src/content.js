@@ -125,8 +125,11 @@
   });
   window.addEventListener('resize',()=>place());
 
+  // Clock changes must not make an old provider event freshly authorized.
+  // performance.now() is monotonic within this content-script document.
   const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
-    state.trusted.origin==='fresh'&&Date.now()-state.trustedAt<15000);
+    state.trusted.origin==='fresh'&&state.trusted.confidence!=='unknown'&&
+    performance.now()-state.trustedAt>=0&&performance.now()-state.trustedAt<15000);
   function render() {
     if (state.destroyed) return;
     host.dataset.theme=state.theme;els.theme.value=state.theme;
@@ -758,7 +761,7 @@
       const next=contract.parse({type:contract.TYPE,signal:message.signal});
       if(!state.initialized||!next||next.route!==routeKey()||
          !contract.advance(state.trusted,next))return Promise.resolve({ok:false,error:'invalid-signal'});
-      state.trusted=next;state.trustedAt=Date.now();processSignal();
+      state.trusted=next;state.trustedAt=performance.now();processSignal();
       return Promise.resolve({ok:true});
     }
     if (message?.type!=='chat-queue-api/v1') return;
