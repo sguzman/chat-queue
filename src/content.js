@@ -571,6 +571,9 @@
           payload && Object.hasOwn(payload,'ifMatch') && payload.ifMatch!==state.etag)
         return {ok:false,error:'revision-conflict',revision:state.revision};
       if (action==='enqueueSequenced') {
+        // No competing durable queue write may be pending when capturing the
+        // rollback snapshot of the client's replay watermark and prompt.
+        if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         // Caller identity comes from the browser-authenticated background,
         // never an external caller-supplied payload field. Persist the
         // strictly increasing high-water mark in the SAME queue record as the
@@ -589,9 +592,24 @@
         }
         if(state.items.length>=core.MAX_ITEMS)return {ok:false,error:'queue-full'};
         const item=core.makeItem(payload?.text,uid());
+        const priorItems=state.items.slice(),priorMarks={...state.requestHighWatermarks};
+        const attemptKey=state.key,beforeRevision=state.revision;
         state.items.push(item);
         state.requestHighWatermarks[id]=seq;
-        await save();render();
+        try{await save();}
+        catch{
+          // If no other edit occurred, reject the entire in-memory attempt,
+          // not just the storage promise. Otherwise the same sequence would
+          // appear consumed despite no durable enqueue.
+          if(state.key===attemptKey&&state.revision===beforeRevision+1){
+            state.items=priorItems;
+            state.requestHighWatermarks=priorMarks;
+            state.revision++;state.etag=uid();
+            render();publish();
+          }
+          return {ok:false,error:'queue-save-failed'};
+        }
+        render();
         if(state.running&&!state.awaiting)planNext();
         return {ok:true,id:item.id,etag:state.etag};
       }

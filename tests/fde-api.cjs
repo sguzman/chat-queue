@@ -30,7 +30,13 @@ function createQueue(dest,root){
  let content=fs.readFileSync(contentFile,'utf8');
  const marker="attachShadow({mode:'closed'})";
  assert.equal(content.split(marker).length,2);
- fs.writeFileSync(contentFile,content.replace(marker,"attachShadow({mode:'open'})"));
+ const queueSet='api.storage.local.set({[key]:data})';
+ assert.equal(content.split(queueSet).length,2);
+ content=content.replace(marker,"attachShadow({mode:'open'})")
+   .replace(queueSet,"(document.documentElement.dataset.qaRejectQueueSet==='once' ? "+
+     "(document.documentElement.dataset.qaRejectQueueSet='consumed',Promise.reject(new Error('qa-queue-save-failed'))) : "+
+     "api.storage.local.set({[key]:data}))");
+ fs.writeFileSync(contentFile,content);
  const bgFile=path.join(dest,'src/background.js');
  let bg=fs.readFileSync(bgFile,'utf8');
  const before=String.raw`if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;`;
@@ -317,6 +323,25 @@ async function main(){
   assert.equal((await command(sequenced)).error,'replayed-request');
   assert.deepEqual((await command({type:'chat-queue/v1',action:'status',tabId})).items.map(x=>x.text),
     ['Synthetic updated message','Single synthetic sequenced enqueue','Another synthetic sequenced enqueue']);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+
+  stage='failed-sequenced-write-and-exact-retry';
+  const failedSequence={...sequenced,payload:{
+    text:'Synthetic retriable queue write',sequence:3}};
+  const beforeFailedWrite=await command({type:'chat-queue/v1',action:'status',tabId});
+  await driver.executeScript("document.documentElement.dataset.qaRejectQueueSet='once'");
+  const rejected=await command(failedSequence);
+  assert.equal(rejected.error,'queue-save-failed');
+  const afterRejected=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.deepEqual(afterRejected.items,beforeFailedWrite.items,
+    'Rejected save must revert the prompt and replay watermark');
+  const retried=await command(failedSequence);
+  assert.equal(retried.ok,true,'The identical sequence must be eligible after failure');
+  assert.equal((await command(failedSequence)).error,'replayed-request');
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).items.filter(
+    x=>x.text==='Synthetic retriable queue write').length,1);
+  assert.equal((await command({type:'chat-queue/v1',action:'remove',tabId,
+    payload:{id:retried.id}})).ok,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   stage='concurrent-optimistic-api-edits';

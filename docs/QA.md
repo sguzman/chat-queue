@@ -202,3 +202,7 @@ The Firefox two-addon provider fixture opens an ordinary `/c/<id>` tab and a `/g
 ## ⚡ Rapid authenticated response completion
 
 A native two-extension synthetic FDE fixture tests `generating` followed by matching `finished` *before* the next Send-confirmation poll. The content script retains the first browser-authenticated new busy epoch for its journaled attempt; only a cleared composer and completion of that exact epoch can advance to a second queued item. This route widens the test's polling interval to expose the timing race. The real Chat Signals publisher and authenticated ChatGPT remain unverified.
+
+## 🔏 Rejected sequenced enqueue writes
+
+The independent-client Firefox Developer Edition API fixture now rejects one actual content-script `storage.local.set` through a **QA-only** fault. The operation must return `queue-save-failed`, restore the in-memory item list and caller-specific sequence watermark, allow the exact same caller request to persist on a later deliberate retry, reject subsequent duplicates, and never trigger Send. This is bounded storage-fault acceptance, not proof of atomicity across independent Firefox tabs or profile-level power loss.
