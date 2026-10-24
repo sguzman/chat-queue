@@ -4,7 +4,7 @@ Follow the same evidence discipline as [Jobflick Bridge QA](https://github.com/s
 
 ## Test tiers
 
-- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 60 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
+- **Q0 static:** `npm run check` validates JS syntax, ledger/roadmap consistency, queue pure functions, and background allowlist rejection. Q0 passes 61 Node tests, including v2 scope enforcement and subscription revocation; this does *not* validate DOM rendering or live site integration.
 - **Q1 synthetic FDE:** install/uninstall the exact production manifest in a disposable headless FDE profile. With a strictly QA-only synthetic fixture, exercise HUD, each theme including OS change, drag/keyboard ordering, reload and stale route. No ChatGPT account required.
 - **Q2 Signal contract:** run Chat Signals + Chat Queue in the same disposable FDE instance, with scripted fresh vs restored response epochs, failed/interrupted/limit states, and provider disappearance. Confirm no unauthorized send. A page attribute alone is not an authenticated signal.
 - **Q2a negative gate:** with Chat Signals v0.3.13 and no authenticated event publisher, the HUD may display unverified phase changes, but Start must refuse and no Send click may occur. Node unit tests for the candidate consumer are not a substitute for a real FDE run.
@@ -126,3 +126,7 @@ Native headless Firefox Developer Edition seeds a compatible v1 queue under a pr
 ## 🔍 Production security audit gate
 
 The production-only `scripts/security-audit.mjs` is part of `npm run check`: storage-only manifest permissions, exact ChatGPT scope, no broad hosts, no remote assets, no dynamic JS, and no runtime network APIs. Four tests create disposable modified copies to verify that the gate rejects violations; they never modify real Firefox profiles. Static-and-unit CI passes with 60 Node tests. This does not replace a manual source, supply-chain, browser-privacy and authenticated delivery audit. See [static audit contract](SECURITY-AUDIT.md).
+
+## 💾 Failed and delayed local queue writes
+
+A QA-only content-script substitution makes `browser.storage.local.set` reject or complete after a deliberate delay. The real Firefox Developer Edition HUD must reject Start with `storage-unavailable` after a failed write and `queue-save-pending` before a delayed write finishes. Once another save commits, the queue remains paused and still requires authenticated Signal authority and a separate Start action. A reload must preserve the successfully saved items without a Send. [Accepted browser regression](https://github.com/sguzman/chat-queue/actions/runs/40046386978). This does not simulate power loss, genuine Firefox quota exhaustion or a live ChatGPT editor.
