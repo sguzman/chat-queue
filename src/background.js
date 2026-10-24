@@ -23,7 +23,8 @@
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
   function releaseOwner(tabId){
-    for(const [route,id] of OWNERS)if(id===tabId)OWNERS.delete(route);
+    for(const [conversationId,id] of OWNERS)
+      if(id===tabId)OWNERS.delete(conversationId);
   }
   const PORTS = new Map();
   // One writer per Firefox-attested peer ID per event page. Persistent
@@ -109,7 +110,8 @@
     if (message.action === 'dispatch-check') {
       // A compromised/stale caller cannot authorize a Send on a home,
       // shared, GPT landing or other non-conversation pathname.
-      if(!signalContract.assignedConversationRoute(message.route))
+      const conversationId=signalContract.assignedConversationId(message.route);
+      if(!conversationId)
         return Promise.resolve({ok:false,error:'conversation-not-assigned'});
       // A restarted event page has no provider registration. A previously
       // observed content-script Signal cannot authorize a new Send by itself.
@@ -123,12 +125,14 @@
         if(live!==message.route || SIGNALS.get(tab.id)!==last ||
            ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id))
           return {ok:false,error:'route-or-signal-changed'};
-        const owner=OWNERS.get(message.route);
+        // Different assigned URL shapes with the same conversation ID are
+        // potential aliases. Deny a second concurrent owner, while keeping
+        // route/document/epoch authority exact for the current tab.
+        const owner=OWNERS.get(conversationId);
         if(owner!==undefined&&owner!==tab.id)
           return {ok:false,error:'conversation-owned-by-another-tab'};
-        // This check/claim is synchronous after the asynchronous route check,
-        // so competing tabs cannot both reserve the same route.
-        OWNERS.set(message.route,tab.id);
+        // The claim is synchronous after the browser-owned route check.
+        OWNERS.set(conversationId,tab.id);
         return {ok:true};
       });
     }
