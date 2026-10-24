@@ -887,7 +887,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Unassigned route cannot send';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
-    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),8000);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued' && ${jsEl('draft')}.value===''`),8000);
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('conversation-not-assigned')`),7000);
@@ -902,7 +902,7 @@ async function main(){
       await driver.executeScript(`const d=${jsEl('draft')};d.value='Never send on unassigned route';`);
       await driver.executeScript(`return ${jsEl('add')}.click()`);
       await driver.wait(async()=>await driver.executeScript(
-        `return ${jsEl('count')}.textContent==='1 queued'`),8000);
+        `return ${jsEl('count')}.textContent==='1 queued' && ${jsEl('draft')}.value===''`),8000);
       await driver.executeScript(`return ${jsEl('run')}.click()`);
       await driver.wait(async()=>await driver.executeScript(
         `return ${jsEl('status')}.textContent.includes('conversation-not-assigned')`),7000);
@@ -915,6 +915,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Still requires provider';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('draft')}.value===''`),8000);
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
