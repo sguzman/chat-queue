@@ -57,7 +57,16 @@ jobs:
       - name: Headless FDE synthetic queue HUD and fail-closed test
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+          CQ_QA_SCREENSHOT_DIR: ${{ runner.temp }}/chat-queue-hud-qa
         run: node tests/fde-synthetic.cjs
+      - name: Archive synthetic HUD screenshots for visual QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-queue-fde-hud-synthetic
+          path: ${{ runner.temp }}/chat-queue-hud-qa/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Headless FDE cross-tab theme and queue isolation
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
