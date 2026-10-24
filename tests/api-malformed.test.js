@@ -96,3 +96,28 @@ test('bounded deterministic adversarial IPC corpus never forwards or discloses t
       'rejection must not echo private prompt text');
   }
 });
+
+test('32 KiB limit counts serialized UTF-8 bytes, not UTF-16 code units',async()=>{
+  const x=fixture();
+  for(const text of ['漢'.repeat(12000),'🔥'.repeat(9000),'é'.repeat(17000)]){
+    const msg={type:'chat-queue/v1',action:'capabilities',padding:text};
+    assert.ok(JSON.stringify(msg).length<32768,
+      'UTF-16 length must stay below the old broken threshold');
+    assert.ok(Buffer.byteLength(JSON.stringify(msg),'utf8')>32768);
+    const result=await x.listeners.external(msg,{id:'approved@example.test'});
+    assert.deepEqual(JSON.parse(JSON.stringify(result)),
+      {ok:false,error:'request-too-large'});
+  }
+  assert.equal(x.forwards,0);
+});
+test('32 KiB ASCII serialized boundary is inclusive and one byte beyond rejects',async()=>{
+  const x=fixture();
+  const msg={type:'chat-queue/v1',action:'capabilities',padding:''};
+  const overhead=Buffer.byteLength(JSON.stringify(msg),'utf8');
+  msg.padding='a'.repeat(32768-overhead);
+  assert.equal(Buffer.byteLength(JSON.stringify(msg),'utf8'),32768);
+  assert.equal((await x.listeners.external(msg,{id:'approved@example.test'})).ok,true);
+  msg.padding+='a';
+  assert.equal((await x.listeners.external(msg,{id:'approved@example.test'})).error,'request-too-large');
+  assert.equal(x.forwards,0);
+});
