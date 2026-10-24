@@ -16,6 +16,12 @@
   const assignedConversationRoute=route=>validRoute(route)&&
     (/^\/c\/[A-Za-z0-9_-]+$/.test(route)||
      /^\/g\/[A-Za-z0-9_-]+\/c\/[A-Za-z0-9_-]+$/.test(route));
+  // Conservative cross-route collision key. Both supported assigned URL
+  // shapes may refer to the same named conversation ID; never permit them
+  // to own simultaneous dispatch leases. This does not alter exact-route
+  // Signal validation or tab-scoped queue storage.
+  const assignedConversationId=route=>assignedConversationRoute(route)
+    ? route.slice(route.lastIndexOf('/c/')+3) : null;
   function parse(input){
     if(!input||typeof input!=='object'||input.type!==TYPE)return null;
     const x=input.signal;
@@ -51,7 +57,7 @@
       signal.route===waiting.route&&signal.origin==='fresh'&&signal.confidence!=='unknown'&&
       signal.phase==='finished'&&signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
   }
-  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,assignedConversationRoute,parse,advance,ready,newBusy,completed});
+  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,assignedConversationRoute,assignedConversationId,parse,advance,ready,newBusy,completed});
   root.ChatQueueSignal=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
