@@ -443,9 +443,10 @@
                   "id": "M3-01",
                   "emoji": "📡",
                   "title": "Read current Chat Signals state without copied classification",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "data-chat-signals-state observer in src/content.js"
+                    "data-chat-signals-state observer in src/content.js",
+                    "Real pinned Chat Signals v0.3.13 publishes its DOM state; Chat Queue HUD displays it as unverified in headless Firefox Developer Edition; automatic Send remains disabled. https://github.com/sguzman/chat-queue/actions/runs/40042631264"
                   ]
                 },
                 {
@@ -995,8 +996,10 @@
                   "id": "M7-03",
                   "emoji": "🤝",
                   "title": "Verify Chat Signals and Chat Queue coexist without DOM races",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "Actual Chat Signals v0.3.13 and Chat Queue coexist on isolated synthetic Firefox page without triggering Send; authenticated ChatGPT DOM races and full multi-tab acceptance remain pending. https://github.com/sguzman/chat-queue/actions/runs/40042631264"
+                  ]
                 },
                 {
                   "id": "M7-04",

@@ -81,3 +81,7 @@ The floating queue HUD supports pointer dragging on the header without intercept
 ## 🧷 Same-conversation dispatch ownership
 
 Two Firefox tabs may display the same ChatGPT conversation, but only one queue may hold its volatile exact-route dispatch lease at a time. The owner is reserved before any composer mutation and rechecked immediately before Send. A second tab is refused without touching its draft or sending; pausing an owner while its response is still pending **does not** release the lease. A confirmed completion after pause, tab close, or route departure permits a later explicit Start in another tab. This prevents competing queue dispatch in the synthetic Firefox test; it is not proof of authenticated ChatGPT behavior or a substitute for the real Chat Signals publisher.
+
+## 🤝 Real Chat Signals coexistence (synthetic Firefox)
+
+A pinned checkout of the **actual Chat Signals v0.3.13 source** is loaded alongside Chat Queue in disposable headless Firefox Developer Edition using localhost-only QA host scopes. Its real DOM phase is displayed as **unverified** by the queue HUD, and the queue refuses Send because the authenticated publisher is not implemented. A forged page `finished` state also cannot authorize dispatch. [Passing coexistence CI](https://github.com/sguzman/chat-queue/actions/runs/40042631264). This is not authenticated ChatGPT integration; the actual publisher and response-epoch acceptance gates remain open.

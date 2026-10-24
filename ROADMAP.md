@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 43/96 verified (44%) · ████░░░░░░ · 36 implemented awaiting acceptance.**
+**Overall: 44/96 verified (45%) · ████░░░░░░ · 36 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -101,7 +101,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **Signal contract**
 
-- [~] `M3-01` 📡 Read current Chat Signals state without copied classification _(implemented; acceptance pending)_
+- [x] `M3-01` 📡 Read current Chat Signals state without copied classification
 - [~] `M3-02` 🛡️ Define authenticated, versioned source-to-consumer signal protocol _(implemented; acceptance pending)_
 - [~] `M3-03` 🔢 Attribute phase and completion to exact response epoch _(implemented; acceptance pending)_
 - [~] `M3-04` 🪪 Bind signal identity to currently selected conversation _(implemented; acceptance pending)_
@@ -119,7 +119,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart _(implemented; acceptance pending)_
 - [~] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses _(implemented; acceptance pending)_
 
-**M3 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 11 implemented but not accepted.
+**M3 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 10 implemented but not accepted.
 
 ### 📮 M4 — Safe message delivery
 
@@ -207,7 +207,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [x] `M7-01` 🦊 Load and unload actual production extension in isolated FDE
 - [x] `M7-02` 🧪 Use synthetic ChatGPT UI fixtures in automated FDE WebDriver
-- [ ] `M7-03` 🤝 Verify Chat Signals and Chat Queue coexist without DOM races
+- [~] `M7-03` 🤝 Verify Chat Signals and Chat Queue coexist without DOM races _(implemented; acceptance pending)_
 - [ ] `M7-04` 💬 Verify actual authenticated ChatGPT send, completion and retry
 - [ ] `M7-05` 🧭 Test navigation, restarts, 16-tab workloads and hidden tabs
 - [ ] `M7-06` 🪄 Test System/Light/Dark HUD, keyboard and accessibility in FDE
@@ -223,7 +223,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [ ] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 1 implemented but not accepted.
+**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 2 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 
