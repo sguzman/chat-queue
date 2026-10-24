@@ -247,12 +247,27 @@ async function main(){
     if(process.env.CQ_QA_SCREENSHOT_DIR){
       fs.mkdirSync(process.env.CQ_QA_SCREENSHOT_DIR,{recursive:true});
       for(const themeName of ['light','dark']){
-        await driver.executeScript("document.querySelector('#chat-queue-extension-root').dataset.theme=arguments[0]",themeName);
+        await driver.executeScript(`const el=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('theme');
+          el.value=arguments[0];el.dispatchEvent(new Event('change',{bubbles:true}));`,themeName);
+        await driver.wait(async()=>await driver.executeScript(`
+          const host=document.querySelector('#chat-queue-extension-root');
+          return host.dataset.theme===arguments[0] && host.shadowRoot.getElementById('theme').value===arguments[0]`,themeName),5000);
         const png=await driver.takeScreenshot();
         fs.writeFileSync(path.join(process.env.CQ_QA_SCREENSHOT_DIR,'hud-'+themeName+'.png'),Buffer.from(png,'base64'));
       }
     }
     qaStage='clear-confirmation';
+    // A scrollable list must never clip the primary add/clear/start controls.
+    const footerGeometry=await driver.executeScript(`
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const panel=shadow.querySelector('.panel').getBoundingClientRect();
+      return ['add','clear','run'].map(id=>{
+        const rect=shadow.getElementById(id).getBoundingClientRect();
+        return {id,top:rect.top,bottom:rect.bottom,panelTop:panel.top,panelBottom:panel.bottom};
+      });`);
+    for(const entry of footerGeometry)
+      assert.ok(entry.top>=entry.panelTop && entry.bottom<=entry.panelBottom-2,
+        'HUD action must be fully visible: '+JSON.stringify(entry));
     // Verify individual deletion, then require two separate clicks to clear.
     const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
     await del.click();
