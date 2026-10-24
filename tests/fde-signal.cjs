@@ -362,6 +362,47 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The source conversation must retain its uncertain pre-Send journal');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    // Authenticated but unknown-confidence phase events are not proof of
+    // accepted Send or completed response; they can only pause/withhold progress.
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/uncertain-confidence`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('draft')})`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Do not trust unknown busy';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,36,'observed','fresh','/c/uncertain-confidence');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,37,'unknown','fresh','/c/uncertain-confidence');
+    await waitNote('Submission not confirmed; manual review required');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    // In another conversation, a known busy event permits attribution but
+    // an unknown-confidence finish cannot advance the next queued prompt.
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/unknown-finish`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('draft')})`),12000);
+    for(const text of ['Accepted synthetic A','Blocked synthetic B']){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+    }
+    await emit('idle',0,40,'observed','fresh','/c/unknown-finish');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,41,'observed','fresh','/c/unknown-finish');
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',1,42,'unknown','fresh','/c/unknown-finish');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Unknown-confidence finish cannot advance queue');
+    await emit('finished',1,43,'inferred','fresh','/c/unknown-finish');
+    await waitSends(2);
+    await emit('generating',2,44,'observed','fresh','/c/unknown-finish');
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',2,45,'observed','fresh','/c/unknown-finish');
+    await waitNote('Queue completed');
+    assert.deepEqual(await driver.executeScript('return window.__sent'),
+      ['Accepted synthetic A','Blocked synthetic B']);
     console.log('Headless FDE synthetic Signal: journal-before-handoff, trusted edit race, route-race and single-owner gate');
   }finally{
     if(driver)await driver.quit();
