@@ -46,7 +46,7 @@ test('approved senders can discover registered tabs and forward only known actio
   const {listeners,forwards}=create();
   const sender={tab:{id:17,url:'https://chatgpt.com/c/fake'},url:'https://chatgpt.com/c/fake'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/fake'},sender)).tabId,17);
-  await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:2,running:true},sender);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:2,running:true,sequence:1},sender);
   const external={id:'approved@example.test'};
   const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},external);
   assert.equal(listed.ok,true);
@@ -121,7 +121,7 @@ test('scoped API closes revoked event ports and refuses new calls',async()=>{
   assert.equal(disconnected,0);
   const syntheticTab={tab:{id:72,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
   await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'},syntheticTab);
-  await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:3,running:true,awaiting:true,revision:5},syntheticTab);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:3,running:true,awaiting:true,revision:5,sequence:1},syntheticTab);
   const change=seen.find(x=>x.event==='stateChanged');
   assert.equal(change?.protocolVersion,1);
   assert.equal(change?.state?.size,3);
@@ -186,10 +186,10 @@ test('tab URL updates revoke route authority even if History API listener is una
 test('unregistered and stale SPA state updates cannot repopulate the public tab list',async()=>{
   const {listeners}=create();
   const old={tab:{id:91,url:'https://chatgpt.com/c/old'},url:'https://chatgpt.com/c/old'};
-  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished'},old)).error,'route-mismatch');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished',sequence:1},old)).error,'route-mismatch');
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/old'},old)).ok,true);
   listeners.updated(91,{url:'https://chatgpt.com/c/new'});
-  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished'},old)).error,'route-mismatch');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'finished',sequence:1},old)).error,'route-mismatch');
   const list=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'approved@example.test'});
   assert.deepEqual(Array.from(list.tabs),[]);
 });
@@ -201,7 +201,7 @@ test('Firefox live tab URL overrides stale document sender URL after SPA navigat
   listeners.updated(32,{url:'https://chatgpt.com/c/second'});
   const second={tab:{id:32,url:'https://chatgpt.com/c/second'},url:'https://chatgpt.com/c/first'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/second'},second)).ok,true);
-  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'unknown'},second)).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'unknown',sequence:1},second)).ok,true);
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/first'},second)).error,'route-mismatch');
 });
 
@@ -318,10 +318,10 @@ test('one exact conversation route has at most one live dispatch owner',async()=
   assert.equal(results.filter(x=>x.ok).length,1);
   assert.equal(results.filter(x=>x.error==='conversation-owned-by-another-tab').length,1);
   const winner=results[0].ok?0:1,loser=1-winner;
-  await listeners.internal({type:'chat-queue-internal/v1',action:'state',running:false,awaiting:true,size:1,phase:'verifying'},senders[winner]);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',running:false,awaiting:true,size:1,phase:'verifying',sequence:1},senders[winner]);
   assert.equal((await check(loser)).error,'conversation-owned-by-another-tab',
     'pausing while a response is in flight must not unlock the route');
-  await listeners.internal({type:'chat-queue-internal/v1',action:'state',running:false,awaiting:false,size:1,phase:'finished'},senders[winner]);
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',running:false,awaiting:false,size:1,phase:'finished',sequence:2},senders[winner]);
   assert.equal((await check(loser)).ok,true,'confirmed terminal state frees a paused route lease');
   assert.equal((await check(winner)).error,'conversation-owned-by-another-tab');
   listeners.removed(senders[loser].tab.id);
