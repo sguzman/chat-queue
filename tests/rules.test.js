@@ -141,7 +141,7 @@ test('simulated completion context is explicit, bounded and cannot be forged as 
 
 test('dry-run audit contains outcome but never leaks proposed text, route or document token',()=>{
   const payload='Synthetic private preview proposal';
-  const signal={...e(),route:'/c/private-synthetic-route',documentToken:'z'.repeat(32)};
+  const signal={...e(),route:'/c/private-synthetic-route',documentToken:'f'.repeat(32)};
   const set=[{...r('review','finished'),then:{type:'propose',text:payload}}];
   const result=rules.evaluate(set,signal);
   const audit=rules.auditPreview(result,signal);
@@ -151,7 +151,7 @@ test('dry-run audit contains outcome but never leaks proposed text, route or doc
   });
   assert.equal(Object.isFrozen(audit),true);
   const serialized=JSON.stringify(audit);
-  for(const secret of [payload,'private-synthetic-route','z'.repeat(32),result.decision.eventKey])
+  for(const secret of [payload,'private-synthetic-route','f'.repeat(32),result.decision.eventKey])
     assert.equal(serialized.includes(secret),false);
   const rejected=rules.auditPreview({ok:false,error:'unexpected prompt'},signal);
   assert.equal(rejected.reason,'rejected');
