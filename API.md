@@ -31,7 +31,7 @@ Every response returns `{ok:boolean}` plus action-specific data or `error`. Miss
 | Action | `payload` | Behavior |
 | --- | --- | --- |
 | `capabilities` | None, no `tabId` | Report exact granted scopes (requires at least one grant) |
-| `previewRules` | `{rules,signal,consumedKeys?:[],context?:{stateDurationMs}}`, no `tabId` | Evaluate caller-provided synthetic rules and event only; no queue interactions |
+| `previewRules` | `{rules,signal,consumedKeys?:[],context?:{stateDurationMs?,completedRuleIds?:string[]}}`, no `tabId` | Evaluate caller-provided synthetic rules and event only; no queue interactions |
 | `listTabs` | None, no `tabId` | Discover registered content-script tabs |
 | `status` | None | Read active queue, history and state |
 | `enqueue` | `{text}` | Append a pending message; returns `id` |
@@ -81,6 +81,8 @@ API schemas remain experimental pending live FDE acceptance. Only one extension 
 The separately granted `previewRules` request accepts caller-supplied typed rules and Signal-shaped **simulated** events and returns a proposed decision. It does not read current Chat Signals provider events, conversation text, queue state, or browser storage. No automatic or manual Send is available through this action. Future versions may expose rules such as `when: {phase:'finished'}`, `when:{phase:'failed'}`, or `when:{phase:'interrupted',minDurationMs:5000}`. They will be evaluated per response epoch and scoped conversation, with policy-specific action caps, priority and manual approval for risky retries. **Do not** interpret v1 message fields as executable predicates. No content-based success evaluation currently exists.
 
 Preview-only duration filters accept optional `when.minDurationMs` / `when.maxDurationMs` on a rule and `context.stateDurationMs` on a preview request (integer 0–3,600,000). A filtered rule does not match when context is absent or outside its range. This context is **caller-supplied synthetic evidence**, not an authenticated ChatGPT clock. The `rules` grant still conveys no authority to enqueue, start or send messages.
+
+Dependency/skip preview: rules may include `when.dependsOn` / `when.skipIf` lists with up to eight exact IDs per list. `context.completedRuleIds` is an optional, bounded list (maximum 32, distinct) of IDs referencing rules in the **same caller-provided simulated ruleset**. It is not a trusted completion history. Missing dependencies fail closed; self-links, cycles, dangling or conflicting references reject the ruleset. The Options sandbox and pure API expose proposals only and do not mutate queue state.
 
 ## 🔐 Grant changes during in-flight requests
 
