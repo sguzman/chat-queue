@@ -134,10 +134,10 @@
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
     els.clear.textContent=state.clearArmed ? 'Confirm clear' : 'Clear';
-    els.backupConfirm.hidden=!state.pendingImport;
-    els.backupConfirm.textContent=state.pendingImport?'Append '+state.pendingImport.items.length+' messages':'Confirm import';
-    els.historyClear.textContent=state.historyClearArmed?'Confirm forget':'Forget history';
-    els.historyClear.disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
+    els['backup-confirm'].hidden=!state.pendingImport;
+    els['backup-confirm'].textContent=state.pendingImport?'Append '+state.pendingImport.items.length+' messages':'Confirm import';
+    els['history-clear'].textContent=state.historyClearArmed?'Confirm forget':'Forget history';
+    els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting);
     els.clear.disabled=!state.items.length||Boolean(state.attempting);
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
@@ -486,7 +486,7 @@
   }
   // All file operations are deliberately initiated by a local user gesture.
   // No backup is transferred to the page, a server, or another extension.
-  els.backupExport.addEventListener('click',()=>{
+  els['backup-export'].addEventListener('click',()=>{
     if(state.blockedRecord||state.attempting||state.routing){statusNote('Backup unavailable while queue changes');return;}
     try{
       const payload=core.backupItems(state.items);
@@ -498,32 +498,32 @@
       statusNote('Queue backup download requested');
     }catch(error){statusNote('Backup rejected: '+String(error.message||error));}
   });
-  els.backupChoose.addEventListener('click',()=>{
+  els['backup-choose'].addEventListener('click',()=>{
     if(state.running||state.awaiting||state.attempting||state.routing||state.blockedRecord){
       statusNote('Pause and finish the current response before importing');return;
     }
-    els.backupFile.value='';els.backupFile.click();
+    els['backup-file'].value='';els['backup-file'].click();
   });
-  els.backupFile.addEventListener('change',async()=>{
-    const file=els.backupFile.files?.[0];
+  els['backup-file'].addEventListener('change',async()=>{
+    const file=els['backup-file'].files?.[0];
     if(!file)return;
     const key=state.key,generation=routeGeneration;
     state.pendingImport=null;
-    if(file.size>2600000){els.dataNote.textContent='File too large (2.6 MB limit)';render();return;}
+    if(file.size>2600000){els['data-note'].textContent='File too large (2.6 MB limit)';render();return;}
     try{
       const data=core.parseBackup(JSON.parse(await file.text()));
       if(state.destroyed||state.key!==key||generation!==routeGeneration||
          state.running||state.awaiting||state.attempting||state.routing) {
-        els.dataNote.textContent='Conversation or queue changed; import cancelled';return;
+        els['data-note'].textContent='Conversation or queue changed; import cancelled';return;
       }
       if(state.items.length+data.length>core.MAX_ITEMS)
         throw new Error('Queue would exceed 100 messages');
       state.pendingImport={key,items:data};
-      els.dataNote.textContent='Review: '+data.length+' messages; no automatic sending. Click Confirm import to append.';
+      els['data-note'].textContent='Review: '+data.length+' messages; no automatic sending. Click Confirm import to append.';
       render();
-    }catch(error){els.dataNote.textContent='Import rejected: '+String(error?.message||error);render();}
+    }catch(error){els['data-note'].textContent='Import rejected: '+String(error?.message||error);render();}
   });
-  els.backupConfirm.addEventListener('click',async()=>{
+  els['backup-confirm'].addEventListener('click',async()=>{
     const draft=state.pendingImport;
     if(!draft||draft.key!==state.key||state.key!==storageKey()||state.blockedRecord||
        state.running||state.awaiting||state.attempting||state.routing)return;
@@ -532,13 +532,13 @@
     state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
     try{
       await save();state.pendingImport=null;
-      els.dataNote.textContent='Imported '+draft.items.length+' messages; queue remains paused';
+      els['data-note'].textContent='Imported '+draft.items.length+' messages; queue remains paused';
       render();
     }catch{
       state.items=original;statusNote('Import could not be stored; queue paused');
     }
   });
-  els.historyClear.addEventListener('click',async()=>{
+  els['history-clear'].addEventListener('click',async()=>{
     if(state.running||state.awaiting||state.attempting||!state.history.length)return;
     if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
     state.historyClearArmed=false;
@@ -546,7 +546,7 @@
     try{await save();render();}catch{state.history=oldHistory;render();}
   });
   shadow.addEventListener('click',event=>{
-    if(state.historyClearArmed&&event.target!==els.historyClear){
+    if(state.historyClearArmed&&event.target!==els['history-clear']){
       state.historyClearArmed=false;queueMicrotask(()=>render());
     }
   },true);
