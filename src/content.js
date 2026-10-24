@@ -302,7 +302,7 @@
             state.items=core.nextPosition(state.items,item.id,1);
           }),index===state.items.length-1||locked),
           button('Edit','Edit message',()=>{state.editing=item.id;render();},locked||item.status!=='pending'),
-          button('Delete','Remove pending message',()=>editItems(()=>{
+          button('Delete','Remove message',()=>editItems(()=>{
             state.items=state.items.filter(x=>x.id!==item.id);
           }),locked||item.status!=='pending'));
         if (item.status==='uncertain'){

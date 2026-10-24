@@ -725,7 +725,7 @@ async function main(){
       const row=root.querySelector('.item.uncertain');
       return {
         editDisabled:row.querySelector('[aria-label="Edit message"]').disabled,
-        deleteDisabled:row.querySelector('[aria-label="Remove pending message"]').disabled,
+        deleteDisabled:row.querySelector('[aria-label="Remove message"]').disabled,
         retryEnabled:!row.querySelector('[aria-label="Allow manually requested retry"]').disabled,
         discardEnabled:!row.querySelector('[aria-label="Discard uncertain submission after review"]').disabled
       };
