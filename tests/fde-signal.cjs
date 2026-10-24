@@ -79,6 +79,8 @@ function prepareQueue(dir,source){
     "if(globalThis.__qaRouteChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===50){globalThis.__qaFileChecks=(globalThis.__qaFileChecks||0)+1;"+
     "if(globalThis.__qaFileChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "        if(message.sequence===60){globalThis.__qaEditorChecks=(globalThis.__qaEditorChecks||0)+1;"+
+    "if(globalThis.__qaEditorChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(live!==message.route || SIGNALS.get(tab.id)!==last ||");
   fs.writeFileSync(bgPath,bg);
 }
@@ -436,7 +438,30 @@ async function main(){
       'Late selected file input must block queued Send');
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
-    console.log('Headless FDE synthetic Signal: unknown confidence, late attachment, trusted edit and route guards');
+    // A React-style rerender can leave the prepared editor connected but
+    // hidden, while a different visible editor replaces it in the same form.
+    // Presence of a single visible editor is insufficient; identity must match.
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/replaced-editor`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('draft')})`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Must not send from an old editor';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,60,'observed','fresh','/c/replaced-editor');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.getElementById('prompt-textarea').textContent==='Must not send from an old editor'"),10000);
+    await driver.executeScript(
+      "const old=document.getElementById('prompt-textarea');old.style.display='none';"+
+      "const replacement=document.createElement('div');replacement.id='qa-replacement-editor';"+
+      "replacement.setAttribute('contenteditable','true');replacement.setAttribute('role','textbox');"+
+      "old.after(replacement)");
+    await waitNote('Composer changed before Send; no send attempted');
+    assert.equal(await driver.executeScript(
+      "return document.querySelectorAll('[contenteditable=true][role=textbox]').length"),2);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    console.log('Headless FDE synthetic Signal: editor replacement, late attachment and route guards');
   }catch(error){
     throw new Error('stage '+qaStage+': '+error.message);
   }finally{
