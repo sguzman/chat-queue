@@ -20,6 +20,30 @@
     for(const [route,id] of OWNERS)if(id===tabId)OWNERS.delete(route);
   }
   const PORTS = new Map();
+  // One writer per Firefox-attested peer ID per event page. Persistent
+  // monotonic revisions make the record survive event-page recreation.
+  const ruleWrites=new Map();
+  const RULE_PREFIX='chatqueue:external-rules:v1:';
+  const ruleKey=id=>RULE_PREFIX+id;
+  function decodePeerRules(record){
+    if(record===undefined)return {ok:true,revision:0,rules:[]};
+    if(!record||typeof record!=='object'||Array.isArray(record)||
+       record.version!==1||!Number.isSafeInteger(record.revision)||record.revision<1||
+       Object.keys(record).some(k=>!['version','revision','rules'].includes(k)))
+      return {ok:false,error:'unsupported-rule-record'};
+    const result=rulesEngine.normalize(record.rules);
+    return result.ok?{ok:true,revision:record.revision,rules:result.rules}
+      :{ok:false,error:'invalid-stored-rules'};
+  }
+  function notifyPeerRules(id,revision){
+    // Event payload has no rule IDs, prompts, routes or event epochs.
+    for(const [port,owner] of PORTS){
+      if(owner!==id)continue;
+      try{port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,
+        event:'rulesChanged',revision});}
+      catch{PORTS.delete(port);}
+    }
+  }
   // Invalidates pending authorization reads when Options changes the ACL.
   let grantRevision=0;
   const PROVIDER_TYPE = signalContract.TYPE;
@@ -165,6 +189,49 @@
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
       return {ok:false,error:'forbidden-scope'};
+    if(message.action==='rulesGet'){
+      try{
+        const record=(await api.storage.local.get(ruleKey(requester)))[ruleKey(requester)];
+        if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+        return decodePeerRules(record);
+      }catch{return {ok:false,error:'rule-storage-unavailable'};}
+    }
+    if(message.action==='rulesPut'){
+      const requested=message.payload;
+      if(!requested||typeof requested!=='object'||
+         !Number.isSafeInteger(requested.revision)||requested.revision<0||
+         !Array.isArray(requested.rules))return {ok:false,error:'invalid-rule-write'};
+      const normalized=rulesEngine.normalize(requested.rules);
+      if(!normalized.ok)return {ok:false,error:normalized.error};
+      // Serialize same-client updates and compare durable revisions before
+      // replacing the record, rather than losing overlapping edits.
+      const prior=ruleWrites.get(requester)||Promise.resolve();
+      const pending=prior.catch(()=>{}).then(async()=>{
+        try{
+          const stored=(await api.storage.local.get(ruleKey(requester)))[ruleKey(requester)];
+          if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+          const parsed=decodePeerRules(stored);
+          if(!parsed.ok)return parsed;
+          if(parsed.revision!==requested.revision)
+            return {ok:false,error:'rule-revision-conflict',revision:parsed.revision};
+          if(parsed.revision>=Number.MAX_SAFE_INTEGER)
+            return {ok:false,error:'rule-revision-exhausted'};
+          const revision=parsed.revision+1;
+          const rules=normalized.rules.map(rule=>({
+            id:rule.id,version:rule.version,enabled:rule.enabled,priority:rule.priority,
+            when:{...rule.when},then:{...rule.then}
+          }));
+          if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+          await api.storage.local.set({[ruleKey(requester)]:{version:1,revision,rules}});
+          notifyPeerRules(requester,revision);
+          return {ok:true,revision};
+        }catch{return {ok:false,error:'rule-storage-unavailable'};}
+      });
+      ruleWrites.set(requester,pending);
+      // Clearing this transient lock cannot delete a newer concurrent writer.
+      void pending.then(()=>{if(ruleWrites.get(requester)===pending)ruleWrites.delete(requester);});
+      return pending;
+    }
     if (message.action === 'previewRules') {
       // Caller-supplied synthetic data only. Never reads a live chat, persists
       // rules, publishes provider identity or changes the dispatch scheduler.

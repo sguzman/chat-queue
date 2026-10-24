@@ -7,7 +7,7 @@
   const ACTION_SCOPE=Object.freeze({
     listTabs:'discover',status:'read',enqueue:'append',enqueueSequenced:'append',update:'edit',move:'edit',
     reorder:'edit',remove:'edit',clear:'edit',resolve:'edit',start:'control',pause:'control',
-    previewRules:'rules'
+    previewRules:'rules',rulesGet:'rules',rulesPut:'rules'
   });
   const validId=id=>typeof id==='string'&&/^[a-zA-Z0-9_.@-]{4,160}$/.test(id);
   function parse(record){
