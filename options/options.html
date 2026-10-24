@@ -48,6 +48,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="preview-completed">Simulated completed rule IDs (comma-separated, optional)</label><input id="preview-completed" spellcheck="false" placeholder="prior-rule-id" maxlength="2048">
 <p><button type="submit">Preview rule decision</button> <button type="button" id="preview-reset">Reset replay history</button></p>
 <pre id="preview-output" aria-live="polite" role="status">No preview yet.</pre>
+<details><summary>Dry-run audit (this window only)</summary><pre id="preview-audit" aria-live="polite">No previews recorded.</pre></details>
 </form>
 </section>
 <script src="../src/signal.js"></script><script src="../src/rules.js"></script><script src="../src/rule-store.js"></script><script src="rule-preview.js"></script>
