@@ -19,6 +19,7 @@ async function main(){
   const binary=process.env.FDE_BINARY;
   if(!binary||!path.isAbsolute(binary)||!fs.existsSync(binary))throw Error('FDE_BINARY must identify Firefox Developer Edition');
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-synthetic-'));
+  const downloads=path.join(root,'qa-downloads');fs.mkdirSync(downloads);
   const src=path.resolve(__dirname,'..');
   const server=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);});
   let driver;
@@ -58,7 +59,11 @@ async function main(){
        });`);
     // Exercise actual Firefox reduced-motion preference, not a mocked media query.
     const options=new firefox.Options().setBinary(binary).addArguments('-headless')
-      .setPreference('ui.prefersReducedMotion',1);
+      .setPreference('ui.prefersReducedMotion',1)
+      .setPreference('browser.download.folderList',2)
+      .setPreference('browser.download.dir',downloads)
+      .setPreference('browser.download.useDownloadDir',true)
+      .setPreference('browser.helperApps.neverAsk.saveToDisk','application/json');
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
     const id=await driver.installAddon(root,true);
     assert.equal(id,manifest.browser_specific_settings.gecko.id);
@@ -302,6 +307,12 @@ async function main(){
     const exportButton=await driver.executeScript(`return ${jsEl('backup-export')}`);
     await exportButton.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('download requested')`),5000);
+    const downloaded=path.join(downloads,'chat-queue-messages.json');
+    await driver.wait(async()=>fs.existsSync(downloaded),10000);
+    assert.deepEqual(JSON.parse(fs.readFileSync(downloaded,'utf8')),{kind:'chat-queue-message-backup',version:1,items:[
+      {text:'Imported fixture pending',status:'pending'},
+      {text:'Imported fixture uncertain',status:'uncertain'}
+    ]},'Actual Firefox download must contain parseable, metadata-free JSON');
     // Clean up fixture queue using the normal confirmed UI.
     const clearImported=await driver.executeScript(`return ${jsEl('clear')}`);
     await clearImported.click();await clearImported.click();
