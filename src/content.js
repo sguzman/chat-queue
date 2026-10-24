@@ -539,7 +539,7 @@
       if (state.blockedRecord) return {ok:false,error:'unsupported-saved-queue'};
       // Optional optimistic compare-and-swap. A random per-document token
       // prevents revision ABA after reload or a new tab instance.
-      if (['enqueue','update','reorder','move','remove','clear','resolve'].includes(action) &&
+      if (['enqueue','enqueueSequenced','update','reorder','move','remove','clear','resolve'].includes(action) &&
           payload && Object.hasOwn(payload,'ifMatch') && payload.ifMatch!==state.etag)
         return {ok:false,error:'revision-conflict',revision:state.revision};
       if (action==='enqueueSequenced') {
