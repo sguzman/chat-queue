@@ -74,6 +74,13 @@ async function main(){
   assert.match(privateFreeAudit,/finished|failed/);
   assert.doesNotMatch(privateFreeAudit,/onerror|<img|synthetic-preview|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
   assert.equal(await driver.executeScript('return document.querySelectorAll("#preview-audit img").length'),0);
+  await driver.executeScript(()=>{
+    const form=document.getElementById('preview-form');
+    for(let i=0;i<25;i++)form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+  });
+  const auditRows=await driver.executeScript(
+    'return document.getElementById("preview-audit").textContent.split("\\n").length');
+  assert.equal(auditRows,20,'Preview audit must remain bounded to 20 ephemeral outcomes');
   await driver.navigate().refresh();
   await driver.wait(async()=>await driver.executeScript('return /1 saved/.test(document.querySelector("#rule-message").textContent)'),15000);
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
