@@ -297,7 +297,8 @@
     const form=editor.closest('form');
     if (!form || !form.contains(editor)) throw new Error('Composer form is missing');
     if (editorValue(editor).trim()) throw new Error('Composer contains a draft; preserved it');
-    if (form.querySelector('input[type="file"]')?.files?.length) throw new Error('Composer has attachments');
+    if ([...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length))
+      throw new Error('Composer has attachments');
     return {editor,form};
   }
   function fillComposer(editor,text) {
