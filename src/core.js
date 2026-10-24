@@ -102,6 +102,15 @@
     if(!validRequestHighWatermarks(value))return null;
     return Object.assign(Object.create(null),value||{});
   }
+  // The user can stage previous-tab recovery and confirm later, after
+  // another tab may have edited or upgraded that original record.
+  // Accept only the exact still-supported source; malformed values
+  // (including unstringifiable/cyclic objects) fail closed.
+  function matchesRecoverySnapshot(record,snapshot){
+    if(typeof snapshot!=='string'||!savedRecordSupport(record).ok)return false;
+    try{return JSON.stringify(record)===snapshot;}
+    catch{return false;}
+  }
   function normalizeSaved(value) {
     if (!value || typeof value !== 'object') return [];
     if (!Array.isArray(value.items)) return [];
@@ -176,7 +185,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, MAX_REQUEST_CLIENTS, validRequestHighWatermarks, readRequestHighWatermarks, recoveryCandidates, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, MAX_REQUEST_CLIENTS, validRequestHighWatermarks, readRequestHighWatermarks, recoveryCandidates, matchesRecoverySnapshot, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
