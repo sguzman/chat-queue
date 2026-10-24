@@ -369,8 +369,19 @@ async function main(){
     await backupFile.sendKeys(backupPath);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('backup-confirm')}&&! ${jsEl('backup-confirm')}.hidden`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
-    await (await driver.executeScript(`return ${jsEl('backup-confirm')}`)).click();
-    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),5000);
+    // Delay the first write and click twice in the same browser task.
+    // Only one staging confirmation may be consumed; no duplicate queue items
+    // and no start/control mutation while the save is pending.
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='delay'");
+    await driver.executeScript(`const button=${jsEl('backup-confirm')};button.click();button.click()`);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript(`return ${jsEl('add')}.disabled && ${jsEl('run')}.disabled`),true);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('data-note')}.textContent.includes('Imported 2 messages') && !${jsEl('add')}.disabled`),9000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // Retry uses the same guarded action as the external API and cannot
@@ -403,6 +414,25 @@ async function main(){
     await clearImported.click();await clearImported.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // A staged backup becomes stale as soon as the current queue changes.
+    // Confirmation must not silently append to a queue different from the
+    // one the user reviewed.
+    qaStage='stale-backup-confirmation';
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`const input=${jsEl('backup-file')};input.hidden=false;input.value=''`);
+    await (await driver.executeScript(`return ${jsEl('backup-file')}`)).sendKeys(backupPath);
+    await driver.wait(async()=>await driver.executeScript(`return !${jsEl('backup-confirm')}.hidden`),5000);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Queue changed after preview';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),5000);
+    await driver.executeScript(`return ${jsEl('backup-confirm')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Queue changed since import preview')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const clearStale=await driver.executeScript(`return ${jsEl('clear')}`);
+    await clearStale.click();await clearStale.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     // QA seeds the unsupported record only once. If a queue edit clobbers
     // it, a reload will reveal that corruption instead of resetting the test.
     await driver.get(`http://127.0.0.1:${server.address().port}/c/future-record`);
