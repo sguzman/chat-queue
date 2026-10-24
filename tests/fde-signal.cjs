@@ -158,6 +158,8 @@ async function main(){
     await driver.executeScript("document.getElementById('prompt-textarea').textContent=''");
     // Use a real local Firefox file input, not a fabricated FileList, to
     // exercise the production existing-attachment guard.
+    // First file input is empty. A later selected input must still block.
+    await driver.executeScript("const empty=document.createElement('input');empty.type='file';empty.id='qa-empty-attachment';document.querySelector('main form').append(empty)");
     const fixtureAttachment=path.join(tmp,'harmless-attachment.txt');
     fs.writeFileSync(fixtureAttachment,'synthetic attachment fixture');
     const attachment=await driver.executeScript(
@@ -170,7 +172,7 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     await driver.wait(async()=>await driver.executeScript(
       "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:nth-child(4)').disabled"),5000);
-    await driver.executeScript("document.querySelector('#qa-existing-attachment').remove()");
+    await driver.executeScript("document.querySelector('#qa-existing-attachment').remove();document.querySelector('#qa-empty-attachment').remove()");
     await start.click();
     await waitSends(1);
     // A restored terminal from the previous response cannot confirm a fresh
