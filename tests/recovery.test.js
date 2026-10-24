@@ -41,3 +41,23 @@ test('older unknown or submitted statuses are never automatically pending',()=>{
   const manuallyRestored=normalized.map(x=>({...x,status:'uncertain'}));
   assert.deepEqual(manuallyRestored.map(x=>x.status),['uncertain','uncertain']);
 });
+
+test('recovery source snapshot rejects deletion, edits, future versions and malformed data',()=>{
+  const saved={version:1,items:[{id:'example-id-123',text:'Recover only after review',status:'pending'}],
+    history:[{id:'finished-id-123',text:'Synthetic history',at:1730000000000,status:'finished'}]};
+  const snapshot=JSON.stringify(saved);
+  assert.equal(core.matchesRecoverySnapshot(structuredClone(saved),snapshot),true);
+  assert.equal(core.matchesRecoverySnapshot(undefined,snapshot),false);
+  assert.equal(core.matchesRecoverySnapshot(null,snapshot),false);
+  assert.equal(core.matchesRecoverySnapshot({...saved,version:99},snapshot),false);
+  assert.equal(core.matchesRecoverySnapshot({...saved,items:[{...saved.items[0],status:'submitted'}]},snapshot),false);
+  assert.equal(core.matchesRecoverySnapshot({...saved,history:[]},snapshot),false);
+  assert.equal(core.matchesRecoverySnapshot(saved,'malformed-snapshot'),false);
+  const cyclic=structuredClone(saved);
+  cyclic.unexpected=cyclic;
+  assert.equal(core.matchesRecoverySnapshot(cyclic,snapshot),false,
+    'a malformed cyclic record cannot throw from Confirm recovery');
+  const throwing=structuredClone(saved);
+  throwing.extra={toJSON(){throw new Error('synthetic hostile serializer');}};
+  assert.equal(core.matchesRecoverySnapshot(throwing,snapshot),false);
+});
