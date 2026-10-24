@@ -210,3 +210,7 @@ The independent-client Firefox Developer Edition API fixture now rejects one act
 ## ✍️ Draft preservation during an in-flight Add
 
 The synthetic Firefox fixture delays the first actual extension-storage queue write, types a second draft while that Add is pending, and verifies the earlier completion never clears the newer draft. The second message is then added and both persist after reload without Send. This fixes an actual asynchronous HUD correctness race surfaced by repeated two-message rapid-terminal Firefox QA. The rapid-terminal fixture also waits for each durable Add before starting; a UI count alone is not treated as authenticated submission evidence.
+
+## 🪶 Signal-only HUD rendering and editor focus
+
+The native Firefox synthetic HUD fixture verifies that changing a legacy **unverified** page Signal phase updates the status label without replacing the focused queued-message editor, losing its unsaved text, or blurring it. It also checks that a collapsed HUD does not reconstruct hidden queue rows on Signal-only status changes. The production render path now rebuilds item/history rows only when the queue revision or row-control state changes, and preserves an active editor's value and selection if rebuilding is necessary. These are targeted DOM-work and focus-preservation regressions, **not** CPU, memory, or authenticated-ChatGPT performance certification.

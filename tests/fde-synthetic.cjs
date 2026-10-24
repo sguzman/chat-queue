@@ -153,6 +153,24 @@ async function main(){
     await edit.click();
     let editField=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea')");
     await editField.clear();await editField.sendKeys('Synthetic edited first message');
+    // A page-side unverified Signal may redraw status, but must not replace
+    // the user's focused editor or discard any unsaved queued-message draft.
+    await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      window.__qaEditingNode=sh.querySelector('.item:first-child textarea');
+      document.documentElement.dataset.chatSignalsState='generating';
+    });
+    await driver.wait(async()=>await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('generating (unverified)')),4000);
+    const editPreserved=await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const field=sh.querySelector('.item:first-child textarea');
+      return {same:window.__qaEditingNode===field,
+        focused:sh.activeElement===field,value:field?.value};
+    });
+    assert.deepEqual(editPreserved,{same:true,focused:true,value:'Synthetic edited first message'},
+      'Signal-only updates must preserve the actual focused textarea, not merely its text');
     let saveEdit=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:first-child')");
     await saveEdit.click();
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic edited first message'"),5000);
@@ -233,6 +251,17 @@ async function main(){
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
+    await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      window.__qaCollapsedRow=sh.querySelector('.item:first-child');
+      document.documentElement.dataset.chatSignalsState='finished';
+    });
+    await driver.wait(async()=>await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('finished (unverified)')),4000);
+    assert.equal(await driver.executeScript(() =>
+      window.__qaCollapsedRow===document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child')),
+      true,'Collapsed status changes must avoid replacing hidden queue rows');
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),false);
     await driver.executeScript(`const el=${jsEl('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}))`);

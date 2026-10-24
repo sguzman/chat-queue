@@ -134,6 +134,7 @@
   const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
     state.trusted.origin==='fresh'&&state.trusted.confidence!=='unknown'&&
     performance.now()-state.trustedAt>=0&&performance.now()-state.trustedAt<15000);
+  let paintedRows=null;
   function render() {
     if (state.destroyed) return;
     host.dataset.theme=state.theme;els.theme.value=state.theme;
@@ -159,6 +160,20 @@
     els.body.hidden = state.collapsed;
     els.status.hidden = state.collapsed;
     place();
+    // Phase, theme and status changes can be frequent. They affect the
+    // header, not the item DOM. Preserving unchanged rows also preserves an
+    // open editor's focus and prevents O(queue-size) DOM churn per Signal.
+    const rowsState=[state.key,state.revision,state.editing,state.attempting,
+      state.importing,state.running,state.awaiting,state.blockedRecord];
+    if(paintedRows&&paintedRows.every((v,i)=>v===rowsState[i]))return;
+    const oldRow=state.editing?[...els.items.children].find(row=>
+      row.dataset.itemId===state.editing):null;
+    const oldEditor=oldRow?.querySelector('textarea');
+    const editorDraft=oldEditor?.value;
+    const restoreFocus=oldEditor&&shadow.activeElement===oldEditor;
+    const selection=restoreFocus
+      ? [oldEditor.selectionStart,oldEditor.selectionEnd,oldEditor.selectionDirection]
+      : null;
     els.items.replaceChildren();
     if (!state.items.length) {
       const empty=document.createElement('div');empty.className='empty';empty.textContent='No queued messages.';els.items.append(empty);
@@ -224,7 +239,9 @@
       row.addEventListener('pointerup',event=>endPointer(event));
       row.addEventListener('pointercancel',event=>endPointer(event,true));
       if (state.editing === item.id) {
-        const textarea=document.createElement('textarea');textarea.value=item.text;textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
+        const textarea=document.createElement('textarea');
+        textarea.value=editorDraft===undefined?item.text:editorDraft;
+        textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
         const ctrls=document.createElement('div');ctrls.className='controls';
         ctrls.append(button('Save','Save edit',()=>{if (state.importing||!core.validText(textarea.value)) return;item.text=textarea.value;state.editing=null;void save();render();},state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
       } else {
@@ -243,6 +260,14 @@
       }
       els.items.append(row);
     });
+    if(restoreFocus){
+      const nextEditor=els.items.querySelector('textarea[aria-label="Edit queued message"]');
+      if(nextEditor){
+        nextEditor.focus({preventScroll:true});
+        nextEditor.setSelectionRange(...selection);
+      }
+    }
+    paintedRows=rowsState;
   }
   function statusNote(message) { state.note = message; render();publish(); }
   async function recoverRegistry(){
