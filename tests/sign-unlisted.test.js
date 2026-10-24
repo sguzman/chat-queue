@@ -63,3 +63,59 @@ test('signing implementation confines upload to unlisted channel and allowlisted
  assert.match(script,/--warnings-as-errors','--boring'\],\{env:preflightEnv\}/);
  assert.match(script,/--no-input'\],\{env:process\.env\}/);
 });
+
+test('fake local signing tool proves ordered gates and secret isolation without network',()=>{
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-fake-sign-'));
+ try{
+  fs.mkdirSync(path.join(temp,'scripts'));
+  for(const file of ['release-gate.mjs','sign-unlisted.mjs'])
+   fs.copyFileSync(path.join(root,'scripts',file),path.join(temp,'scripts',file));
+  for(const file of ['manifest.json','progress.json'])
+   fs.copyFileSync(path.join(root,file),path.join(temp,file));
+  for(const dir of ['src','options'])
+   fs.cpSync(path.join(root,dir),path.join(temp,dir),{recursive:true});
+  const ledgerFile=path.join(temp,'progress.json');
+  const ledger=JSON.parse(fs.readFileSync(ledgerFile,'utf8'));
+  for(const task of ledger.milestones.flatMap(m=>m.phases.flatMap(p=>p.features.flatMap(f=>f.tasks)))){
+   task.status='verified';task.evidence=['Synthetic fixture — not production acceptance'];
+  }
+  fs.writeFileSync(ledgerFile,JSON.stringify(ledger));
+  const bin=path.join(temp,'bin');fs.mkdirSync(bin);
+  const fakeNpm=path.join(bin,'npm');
+  fs.writeFileSync(fakeNpm,`#!/usr/bin/env node
+const fs=require('node:fs');
+const path=require('node:path');
+const args=process.argv.slice(2);
+const phase=args.includes('sign')?'sign':args.includes('lint')?'lint':'check';
+const record={phase,hasKey:Boolean(process.env.WEB_EXT_API_KEY),
+ hasSecret:Boolean(process.env.WEB_EXT_API_SECRET)};
+if(phase==='sign'){
+ const index=args.indexOf('--source-dir');
+ const staging=args[index+1];
+ record.stagedManifest=fs.existsSync(path.join(staging,'manifest.json'));
+ record.stagedCore=fs.existsSync(path.join(staging,'src','core.js'));
+ record.stagedTests=fs.existsSync(path.join(staging,'tests'));
+ record.stagedPrivate=fs.existsSync(path.join(staging,'progress.json'));
+}
+fs.appendFileSync(path.join(process.cwd(),'observed-signing-processes.jsonl'),JSON.stringify(record)+'\\n');
+process.exit(0);
+`);
+  fs.chmodSync(fakeNpm,0o755);
+  const env={...process.env,PATH:bin+path.delimiter+process.env.PATH,
+   WEB_EXT_API_KEY:'TEST_CREDENTIAL_ONLY',WEB_EXT_API_SECRET:'TEST_SECRET_ONLY'};
+  const result=spawnSync(process.execPath,[path.join(temp,'scripts/sign-unlisted.mjs')],
+   {cwd:temp,env,encoding:'utf8',timeout:15000});
+  assert.equal(result.status,0,result.stderr);
+  const observed=fs.readFileSync(path.join(temp,'observed-signing-processes.jsonl'),'utf8')
+   .trim().split('\\n').map(JSON.parse);
+  assert.deepEqual(observed.map(o=>o.phase),['check','lint','sign']);
+  assert.deepEqual(observed.map(o=>[o.hasKey,o.hasSecret]),[
+   [false,false],[false,false],[true,true]
+  ]);
+  assert.equal(observed[2].stagedManifest,true);
+  assert.equal(observed[2].stagedCore,true);
+  assert.equal(observed[2].stagedTests,false);
+  assert.equal(observed[2].stagedPrivate,false);
+  assert.doesNotMatch(result.stdout+result.stderr,/TEST_CREDENTIAL_ONLY|TEST_SECRET_ONLY/);
+ }finally{fs.rmSync(temp,{recursive:true,force:true});}
+});
