@@ -929,11 +929,22 @@ async function main(){
       draft.dispatchEvent(new Event('input',{bubbles:true}));
       document.documentElement.dataset.qaRejectQueueSave='delay';
       root.getElementById('add').click();
+      // The same slow Add receives a rapid second click. One deliberate
+      // action must enqueue only one prompt, never two duplicates.
+      root.getElementById('add').click();
+      if(!root.getElementById('add').disabled)
+        throw new Error('Add must lock synchronously until the first save settles');
       // A newer user draft arrives while the first save is still delayed.
       draft.value='Second protected synthetic draft';
       draft.dispatchEvent(new Event('input',{bubbles:true}));
     });
     await driver.sleep(2950);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent),
+      '1 queued','Rapid duplicate clicks must not enqueue a second copy');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').disabled),
+      false,'Durable first Add should unlock the control');
     assert.equal(await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value),
       'Second protected synthetic draft',

@@ -222,3 +222,7 @@ The synthetic native Firefox QA fixture now injects a `storage.local.set` reject
 ## 🧪 One-hundred-message Firefox UI workload
 
 An isolated real Firefox Developer Edition fixture preloads **100 bounded synthetic queued messages** (800-character body each), then applies 80 legacy unverified Signal phase changes in the same document. A MutationObserver asserts zero queue-row added/removed DOM nodes during the status-only workload, with unchanged row identity and zero Send attempts. CI prints elapsed milliseconds as a bounded observational metric, **not** a general CPU, memory, power or authenticated-chat performance certification. This exercise guards the optimized renderer against reintroducing O(queue-size) DOM reconstruction for unrelated status events.
+
+## 🖱️ Duplicate Add click prevention
+
+The native Firefox synthetic fixture double-clicks **Add** during a delayed durable queue write, verifies only one prompt is queued, and checks the control locks synchronously until the write finishes. It then types and queues a distinct second prompt; both persist without duplicate entries after reload, while the newer draft survives the first completion. This is a HUD click-level safety property; external API clients have separate sequenced-idempotency controls.

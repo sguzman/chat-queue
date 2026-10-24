@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -153,7 +153,7 @@
     els['backup-choose'].disabled=state.importing;
     els['recovery-confirm'].disabled=state.importing;
     els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
-    els.add.disabled=state.importing;
+    els.add.disabled=state.importing||state.adding;
     els.run.disabled=state.importing;
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
@@ -873,11 +873,20 @@
   let draftInputVersion=0;
   els.draft.addEventListener('input',()=>{draftInputVersion++;});
   els.add.addEventListener('click',async()=>{
+    // A double click during a slow durable write must never enqueue the same
+    // draft twice. Keep newer typing intact while the button is disabled.
+    if(state.adding)return;
     const text=els.draft.value,version=draftInputVersion;
-    const response=await act('enqueue',{text},true);
-    if(response.ok){
-      if(draftInputVersion===version&&els.draft.value===text)els.draft.value='';
-    }else statusNote(response.error);
+    state.adding=true;render();
+    try{
+      const response=await act('enqueue',{text},true);
+      if(response.ok){
+        if(draftInputVersion===version&&els.draft.value===text)els.draft.value='';
+      }else statusNote(response.error);
+    }finally{
+      state.adding=false;
+      if(!state.destroyed)render();
+    }
   });
   // Confirm clear must require consecutive intent. Any unrelated click
   // cancels an armed confirmation, including clicks outside the HUD.
