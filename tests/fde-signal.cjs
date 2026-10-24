@@ -47,7 +47,7 @@ function prepareQueue(dir,source){
   fs.writeFileSync(contentPath,fs.readFileSync(contentPath,'utf8').replace(journalHandoff,
     "      const qaStored=await api.storage.local.get(state.key);"+
     "if(qaStored[state.key]?.items?.find(x=>x.id===item.id)?.status!=='uncertain')"+
-    "throw new Error('QA: composer handoff preceded durable uncertain journal');\\n"+
+    "throw new Error('QA: composer handoff preceded durable uncertain journal');\n"+
     journalHandoff));
   // Only QA origin allowlist changes; production background is otherwise intact.
   const bgPath=path.join(dir,'src/background.js');
