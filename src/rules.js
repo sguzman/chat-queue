@@ -6,7 +6,7 @@
   'use strict';
   const contract=root.ChatQueueSignal;
   const VERSION=1,MAX_RULES=32,MAX_MESSAGE_CHARS=24000,MAX_SEEN=256;
-  const MAX_DURATION_MS=3600000;
+  const MAX_DURATION_MS=3600000,MAX_RULE_LINKS=8;
   const PHASES=new Set(['finished','failed','interrupted','limit']);
   const CONFIDENCES=new Set(['any','observed','inferred']);
   const ACTIONS=new Set(['propose','pause']);
@@ -14,6 +14,8 @@
   const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
     (Object.getPrototypeOf(x)===Object.prototype||Object.getPrototypeOf(x)===null);
   const keys=(x,names)=>Object.keys(x).every(k=>names.includes(k));
+  const validLinks=value=>value===undefined||(Array.isArray(value)&&value.length<=MAX_RULE_LINKS&&
+    value.every(id=>typeof id==='string'&&ID.test(id))&&new Set(value).size===value.length);
   function normalize(input){
     if(!Array.isArray(input)||input.length>MAX_RULES)return {ok:false,error:'invalid-rule-count'};
     const ids=new Set(),out=[];
@@ -22,8 +24,8 @@
          item.version!==VERSION||typeof item.id!=='string'||!ID.test(item.id)||
          ids.has(item.id)||typeof item.enabled!=='boolean'||
          !Number.isSafeInteger(item.priority)||item.priority<0||item.priority>1000||
-         !plain(item.when)||!keys(item.when,['phase','confidence','minDurationMs','maxDurationMs'])||
-         !PHASES.has(item.when.phase)||
+         !plain(item.when)||!keys(item.when,['phase','confidence','minDurationMs','maxDurationMs','dependsOn','skipIf'])||
+         !PHASES.has(item.when.phase)||!validLinks(item.when.dependsOn)||!validLinks(item.when.skipIf)||
          (item.when.confidence!==undefined&&!CONFIDENCES.has(item.when.confidence))||
          (item.when.minDurationMs!==undefined&&(!Number.isSafeInteger(item.when.minDurationMs)||item.when.minDurationMs<0||item.when.minDurationMs>MAX_DURATION_MS))||
          (item.when.maxDurationMs!==undefined&&(!Number.isSafeInteger(item.when.maxDurationMs)||item.when.maxDurationMs<0||item.when.maxDurationMs>MAX_DURATION_MS))||
@@ -40,8 +42,29 @@
         priority:item.priority,when:Object.freeze({phase:item.when.phase,
           confidence:item.when.confidence||'any',
           ...(item.when.minDurationMs===undefined?{}:{minDurationMs:item.when.minDurationMs}),
-          ...(item.when.maxDurationMs===undefined?{}:{maxDurationMs:item.when.maxDurationMs})}),then:Object.freeze(item.then.type==='pause'
+          ...(item.when.maxDurationMs===undefined?{}:{maxDurationMs:item.when.maxDurationMs}),
+          ...(item.when.dependsOn===undefined?{}:{dependsOn:Object.freeze([...item.when.dependsOn])}),
+          ...(item.when.skipIf===undefined?{}:{skipIf:Object.freeze([...item.when.skipIf])})}),then:Object.freeze(item.then.type==='pause'
             ? {type:'pause'} : {type:'propose',text:item.then.text})}));
+    }
+    // References cannot point outside this bounded rule library, and cyclic
+    // prerequisites would be impossible to satisfy without repeated actions.
+    const byId=new Map(out.map(rule=>[rule.id,rule]));
+    const visited=new Set(),active=new Set();
+    const visit=id=>{
+      if(active.has(id))return false;
+      if(visited.has(id))return true;
+      active.add(id);
+      for(const dep of byId.get(id).when.dependsOn||[]){
+        if(!byId.has(dep)||!visit(dep))return false;
+      }
+      active.delete(id);visited.add(id);return true;
+    };
+    for(const rule of out){
+      const deps=rule.when.dependsOn||[],skip=rule.when.skipIf||[];
+      if([...deps,...skip].some(ref=>ref===rule.id||!byId.has(ref))||
+         deps.some(ref=>skip.includes(ref))||!visit(rule.id))
+        return {ok:false,error:'invalid-dependency'};
     }
     out.sort((a,b)=>b.priority-a.priority||a.id.localeCompare(b.id,'en'));
     return {ok:true,rules:Object.freeze(out)};
@@ -54,9 +77,14 @@
        !used.every(x=>typeof x==='string'&&x.length<=650))
       return {ok:false,error:'invalid-history'};
     // Timing context is synthetic in preview mode; never use it to send.
-    if(context!==undefined&&(!plain(context)||!keys(context,['stateDurationMs'])||
+    if(context!==undefined&&(!plain(context)||!keys(context,['stateDurationMs','completedRuleIds'])||
        (context.stateDurationMs!==undefined&&(!Number.isSafeInteger(context.stateDurationMs)||
-        context.stateDurationMs<0||context.stateDurationMs>MAX_DURATION_MS))))
+        context.stateDurationMs<0||context.stateDurationMs>MAX_DURATION_MS))||
+       (context.completedRuleIds!==undefined&&
+        (!Array.isArray(context.completedRuleIds)||context.completedRuleIds.length>MAX_RULES||
+         new Set(context.completedRuleIds).size!==context.completedRuleIds.length||
+         context.completedRuleIds.some(id=>typeof id!=='string'||!ID.test(id)||
+           !valid.rules.some(rule=>rule.id===id))))))
       return {ok:false,error:'invalid-context'};
     // Parse shape only; the Firefox sender principal is verified separately.
     const s=contract?.parse({type:contract.TYPE,signal:event});
@@ -65,7 +93,10 @@
       return {ok:true,decision:null,reason:'not-actionable'};
     const key=eventKey(s);
     if(used.includes(key))return {ok:true,decision:null,reason:'already-considered'};
+    const completed=new Set(context?.completedRuleIds||[]);
     const match=valid.rules.find(r=>r.enabled&&r.when.phase===s.phase&&
+      (r.when.dependsOn||[]).every(id=>completed.has(id))&&
+      !(r.when.skipIf||[]).some(id=>completed.has(id))&&
       (r.when.confidence==='any'||r.when.confidence===s.confidence)&&
       (r.when.minDurationMs===undefined||(context?.stateDurationMs!==undefined&&context.stateDurationMs>=r.when.minDurationMs))&&
       (r.when.maxDurationMs===undefined||(context?.stateDurationMs!==undefined&&context.stateDurationMs<=r.when.maxDurationMs)));
@@ -73,7 +104,7 @@
     return {ok:true,decision:Object.freeze({ruleId:match.id,eventKey:key,
       action:match.then,approvalRequired:true}),reason:'preview-only'};
   }
-  const api=Object.freeze({VERSION,MAX_RULES,MAX_SEEN,MAX_DURATION_MS,PHASES,normalize,evaluate});
+  const api=Object.freeze({VERSION,MAX_RULES,MAX_SEEN,MAX_DURATION_MS,MAX_RULE_LINKS,PHASES,normalize,evaluate});
   root.ChatQueueRules=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
