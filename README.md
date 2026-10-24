@@ -114,3 +114,9 @@ The API's message type remains `chat-queue/v1`. Capability negotiation now expos
 ## 💾 Storage write safety
 
 A pending Firefox local-storage write blocks Start; a rejected save pauses the queue and blocks dispatch until another save succeeds. A successful retry of storage does not automatically resume sending. [Firefox rejected/slow-write regression acceptance](https://github.com/sguzman/chat-queue/actions/runs/40046386978). The test uses synthetic page and storage faults, not an authenticated ChatGPT session or an actual browser crash.
+
+## 🧭 Sixteen-tab Firefox workload
+
+The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
+
+This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
