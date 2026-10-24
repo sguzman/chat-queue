@@ -1091,9 +1091,9 @@
                   "id": "M7-10",
                   "emoji": "📚",
                   "title": "Publish installation, API, QA and recovery documentation",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "README/API/QA drafts exist; final release acceptance pending"
+                    "Self-contained public README with isolated Firefox Developer Edition install/no-Send instructions, scoped API.md, docs/QA.md, docs/SECURITY.md, docs/BACKUP.md, docs/MOZILLA-SIGNING.md, Signal provider handoff, and architecture/recovery contracts. New scripts/docs-audit.mjs integrated into `npm run check` validates all required guide links and 14 Markdown files; disposable adversarial fixture verifies a broken link and removed guide are rejected. GitHub Actions static-and-unit on run https://github.com/sguzman/chat-queue/actions/runs/40058741210 passed docs audit and 78 tests. Final authenticated release and signing still blocked independently by M7-04, M7-11, M7-12."
                   ]
                 },
                 {
