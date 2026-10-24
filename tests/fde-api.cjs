@@ -281,6 +281,21 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'update',tabId,payload:{id:itemId,text:'Duplicate stale update',ifMatch:snapshot.etag}});
   assert.equal(result.error,'revision-conflict');
   assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).items[0].text,'Synthetic updated message');
+  stage='rejected-api-update-rollback';
+  const beforeEditFailure=await command({type:'chat-queue/v1',action:'status',tabId});
+  await driver.executeScript("document.documentElement.dataset.qaRejectQueueSet='once'");
+  const failedEdit=await command({type:'chat-queue/v1',action:'update',tabId,
+    payload:{id:itemId,text:'Must never survive a rejected save',ifMatch:beforeEditFailure.etag}});
+  assert.equal(failedEdit.error,'queue-save-failed');
+  const afterEditFailure=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.deepEqual(afterEditFailure.items,beforeEditFailure.items,
+    'A rejected API update must not remain in memory');
+  assert.notEqual(afterEditFailure.etag,beforeEditFailure.etag,
+    'Rolling back a rejected mutation must invalidate its optimistic revision token');
+  const recoveredEdit=await command({type:'chat-queue/v1',action:'update',tabId,
+    payload:{id:itemId,text:'Synthetic updated message',ifMatch:afterEditFailure.etag}});
+  assert.equal(recoveredEdit.ok,true,'A fresh explicit update must restore normal storage');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   // Approved clients must supply an exact permutation; invalid requests must
   // not modify the queue or permit a subsequent unintended Send.
   const second=await command({type:'chat-queue/v1',action:'enqueue',tabId,payload:{text:'Synthetic second item'}});

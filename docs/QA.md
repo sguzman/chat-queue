@@ -234,3 +234,7 @@ The disposable Firefox HUD fault-injection fixture rejects the first `storage.lo
 ## 🔒 Volatile HUD draft conversation isolation
 
 The disposable Firefox Developer Edition fixture types distinct **unsubmitted** HUD drafts on two synthetic conversation routes, navigates A → B → A → B using `history.pushState`, and verifies neither route displays the other route's draft. Returning to an already visited route restores only that route's same-tab volatile draft, without syncing or writing it to extension queue storage. Committing B's draft leaves A's queue empty and A's draft intact; all Send counters remain zero. The in-memory draft map is bounded to 32 routes and must not be confused with durable queued-message recovery.
+
+## 🔁 Atomic Firefox API edits under rejected storage writes
+
+The external-client disposable Firefox Developer Edition fixture rejects an actual queue `storage.local.set` during an `update` with optimistic `ifMatch`, then requires both the **in-memory prompt text and order** to match the prior status exactly, with a rotated revision token. Only a **new**, explicitly issued update using the fresh revision may commit afterward. The Queue's bounded `update`, `move`, `reorder`, `remove`, `clear` and explicit uncertain-item resolution now share one revision-scoped durable mutation/rollback path and decline overlapping pending saves. Native acceptance is bounded to the tested scenarios, not a cross-tab transactional guarantee.

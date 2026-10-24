@@ -603,6 +603,27 @@
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.routing=false;render();host.style.removeProperty('visibility');publish();
   }
+  // Changes must either reach durable storage or leave no in-memory phantom.
+  // Deep-copy items because updating one item mutates an existing object.
+  async function persistItemMutation(mutate) {
+    if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
+    const key=state.key,revision=state.revision;
+    const before=state.items.map(item=>({...item}));
+    mutate();
+    const write=save();
+    render();
+    try{await write;}
+    catch{
+      if(state.key===key&&state.revision===revision+1){
+        state.items=before;
+        state.revision++;state.etag=uid();
+        render();publish();
+      }
+      return {ok:false,error:'queue-save-failed'};
+    }
+    render();
+    return {ok:true};
+  }
   async function act(action,payload,local=false,requester=null) {
     if (!state.initialized) return {ok:false,error:'not-ready'};
     if(state.routing)return {ok:false,error:'route-transition'};
@@ -686,13 +707,13 @@
         if(state.attempting) return {ok:false,error:'dispatch-in-progress'};
         const item=state.items.find(i=>i.id===payload?.id);
         if(!item||!core.validText(payload?.text))return {ok:false,error:'invalid-message'};
-        item.text=payload.text;await save();render();return {ok:true};
+        return persistItemMutation(()=>{item.text=payload.text;});
       }
       if (action==='reorder') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
         const ids=payload?.ids;
         if(!core.exactPermutation(state.items,ids))return {ok:false,error:'invalid-order'};
-        state.items=ids.map(id=>state.items.find(i=>i.id===id));await save();render();return {ok:true};
+        return persistItemMutation(()=>{state.items=ids.map(id=>state.items.find(i=>i.id===id));});
       }
       if (action==='move') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
@@ -700,11 +721,11 @@
         if(typeof id!=='string'||!state.items.some(item=>item.id===id)||
            (beforeId!==null&&(typeof beforeId!=='string'||!state.items.some(item=>item.id===beforeId)))||
            id===beforeId)return {ok:false,error:'invalid-order'};
-        state.items=core.moveTo(state.items,id,beforeId);await save();render();return {ok:true};
+        return persistItemMutation(()=>{state.items=core.moveTo(state.items,id,beforeId);});
       }
       if (action==='remove' || action==='clear') {
         if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
-        state.items=action==='clear'?[]:state.items.filter(i=>i.id!==payload?.id);await save();render();return {ok:true};
+        return persistItemMutation(()=>{state.items=action==='clear'?[]:state.items.filter(i=>i.id!==payload?.id);});
       }
       if (action==='resolve') {
         // Recovery is never an implicit continuation of an active or
@@ -713,14 +734,15 @@
           return {ok:false,error:'pause-before-resolving-uncertain'};
         const item=state.items.find(i=>i.id===payload?.id && i.status==='uncertain');
         if(!item)return {ok:false,error:'not-uncertain'};
-        if(payload?.decision==='retry')item.status='pending';
-        else if(payload?.decision==='discard')state.items=state.items.filter(i=>i.id!==item.id);
-        else return {ok:false,error:'invalid-decision'};
-        await save();
-        statusNote(payload.decision==='retry'
+        if(!['retry','discard'].includes(payload?.decision))return {ok:false,error:'invalid-decision'};
+        const result=await persistItemMutation(()=>{
+          if(payload.decision==='retry')item.status='pending';
+          else state.items=state.items.filter(i=>i.id!==item.id);
+        });
+        if(result.ok)statusNote(payload.decision==='retry'
           ? 'Retry marked pending; press Start separately'
           : 'Uncertain message discarded; queue remains paused');
-        return {ok:true};
+        return result;
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
