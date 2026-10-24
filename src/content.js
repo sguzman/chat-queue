@@ -35,7 +35,7 @@
     :host([data-theme="dark"]){color-scheme:dark;--panel:#202329;--text:#f6f7fb;--border:#526075;--header:#282e38;--status:#1b2027;--item:#2b3039;--button:#394553;--button-hover:#526278;--button-border:#637488;--muted:#bfcedf;--input:#151a20;--accent:#abcff5;--accent-text:#172430;--focus:#86b6e8;--shadow:#0008;--warning:#efac74}
     *,*::before,*::after{box-sizing:border-box}
     #body{min-height:0;overflow:hidden;display:flex;flex:1 1 auto;flex-direction:column}
-    .panel{background:var(--panel);color:var(--text);font:13px/1.45 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;border:1px solid var(--border);border-radius:13px;box-shadow:0 12px 34px var(--shadow);overflow:hidden;max-height:min(65vh,680px);display:flex;flex-direction:column}
+    .panel{background:var(--panel);color:var(--text);font:13px/1.45 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif;border:1px solid var(--border);border-radius:13px;box-shadow:0 12px 34px var(--shadow);overflow:hidden;max-height:min(75vh,680px);display:flex;flex-direction:column}
     .top{display:flex;align-items:center;gap:8px;padding:11px 12px;background:var(--header);border-bottom:1px solid var(--border);touch-action:none;user-select:none;cursor:grab}
     .top:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
     .top strong{font-size:14px;letter-spacing:.01em;flex:1}.small{font-size:11px;color:var(--muted)}
@@ -85,7 +85,7 @@
     // Budget dimensions in rendered viewport pixels, then convert to CSS units.
     const zoom=Math.max(0.25,Math.min(8,Number.parseFloat(getComputedStyle(document.documentElement).zoom)||1));
     host.style.width=`${Math.min(370,Math.max(100,(innerWidth-32)/zoom))}px`;
-    const fraction=innerWidth<=520?0.55:0.65;
+    const fraction=innerWidth<=520?0.55:0.75;
     panel.style.maxHeight=`${Math.max(48,Math.min(680,innerHeight*fraction,(innerHeight-16)/zoom))}px`;
     const rect=host.getBoundingClientRect();
     const maxRight=Math.max(0,(innerWidth-rect.width)/zoom);
