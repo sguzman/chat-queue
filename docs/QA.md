@@ -130,3 +130,9 @@ The production-only `scripts/security-audit.mjs` is part of `npm run check`: sto
 ## 💾 Failed and delayed local queue writes
 
 A QA-only content-script substitution makes `browser.storage.local.set` reject or complete after a deliberate delay. The real Firefox Developer Edition HUD must reject Start with `storage-unavailable` after a failed write and `queue-save-pending` before a delayed write finishes. Once another save commits, the queue remains paused and still requires authenticated Signal authority and a separate Start action. A reload must preserve the successfully saved items without a Send. [Accepted browser regression](https://github.com/sguzman/chat-queue/actions/runs/40046386978). This does not simulate power loss, genuine Firefox quota exhaustion or a live ChatGPT editor.
+
+## 🧭 Sixteen-tab Firefox workload
+
+The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
+
+This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
