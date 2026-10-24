@@ -77,7 +77,7 @@ The same CI suite verifies an armed **Confirm clear** action is cancelled by an 
 
 ## 🔌 Scoped conditional-preview API
 
-[Firefox Developer Edition CI 40037217649](https://github.com/sguzman/chat-queue/actions/runs/40037217649) installs a synthetic second extension, grants a `rules` permission independently from all queue read/send scopes, successfully previews a caller-supplied synthetic failure/pause rule, then revokes the `rules` scope and observes `forbidden-scope` on the same request. The receiver accepts only strict typed declarative input; no queue tab receives a preview or Send. Full rule CRUD, user activation and provider events remain separate gates.
+[Firefox Developer Edition CI 40037217649](https://github.com/sguzman/chat-queue/actions/runs/40037217649) installs a synthetic second extension, grants a `rules` permission independently from all queue read/send scopes, successfully previews a caller-supplied synthetic failure/pause rule, then revokes the `rules` scope and observes `forbidden-scope` on the same request. The receiver accepts only strict typed declarative input; no queue tab receives a preview or Send. Native Firefox [rule-library CRUD acceptance](https://github.com/sguzman/chat-queue/actions/runs/40118134016) now separately verifies per-extension persistent definitions, revision conflicts, rulesChanged event metadata and denial after rules scope removal. User activation and authenticated provider events remain separate gates.
 
 ## 🗂️ Persisted preview definitions
 
