@@ -591,10 +591,8 @@ async function main(){
       `return ${jsEl('status')}.textContent.includes('qa-storage-rejected')`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
     await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
-    await driver.executeScript(`return ${jsEl('backup-export')}.click()`);
-    await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('status')}.textContent.includes('Backup unavailable while queue changes')`),5000);
-    assert.equal(await driver.executeScript(`return ${jsEl('backup-export')}.disabled`),true);
+    assert.equal(await driver.executeScript(`return ${jsEl('backup-export')}.disabled`),true,
+      'Failed storage write must disable exporting unsaved in-memory data');
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('storage-unavailable')`),5000);
