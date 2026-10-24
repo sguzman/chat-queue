@@ -97,6 +97,19 @@ async function main(){
               return browser.storage.local.set({[key]:record}).then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
+          if(msg.route==='/c/max-queue-performance'){
+            const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
+            return browser.storage.local.get(key).then(saved=>{
+              if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
+              const items=Array.from({length:100},(_,i)=>({
+                id:'perf-item-'+String(i).padStart(4,'0'),
+                text:'Synthetic performance message '+i+': '+'x'.repeat(800),
+                status:'pending'
+              }));
+              return browser.storage.local.set({[key]:{version:1,items}})
+                .then(()=>({ok:true,tabId:sender.tab.id}));
+            });
+          }
           return Promise.resolve({ok:true,tabId:sender.tab.id});
         }
         if(msg.action==='state'){
@@ -941,6 +954,45 @@ async function main(){
         .map(x=>x.textContent)),
       ['First slow synthetic prompt','Second protected synthetic draft']);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+
+    qaStage='100-item-status-render-workload';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/max-queue-performance');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='100 queued'),12000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('items').querySelectorAll('.item').length),100);
+    const perf=await driver.executeAsyncScript(function(){
+      const done=arguments[arguments.length-1];
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const items=shadow.getElementById('items'),first=items.firstElementChild;
+      let rowMutations=0;
+      const observer=new MutationObserver(records=>{
+        for(const record of records)rowMutations+=record.addedNodes.length+record.removedNodes.length;
+      });
+      observer.observe(items,{childList:true});
+      const start=performance.now();
+      (async()=>{
+        for(let i=0;i<80;i++){
+          document.documentElement.dataset.chatSignalsState=i%2?'generating':'finished';
+          await new Promise(resolve=>setTimeout(resolve,0));
+        }
+        await new Promise(resolve=>setTimeout(resolve,60));
+        observer.disconnect();
+        done({elapsedMs:Math.round(performance.now()-start),rowMutations,
+          sameFirst:first===items.firstElementChild,
+          count:items.querySelectorAll('.item').length});
+      })().catch(err=>done({error:String(err)}));
+    });
+    assert.equal(perf.error,undefined,'Performance workload must execute');
+    assert.equal(perf.count,100);
+    assert.equal(perf.rowMutations,0,
+      'Unverified Signal-only phase changes must not churn 100 queue rows');
+    assert.equal(perf.sameFirst,true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    console.log('FDE 100-item Signal status workload (80 changes): '+JSON.stringify(perf));
 
     qaStage='teardown';
     await driver.uninstallAddon(id);

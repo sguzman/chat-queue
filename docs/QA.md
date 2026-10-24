@@ -218,3 +218,7 @@ The native Firefox synthetic HUD fixture verifies that changing a legacy **unver
 ## 🧯 Repainting rollback after rejected history deletion
 
 The synthetic native Firefox QA fixture now injects a `storage.local.set` rejection into confirmed history deletion, verifies the in-memory history is restored **and visibly repainted without reload**, then verifies that history still exists after reload. The optimized queue-row rendering cache includes collection identity and length in addition to revision, so a failed write's rollback cannot leave a stale cleared-history display. The synthetic test never sends a message and does not imply authenticated-site acceptance.
+
+## 🧪 One-hundred-message Firefox UI workload
+
+An isolated real Firefox Developer Edition fixture preloads **100 bounded synthetic queued messages** (800-character body each), then applies 80 legacy unverified Signal phase changes in the same document. A MutationObserver asserts zero queue-row added/removed DOM nodes during the status-only workload, with unchanged row identity and zero Send attempts. CI prints elapsed milliseconds as a bounded observational metric, **not** a general CPU, memory, power or authenticated-chat performance certification. This exercise guards the optimized renderer against reintroducing O(queue-size) DOM reconstruction for unrelated status events.
