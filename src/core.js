@@ -46,9 +46,23 @@
     if (value==null) return {ok:true};
     if (typeof value!=='object'||Array.isArray(value)||
         (value.version!==undefined&&value.version!==1)||
-        !Array.isArray(value.items))
+        !Array.isArray(value.items)||!validRequestHighWatermarks(value.requestHighWatermarks))
       return {ok:false,error:'unsupported-saved-queue'};
     return {ok:true};
+  }
+  const MAX_REQUEST_CLIENTS=32;
+  function validRequestHighWatermarks(marks) {
+    if(marks===undefined)return true;
+    if(!marks||typeof marks!=='object'||Array.isArray(marks)||
+       Object.keys(marks).length>MAX_REQUEST_CLIENTS)return false;
+    return Object.entries(marks).every(([id,sequence])=>
+      id.length>0&&id.length<=256&&
+      Number.isSafeInteger(sequence)&&sequence>0);
+  }
+  function readRequestHighWatermarks(saved) {
+    const value=saved?.requestHighWatermarks;
+    if(!validRequestHighWatermarks(value))return null;
+    return Object.assign(Object.create(null),value||{});
   }
   function normalizeSaved(value) {
     if (!value || typeof value !== 'object') return [];
@@ -124,7 +138,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, recoveryCandidates, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, MAX_REQUEST_CLIENTS, validRequestHighWatermarks, readRequestHighWatermarks, recoveryCandidates, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
