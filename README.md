@@ -16,6 +16,7 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - [🦊 Firefox QA](docs/QA.md) — dedicated profile, synthetic and authenticated acceptance tiers.
 - [🧬 Source provenance](docs/PROVENANCE.md) — what was studied in Jobflick Bridge/Chat Signals.
 - [🔌 External API](API.md) — implemented experimental v1 and future permission model.
+- [🦊 Unlisted signing](docs/MOZILLA-SIGNING.md) — opt-in, evidence-gated Mozilla signing path (currently blocked).
 - [📋 Development protocol](AGENTS.md) — repo rules, public-output hygiene and honest task percentages.
 
 ## ✅ Prototype capabilities (not live browser acceptance)
@@ -46,7 +47,7 @@ The local queue loader preserves unrecognized future-version records without ove
 
 Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks, real headless Firefox Developer Edition installation, a synthetic HUD/browser test, and **two-addon synthetic Signal transport** tests. These prove bounded browser mechanics, not authenticated ChatGPT sending or a working real Chat Signals publisher.
 
-Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.
+Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. `npm run release:gate` currently refuses release because the 96-task evidence ledger is incomplete; `npm run sign:unlisted` is credential-protected, gated and **does not** automatically sign or distribute anything. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.
 
 ## 🔀 History API route guard (synthetic Firefox accepted)
 
