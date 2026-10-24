@@ -101,11 +101,25 @@ async function main(){
     order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
     // Exercise native Firefox HTML5 pointer drag, not synthetic JS drag/drop.
-    const dragSource=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2)')");
-    const dragTarget=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(1)')");
+    await driver.executeScript(`window.__qaDragEvents=[];
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      for(const name of ['dragstart','dragover','drop','dragend'])
+        root.addEventListener(name,event=>{
+          if(window.__qaDragEvents.length<100)window.__qaDragEvents.push(name+':'+event.target.tagName);
+        },true);`);
+    // Start over the text preview, not the interactive controls in the
+    // draggable row, and drop in the first row's upper half.
+    const dragSource=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .preview')");
+    const dragTarget=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(1) .preview')");
     await driver.actions({async:true}).dragAndDrop(dragSource,dragTarget).perform();
-    await driver.wait(async()=>await driver.executeScript(
-      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    try{
+      await driver.wait(async()=>await driver.executeScript(
+        "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    }catch(error){
+      const diag=await driver.executeScript(`return {events:window.__qaDragEvents,
+        rows:[...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')].map(x=>x.textContent)}`);
+      throw new Error('Native Firefox drag did not reorder: '+JSON.stringify(diag)+'; '+error.message);
+    }
     // Reverse the drag through the keyboard alternative; future reload must
     // preserve this explicit final order.
     const downAfterDrag=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(2)')");
