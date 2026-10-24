@@ -818,9 +818,9 @@
                   "id": "M5-10",
                   "emoji": "🛡️",
                   "title": "Protect prompts from unapproved page scripts and extension principals",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Production closed Shadow DOM and Firefox isolated content-script globals protect queued prompt text from ordinary page DOM queries; synthetic private queued item is absent from page text/serialized DOM, with zero Send: https://github.com/sguzman/chat-queue/actions/runs/40051837389. Exact sender.id scoped extension ACL and prompt-read revocation tested separately. Authenticated page instrumentation, privileged add-on adversaries and independent privacy review remain outstanding."
+                    "Real production closed Shadow DOM and isolated content-script globals block ordinary page-script inspection of local queued prompts: https://github.com/sguzman/chat-queue/actions/runs/40051837389. Separate synthetic Firefox Developer Edition add-on with tabs and storage privileges but no Chat Queue grant obtains the correct tab ID yet receives `unauthorized` on private `status`, `not-signal-provider` on forged Chat Signals event, cannot read Queue storage and causes no Send: https://github.com/sguzman/chat-queue/actions/runs/40058444482. This is not a guarantee against compromised approved extensions or authenticated ChatGPT; independent comprehensive security review is M7-09."
                   ]
                 },
                 {
