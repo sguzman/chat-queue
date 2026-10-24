@@ -519,3 +519,17 @@ test('same-route re-registration invalidates old in-flight metadata generations'
   assert.equal(result.tabs[0].phase,'generating');
   assert.equal(result.tabs[0].running,true);
 });
+
+test('background cannot authorize a Send on any non-conversation route',async()=>{
+  const {listeners,forwards}=create();
+  for(const route of ['/', '/c/', '/share/abc', '/g/g-foo/c',
+                       '/g/g-foo', '/c/a/extra', '/search']){
+    const sender={tab:{id:919,url:'https://chatgpt.com'+route},url:'https://chatgpt.com'+route};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route},sender)).ok,true);
+    const reply=await listeners.internal({type:'chat-queue-internal/v1',
+      action:'dispatch-check',route,documentToken:'a'.repeat(32),
+      sequence:1,epoch:0},sender);
+    assert.equal(reply.error,'conversation-not-assigned',route);
+  }
+  assert.equal(forwards.length,0);
+});
