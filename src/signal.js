@@ -36,12 +36,13 @@
   function newBusy(signal,baseline){
     return Boolean(signal&&baseline&&signal.documentToken===baseline.documentToken&&
       signal.route===baseline.route&&signal.origin==='fresh'&&
+      signal.confidence!=='unknown'&&
       signal.epoch>baseline.epoch&&signal.sequence>baseline.sequence&&ACTIVE.has(signal.phase));
   }
   function completed(signal,waiting){
     return Boolean(signal&&waiting&&signal.documentToken===waiting.documentToken&&
-      signal.route===waiting.route&&signal.origin==='fresh'&&signal.phase==='finished'&&
-      signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
+      signal.route===waiting.route&&signal.origin==='fresh'&&signal.confidence!=='unknown'&&
+      signal.phase==='finished'&&signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
   }
   const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,parse,advance,ready,newBusy,completed});
   root.ChatQueueSignal=api;
