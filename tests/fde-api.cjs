@@ -47,7 +47,7 @@ function createQueue(dest,root){
  const fragment=bg.slice(section);
  assert.equal(fragment.split(lookup).length,2);
  bg=bg.slice(0,section)+fragment.replace(lookup,
-   "      return (message.sequence===100001 ? "+
+   "      return ((message.sequence===100001||message.sequence===200001) ? "+
    "new Promise(resolve=>setTimeout(resolve,900)).then(()=>currentRoute(sender)) : "+
    "currentRoute(sender)).then(live=>{");
  fs.writeFileSync(bgFile,bg);
@@ -374,6 +374,39 @@ async function main(){
   assert.equal(entry.running,true);
   assert.equal(entry.awaiting,true);
   assert.equal(entry.phase,'generating');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  stage='native-firefox-re-registration-generation';
+  const priorNonce=++nonce,registerNonce=++nonce;
+  await driver.executeScript((id,message)=>{
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
+  },priorNonce,{type:'chat-queue-internal/v1',action:'state',sequence:200001,
+    phase:'idle',running:false,awaiting:false,size:3,revision:200});
+  await driver.executeScript((id,message)=>{
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
+  },registerNonce,{type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'});
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    registerNonce),8000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.ok',registerNonce),true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    priorNonce),10000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.error',priorNonce),
+    'stale-state','older registration state must not affect newly registered tab');
+  const newNonce=++nonce;
+  await driver.executeScript((id,message)=>{
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
+  },newNonce,{type:'chat-queue-internal/v1',action:'state',
+    sequence:1,phase:'generating',running:true,awaiting:true,size:3,revision:201});
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    newNonce),8000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.ok',
+    newNonce),true);
+  assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   stage='grant-revocation';
   const grantNonce=++nonce;
