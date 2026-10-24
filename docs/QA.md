@@ -230,3 +230,7 @@ The native Firefox synthetic fixture double-clicks **Add** during a delayed dura
 ## 🧷 Rejected ordinary Add and retry
 
 The disposable Firefox HUD fault-injection fixture rejects the first `storage.local.set` for a normal **Add**, checks that the failed message is absent from the in-memory queue while its draft remains available, then allows an explicitly repeated Add to commit exactly once. It reloads Firefox and checks that the single message persists with zero Send clicks. Ordinary enqueues now refuse overlapping unsaved writes and use revision-scoped rollback on a rejected write. This is not a claim of cross-tab storage transactions or automatic retry; the user must deliberately initiate the second Add.
+
+## 🔒 Volatile HUD draft conversation isolation
+
+The disposable Firefox Developer Edition fixture types distinct **unsubmitted** HUD drafts on two synthetic conversation routes, navigates A → B → A → B using `history.pushState`, and verifies neither route displays the other route's draft. Returning to an already visited route restores only that route's same-tab volatile draft, without syncing or writing it to extension queue storage. Committing B's draft leaves A's queue empty and A's draft intact; all Send counters remain zero. The in-memory draft map is bounded to 32 routes and must not be confused with durable queued-message recovery.

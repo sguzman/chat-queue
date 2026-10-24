@@ -78,6 +78,17 @@
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
   const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.
+  // Keep at most 32 volatile, exact-route drafts within this tab; never sync
+  // or expose them to the page. Persisted queued items have separate storage.
+  const routeDrafts=new Map();
+  function rememberDraft(key) {
+    if(!key)return;
+    const value=els.draft.value;
+    routeDrafts.delete(key);
+    if(value)routeDrafts.set(key,value);
+    while(routeDrafts.size>32)routeDrafts.delete(routeDrafts.keys().next().value);
+  }
   const button = (label, title, fn, disabled=false) => {
     const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.setAttribute('aria-label',title); b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
@@ -543,6 +554,11 @@
     // Returning to the prior key must cancel the in-flight transition
     // instead of leaving routing=true indefinitely.
     if (state.key===newKey&&!state.routing)return;
+    // During A -> B -> A rapid navigation, B may still be loading while
+    // A's draft has already been stashed. Do not overwrite it with the now
+    // blank transition textarea on a second reentrant route change.
+    if(!state.routing)rememberDraft(state.key);
+    els.draft.value='';
     const generation=++routeGeneration;
     state.routing=true;
     // Never display the previous conversation's private prompts while
@@ -562,6 +578,7 @@
       // prompts under a new route. Block editing without overwriting either
       // persistent record, and let a later navigation/reload retry.
       state.key=newKey;
+      els.draft.value='';
       state.storageFault=true;state.blockedRecord=true;
       state.items=[];state.history=[];state.recoveredSources=[];state.requestHighWatermarks=Object.create(null);
       state.revision=0;state.etag=uid();state.editing=null;
@@ -572,6 +589,7 @@
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
+    els.draft.value=routeDrafts.get(newKey)||'';
     state.storageFault=false;state.pendingSaves=0;
     state.revision=0;state.etag=uid(); // invalidate stale compare tokens across routes
     state.blockedRecord=!core.savedRecordSupport(stored[newKey]).ok;
@@ -892,11 +910,16 @@
     // draft twice. Keep newer typing intact while the button is disabled.
     if(state.adding)return;
     const text=els.draft.value,version=draftInputVersion;
+    const draftKey=state.key,draftGeneration=routeGeneration;
     state.adding=true;render();
     try{
       const response=await act('enqueue',{text},true);
       if(response.ok){
-        if(draftInputVersion===version&&els.draft.value===text)els.draft.value='';
+        if(draftInputVersion===version){
+          if(state.key===draftKey&&routeGeneration===draftGeneration&&
+             els.draft.value===text)els.draft.value='';
+          else if(routeDrafts.get(draftKey)===text)routeDrafts.delete(draftKey);
+        }
       }else statusNote(response.error);
     }finally{
       state.adding=false;

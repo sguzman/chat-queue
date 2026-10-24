@@ -1008,6 +1008,52 @@ async function main(){
       ['Synthetic append must survive manual retry once']);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
+
+    qaStage='route-scoped-unsaved-hud-drafts';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/draft-route-a');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft'))),10000);
+    await driver.executeScript(() => {
+      const draft=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');
+      draft.value='Volatile unsent draft for conversation A';
+      draft.dispatchEvent(new Event('input',{bubbles:true}));
+      history.pushState({},'', '/c/draft-route-b');
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('status')
+        ?.textContent.includes('Conversation changed; manually start queue') &&
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value===''),10000);
+    // B must never inherit A's private unsubmitted text or queued messages.
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent),
+      '0 queued');
+    await driver.executeScript(() => {
+      const draft=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');
+      draft.value='Independent unsent draft for conversation B';
+      draft.dispatchEvent(new Event('input',{bubbles:true}));
+      history.pushState({},'', '/c/draft-route-a');
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft')
+        ?.value==='Volatile unsent draft for conversation A'),10000);
+    await driver.executeScript("history.pushState({},'', '/c/draft-route-b')");
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft')
+        ?.value==='Independent unsent draft for conversation B'),10000);
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click());
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft')?.value==='' &&
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'),9000);
+    await driver.executeScript("history.pushState({},'', '/c/draft-route-a')");
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft')
+        ?.value==='Volatile unsent draft for conversation A'),10000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent),
+      '0 queued','B committed item cannot appear in A');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='100-item-status-render-workload';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/max-queue-performance');
     await driver.wait(async()=>await driver.executeScript(()=>
