@@ -12,6 +12,7 @@
   function print(message){ output.textContent=message; }
   function resetClear(){clearArmed=false;field('rule-clear').textContent='Clear saved rules';}
   function feedbackText(message){feedback.textContent=message;}
+  const parseIds=id=>{const raw=field(id).value.trim();return raw?raw.split(',').map(token=>token.trim()):undefined;};
   function enableEditing(){
     const busy=blocked||saving;
     field('rule-add').disabled=busy;
@@ -23,7 +24,7 @@
     const list=field('rule-list');list.replaceChildren();
     for(const rule of rules){
       const li=document.createElement('li'),label=document.createElement('span');
-      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}${rule.when.minDurationMs===undefined?'':` · from ${rule.when.minDurationMs} ms`}${rule.when.maxDurationMs===undefined?'':` · until ${rule.when.maxDurationMs} ms`}`;
+      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}${rule.when.minDurationMs===undefined?'':` · from ${rule.when.minDurationMs} ms`}${rule.when.maxDurationMs===undefined?'':` · until ${rule.when.maxDurationMs} ms`}${rule.when.dependsOn?.length?` · needs ${rule.when.dependsOn.join(', ')}`:''}${rule.when.skipIf?.length?` · skip after ${rule.when.skipIf.join(', ')}`:''}`;
       const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';
       edit.setAttribute('aria-label',`Edit ${rule.id}`);
       edit.addEventListener('click',()=>{
@@ -33,6 +34,8 @@
         field('rule-confidence').value=rule.when.confidence;
         field('rule-min-duration').value=rule.when.minDurationMs??'';
         field('rule-max-duration').value=rule.when.maxDurationMs??'';
+        field('rule-depends').value=(rule.when.dependsOn||[]).join(', ');
+        field('rule-skip').value=(rule.when.skipIf||[]).join(', ');
         field('rule-action').value=rule.then.type;
         field('rule-text').value=rule.then.type==='propose'?rule.then.text:'';
         field('rule-text').disabled=rule.then.type==='pause';
@@ -87,7 +90,9 @@
     const max=maxInput===''?{}:{maxDurationMs:Number(maxInput)};
     const candidate={version:1,id:field('rule-id').value.trim(),enabled:field('rule-enabled').checked,
       priority:Number(field('rule-priority').value),
-      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value,...min,...max},
+      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value,...min,...max,
+        ...(parseIds('rule-depends')===undefined?{}:{dependsOn:parseIds('rule-depends')}),
+        ...(parseIds('rule-skip')===undefined?{}:{skipIf:parseIds('rule-skip')})},
       then:field('rule-action').value==='pause'?{type:'pause'}:
         {type:'propose',text:field('rule-text').value}};
     void persist([...rules.filter(r=>r.id!==candidate.id),candidate],`Saved ${candidate.id}`);
@@ -107,7 +112,10 @@
       epoch,sequence:1,phase:field('preview-phase').value,
       confidence:field('preview-confidence').value,origin:field('preview-origin').value};
     const durationInput=field('preview-duration').value.trim();
-    const context=durationInput===''?undefined:{stateDurationMs:Number(durationInput)};
+    const completed=parseIds('preview-completed');
+    const context=durationInput===''&&completed===undefined?undefined:{
+      ...(durationInput===''?{}:{stateDurationMs:Number(durationInput)}),
+      ...(completed===undefined?{}:{completedRuleIds:completed})};
     const result=engine.evaluate(rules,synthetic,consumed,context);
     if(!result.ok){print(`Rejected: ${result.error}`);return;}
     if(!result.decision){print(`No proposal: ${result.reason}`);return;}
