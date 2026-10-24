@@ -14,9 +14,13 @@ const run=(command,args,options={})=>spawnSync(command,args,{
 });
 // Preflight tools do not need Mozilla credentials. Strip them even when the
 // caller has opted into signing; only web-ext sign receives them.
-const preflightEnv={...process.env};
-delete preflightEnv.WEB_EXT_API_KEY;
-delete preflightEnv.WEB_EXT_API_SECRET;
+const preflightEnv=Object.fromEntries(
+  Object.entries(process.env).filter(([key])=>!key.startsWith('WEB_EXT_'))
+);
+const signingEnv={...preflightEnv,
+  WEB_EXT_API_KEY:process.env.WEB_EXT_API_KEY,
+  WEB_EXT_API_SECRET:process.env.WEB_EXT_API_SECRET
+};
 const gate=run(process.execPath,['scripts/release-gate.mjs'],{env:preflightEnv});
 if(gate.status!==0){
   process.stderr.write('Signing refused: release acceptance ledger is not complete.\n');
@@ -52,13 +56,15 @@ try{
   }
   fs.mkdirSync(artifacts,{recursive:true});
   const runner=['exec','--yes','--package=web-ext@10.8.0','--','web-ext'];
-  const lint=run('npm',[...runner,'lint','--source-dir',stage,
-    '--self-hosted','--warnings-as-errors','--boring'],{env:preflightEnv});
+  const lint=run('npm',[...runner,'lint','--no-config-discovery',
+    '--source-dir',stage,'--self-hosted','--warnings-as-errors','--boring'],{env:preflightEnv});
   if(lint.status!==0)throw Error('Mozilla source lint rejected staged signing bundle');
   // web-ext reads WEB_EXT_API_KEY and WEB_EXT_API_SECRET from environment.
   // Never place secrets in arguments, persistent files or console output.
-  const signed=run('npm',[...runner,'sign','--source-dir',stage,
-    '--artifacts-dir',artifacts,'--channel','unlisted','--no-input'],{env:process.env});
+  const signed=run('npm',[...runner,'sign','--no-config-discovery',
+    '--source-dir',stage,'--artifacts-dir',artifacts,
+    '--channel','unlisted','--amo-base-url','https://addons.mozilla.org/api/v5/',
+    '--no-input'],{env:signingEnv});
   if(signed.status!==0)throw Error('Mozilla unlisted signing did not complete');
   process.stdout.write('Unlisted signed XPI requested. Inspect dist/signed; do not install or release without independent artifact review.\n');
 }catch(error){
