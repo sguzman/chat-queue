@@ -744,8 +744,10 @@ async function main(){
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Message with failed persistence';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('status')}.textContent.includes('qa-storage-rejected')`),5000);
-    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+      `return ${jsEl('status')}.textContent.includes('queue-save-failed')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript(`return ${jsEl('draft')}.value`),'Message with failed persistence',
+      'Rejected Add must preserve the draft for deliberate retry');
     await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
     assert.equal(await driver.executeScript(`return ${jsEl('backup-export')}.disabled`),true,
       'Failed storage write must disable exporting unsaved in-memory data');
@@ -753,8 +755,8 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('storage-unavailable')`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
-    // A subsequent successfully persisted edit clears the fault but does not
-    // automatically start sending, even when the earlier write had failed.
+    // A subsequent explicitly requested Add clears the fault and saves only
+    // that new item; the rejected Add must never become a phantom entry.
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Second saved message';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
@@ -764,7 +766,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),5000);
     await driver.navigate().refresh();
-    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='pending-storage-write';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/slow-storage`);
