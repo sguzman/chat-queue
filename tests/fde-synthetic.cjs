@@ -76,13 +76,13 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
               const record=msg.route==='/c/future-record'
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
-                : msg.route==='/c/history-record'
+                : msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'
                   ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
                   : msg.route==='/c/metadata-corrupt'
                     ? {version:1,items:[{id:'metadata01',text:'Retain historical metadata',status:'pending'}],
@@ -608,6 +608,35 @@ async function main(){
     await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
     assert.equal(await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length`),0,'History deletion must survive reload');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='failed-history-clear-render-rollback';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/history-fail-record');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('history')
+        ?.querySelectorAll('.historyitem').length===1),10000);
+    await driver.executeScript(() => {
+      document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;
+      document.documentElement.dataset.qaRejectQueueSave='yes';
+    });
+    const failedForget=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('history-clear'));
+    await failedForget.click();
+    await failedForget.click();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('Could not save queue')),7000);
+    // The rejected write restores history in memory. An unchanged revision
+    // is NOT sufficient to reuse the blank cached history DOM.
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('history')
+        .querySelectorAll('.historyitem').length),1,
+      'Rejected history deletion must repaint the restored history immediately');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('history')
+        ?.querySelectorAll('.historyitem').length===1),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='explicit-orphan-recovery';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/recovery-record`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);

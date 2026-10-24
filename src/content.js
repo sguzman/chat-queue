@@ -163,7 +163,11 @@
     // Phase, theme and status changes can be frequent. They affect the
     // header, not the item DOM. Preserving unchanged rows also preserves an
     // open editor's focus and prevents O(queue-size) DOM churn per Signal.
-    const rowsState=[state.key,state.revision,state.editing,state.attempting,
+    // A failed persistent write can restore a previous array without
+    // incrementing revision again. Include the actual collection identities
+    // and sizes so rollback re-paints its restored rows/history immediately.
+    const rowsState=[state.key,state.revision,state.items,state.items.length,
+      state.history,state.history.length,state.editing,state.attempting,
       state.importing,state.running,state.awaiting,state.blockedRecord];
     if(paintedRows&&paintedRows.every((v,i)=>v===rowsState[i]))return;
     const oldRow=state.editing?[...els.items.children].find(row=>

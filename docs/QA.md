@@ -214,3 +214,7 @@ The synthetic Firefox fixture delays the first actual extension-storage queue wr
 ## 🪶 Signal-only HUD rendering and editor focus
 
 The native Firefox synthetic HUD fixture verifies that changing a legacy **unverified** page Signal phase updates the status label without replacing the focused queued-message editor, losing its unsaved text, or blurring it. It also checks that a collapsed HUD does not reconstruct hidden queue rows on Signal-only status changes. The production render path now rebuilds item/history rows only when the queue revision or row-control state changes, and preserves an active editor's value and selection if rebuilding is necessary. These are targeted DOM-work and focus-preservation regressions, **not** CPU, memory, or authenticated-ChatGPT performance certification.
+
+## 🧯 Repainting rollback after rejected history deletion
+
+The synthetic native Firefox QA fixture now injects a `storage.local.set` rejection into confirmed history deletion, verifies the in-memory history is restored **and visibly repainted without reload**, then verifies that history still exists after reload. The optimized queue-row rendering cache includes collection identity and length in addition to revision, so a failed write's rollback cannot leave a stale cleared-history display. The synthetic test never sends a message and does not imply authenticated-site acceptance.
