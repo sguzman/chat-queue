@@ -522,9 +522,10 @@ test('same-route re-registration invalidates old in-flight metadata generations'
 
 test('background cannot authorize a Send on any non-conversation route',async()=>{
   const {listeners,forwards}=create();
+  let tabId=919;
   for(const route of ['/', '/c/', '/share/abc', '/g/g-foo/c',
                        '/g/g-foo', '/c/a/extra', '/search']){
-    const sender={tab:{id:919,url:'https://chatgpt.com'+route},url:'https://chatgpt.com'+route};
+    const sender={tab:{id:tabId++,url:'https://chatgpt.com'+route},url:'https://chatgpt.com'+route};
     assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'register',route},sender)).ok,true);
     const reply=await listeners.internal({type:'chat-queue-internal/v1',
       action:'dispatch-check',route,documentToken:'a'.repeat(32),
