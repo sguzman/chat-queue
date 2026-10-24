@@ -447,7 +447,19 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript(`return ${jsEl('backup-confirm')}.hidden`),true);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Storage is available again. An explicit fresh file selection and
+    // confirmation may retry the local import, but not resume dispatch.
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
+    await driver.executeScript(`const input=${jsEl('backup-file')};input.value=''`);
+    await (await driver.executeScript(`return ${jsEl('backup-file')}`)).sendKeys(backupPath);
+    await driver.wait(async()=>await driver.executeScript(`return !${jsEl('backup-confirm')}.hidden`),5000);
+    await driver.executeScript(`return ${jsEl('backup-confirm')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('data-note')}.textContent.includes('Imported 2 messages') && ${jsEl('count')}.textContent==='2 queued'`),8000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const clearAfterRecovery=await driver.executeScript(`return ${jsEl('clear')}`);
+    await clearAfterRecovery.click();await clearAfterRecovery.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='0 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
