@@ -113,6 +113,7 @@ async function main(){
   prepareQueue(qdir,path.resolve(__dirname,'..'));prepareProvider(pdir);
   const server=http.createServer((req,res)=>{res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);});
   let driver=null;
+  let qaStage='bootstrap';
   try{
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     driver=await new Builder().forBrowser('firefox')
@@ -148,6 +149,7 @@ async function main(){
       `return ${hud('status')}.textContent.includes(arguments[0])`,text),10000);
     const waitSends=async amount=>driver.wait(async()=>await driver.executeScript(
       'return window.__sent.length===arguments[0]',amount),10000);
+    qaStage='draft-attachment-preflight';
     await emit('idle',0,1);
     await waitNote('Signal: idle');
     // Whitespace alone is still a user's composer draft: do not replace it.
@@ -187,6 +189,7 @@ async function main(){
       "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:nth-child(4)').disabled"),5000);
     await driver.executeScript("document.querySelector('#qa-existing-attachment').remove();document.querySelector('#qa-empty-attachment').remove()");
     await start.click();
+    qaStage='first-response-attribution';
     await waitSends(1);
     // A restored terminal from the previous response cannot confirm a fresh
     // Send, even though it arrives after the dispatch attempt began.
@@ -219,6 +222,7 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Synthetic queued A','Synthetic queued C','Synthetic queued B']);
+    qaStage='manual-uncertain-retry';
     await input.sendKeys('Synthetic unsent D');
     await add.click();
     await emit('idle',3,10);
@@ -263,6 +267,7 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${hud('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,'Reload cannot perform an automatic send');
 
+    qaStage='same-conversation-lease';
     // Two live tabs at the exact same conversation route may each hold queue
     // items, but only one may pass the authenticated dispatch preflight.
     const ownerWindow=await driver.getWindowHandle();
@@ -319,6 +324,7 @@ async function main(){
     // While the second pre-Send authorization is in flight, simulate real
     // human input that restores the exact original text. Equality alone would
     // miss the user interaction; a trusted-input marker must stop the click.
+    qaStage='trusted-user-edit-race';
     const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
     const lateAdd=await driver.executeScript(`return ${hud('add')}`);
     await lateDraft.sendKeys('Synthetic human-edit race');
@@ -338,6 +344,7 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'An interrupted composer handoff must preserve uncertainty');
+    qaStage='history-route-race';
     // Navigate during an intentionally delayed final authorization; a
     // prepared prompt must never be sent to the new conversation.
     await driver.switchTo().newWindow('tab');
@@ -365,6 +372,7 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The source conversation must retain its uncertain pre-Send journal');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    qaStage='unknown-confidence-safety';
     // Authenticated but unknown-confidence phase events are not proof of
     // accepted Send or completed response; they can only pause/withhold progress.
     await driver.switchTo().newWindow('tab');
@@ -406,6 +414,7 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Accepted synthetic A','Blocked synthetic B']);
+    qaStage='late-file-attachment';
     // A file selected during the asynchronous pre-click provider check
     // must never get bundled into an automatic queued prompt.
     await driver.switchTo().newWindow('tab');
@@ -428,6 +437,8 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
     console.log('Headless FDE synthetic Signal: unknown confidence, late attachment, trusted edit and route guards');
+  }catch(error){
+    throw new Error('stage '+qaStage+': '+error.message);
   }finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
