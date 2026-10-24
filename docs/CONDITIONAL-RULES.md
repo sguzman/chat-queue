@@ -76,3 +76,7 @@ Rule-library reads are asynchronous. A storage change to `chatqueue:conditional-
 ## ⌛ Proposal identity expires on a newer authenticated response
 
 A pending offer is tied to its verified source document token, response epoch, terminal phase and confidence. If a newer authenticated Signal changes any of these, the offer is revoked immediately and the queue stays paused. Approve separately rechecks the current trusted Signal before acting, protecting against obsolete user-interface callbacks. Fresh later events may create their own distinct proposals only while this conversation remains opted in. This is review-only behavior and does not automatically Send or retry a message.
+
+## Authenticated error terminal acceptance boundary
+
+Synthetic Firefox QA now drives fresh and restored authenticated provider messages for `failed`, `interrupted`, and `limit` through the existing production HUD rule-review path. The v1 declarative pause rule may propose action only after per-conversation Enable and a fresh signal; restoring an old status or repeating the same terminal event cannot execute or re-propose an action. Approval remains a manual pause, never permission to Send or automatically retry. Live published Chat Signals behavior is still a separate acceptance gate.

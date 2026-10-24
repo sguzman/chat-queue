@@ -48,9 +48,11 @@ function prepareQueue(dir,source){
     document.documentElement.dataset.qaRuleMutationReady='yes';
     window.addEventListener('message',event=>{
       if(event.source!==window||event.data?.kind!=='qa-change-rule-config')return;
+      const phase=['failed','interrupted','limit'].includes(event.data.phase)
+        ? event.data.phase:'failed';
       browser.storage.local.set({'chatqueue:conditional-rules:v1':{
         version:1,rules:[{version:1,id:'synthetic-changed',enabled:true,
-          priority:10,when:{phase:'failed'},then:{type:'pause'}}]
+          priority:10,when:{phase},then:{type:'pause'}}]
       }}).then(()=>document.documentElement.dataset.qaRuleMutationDone='yes')
         .catch(()=>document.documentElement.dataset.qaRuleMutationDone='failed');
     });`);
@@ -726,7 +728,45 @@ async function main(){
       'Policy mutation while reading must not produce a stale rule offer');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races');
+
+    qaStage='authenticated-failure-interruption-limit-previews';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-terminal-errors');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    for(const [index,phase] of ['failed','interrupted','limit'].entries()){
+      qaStage='conditional-'+phase+'-preview';
+      await driver.executeScript(
+        "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+        "window.postMessage({kind:'qa-change-rule-config',phase:arguments[0]},'*')",phase);
+      await driver.wait(async()=>await driver.executeScript(
+        "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('rules-toggle')}.textContent==='Enable previews'`),7000);
+      await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+      await waitNote('Conditional previews enabled');
+      const epoch=index+1,seq=200+index*10;
+      await emit(phase,epoch,seq,'observed','restored','/c/rule-terminal-errors');
+      assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+        'A restored '+phase+' event cannot create a preview');
+      await emit(phase,epoch,seq+1,'observed','fresh','/c/rule-terminal-errors');
+      await driver.wait(async()=>await driver.executeScript(
+        `return !${hud('rules-approve')}.hidden`),8000);
+      assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+        /proposes pausing/);
+      assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+      assert.equal(await driver.executeScript('return window.__sent.length'),0,
+        'No terminal error branch may Send autonomously');
+      await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+      await waitNote('Conditional pause approved');
+      assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+      await emit(phase,epoch,seq+2,'observed','fresh','/c/rule-terminal-errors');
+      assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+        'Duplicate terminal phase must not repeatedly propose actions');
+      assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    }
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

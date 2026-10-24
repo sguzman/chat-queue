@@ -278,3 +278,7 @@ A separate granted Firefox extension exercises a QA-only seeded, versioned queue
 ## 🦊 Editing during uncertain Send transition
 
 A native Firefox Developer Edition two-extension regression opens Edit on a pending message, starts an authenticated synthetic dispatch, and deliberately loses provider authorization during the pre-Send check. Once the message becomes uncertain, its stale edit textarea must close, the regular Edit button must be disabled, and the original text must remain available for explicit resolution. The editor Save action also routes through the guarded pending-only `update` action rather than a lower-level mutation. No synthetic Send click is accepted in the failed preflight case; real ChatGPT confirmation remains unverified.
+
+## 🧪 Authenticated terminal-error policy review
+
+A native Firefox Developer Edition two-extension scenario replaces the QA-only declarative rule library with a synthetic explicit pause rule for `failed`, `interrupted`, and `limit` in turn. Each phase is checked under a restored provider event (no action), a fresh authenticated event (manual approval offer but no Send), and a repeated fresh same-epoch event (no duplicate offer after approval). Each configuration change invalidates existing preview consent and requires an explicit new Enable action. Browser clicks must never Send queued prompts. The test does not claim the real Chat Signals publisher is complete.
