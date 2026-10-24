@@ -30,7 +30,7 @@ async function main(){
   manifest.background.scripts=['qa-background.js'];
   fs.writeFileSync(path.join(base,'manifest.json'),JSON.stringify(manifest));
   fs.mkdirSync(path.join(base,'src'));
-  for(const file of ['core.js','signal.js','content.js']){
+  for(const file of ['core.js','signal.js','rules.js','rule-store.js','content.js']){
     const source=fs.readFileSync(path.join(root,'src',file),'utf8');
     if(file==='content.js')assert.ok(source.includes("attachShadow({mode:'closed'})"),
       'Privacy QA must keep the production closed shadow, not override it');

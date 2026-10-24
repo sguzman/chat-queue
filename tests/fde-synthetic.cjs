@@ -32,7 +32,7 @@ async function main(){
     manifest.background.scripts=['qa-background.js'];
     fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify(manifest));
     fs.mkdirSync(path.join(root,'src'));
-    for(const name of ['core.js','signal.js'])fs.copyFileSync(path.join(src,'src',name),path.join(root,'src',name));
+    for(const name of ['core.js','signal.js','rules.js','rule-store.js'])fs.copyFileSync(path.join(src,'src',name),path.join(root,'src',name));
     let content=fs.readFileSync(path.join(src,'src/content.js'),'utf8');
     const marker="attachShadow({mode:'closed'})";
     assert.equal(content.split(marker).length,2,'QA must make exactly one scoped Shadow DOM substitution');

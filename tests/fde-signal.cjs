@@ -31,9 +31,18 @@ function copy(source,dest){fs.copyFileSync(source,dest);}
 function prepareQueue(dir,source){
   const m=JSON.parse(fs.readFileSync(path.join(source,'manifest.json'),'utf8'));
   m.browser_specific_settings.gecko.id=queueId;
+  // QA-only local rule definitions; production Options libraries are never
+  // auto-enabled or read until the user explicitly opts in per document.
+  m.background.scripts.unshift('qa-rules-seed.js');
   m.content_scripts[0].matches=['http://127.0.0.1/*'];
   fs.writeFileSync(path.join(dir,'manifest.json'),JSON.stringify(m));
   for(const part of ['src','options'])fs.cpSync(path.join(source,part),path.join(dir,part),{recursive:true});
+  fs.writeFileSync(path.join(dir,'qa-rules-seed.js'),`
+    browser.storage.local.set({'chatqueue:conditional-rules:v1':{
+      version:1,rules:[{version:1,id:'synthetic-followup',enabled:true,
+        priority:50,when:{phase:'finished'},
+        then:{type:'propose',text:'Synthetic approved follow-up'}}]
+    }});`);
   const contentPath=path.join(dir,'src/content.js');
   const original=fs.readFileSync(contentPath,'utf8');
   assert.equal(original.split("attachShadow({mode:'closed'})").length,2);
@@ -550,7 +559,51 @@ async function main(){
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Rapid synthetic A','Rapid synthetic B']);
-    console.log('Headless FDE synthetic Signal: rapid busy/finished attribution, late attachment and route guards');
+
+    qaStage='manual-authenticated-rule-proposal';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/manual-rule-review');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    await driver.executeScript("document.documentElement.dataset.chatSignalsState='finished'");
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'A forged page DOM phase must not create a conditional action');
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Opting in must not replay a prior unverified page status');
+    await emit('finished',1,90,'observed','fresh','/c/manual-rule-review');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /Synthetic approved follow-up/);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
+      'Authenticated proposal cannot enqueue without explicit local approval');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' && ${hud('rules-approve')}.hidden`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Approval queues the proposed text but cannot click Send');
+    await driver.executeScript("history.pushState({},'', '/c/rule-other-chat')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='0 queued' && ${hud('rules-toggle')}.textContent==='Enable previews'`),10000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'SPA navigation must invalidate consent and any pending proposal');
+    await driver.executeScript("history.pushState({},'', '/c/manual-rule-review')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),
+      'Enable previews','Returning to a chat requires fresh preview consent');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),12000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),
+      'Enable previews','Rule previews must require fresh opt-in after browser reload');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals and guarded synthetic sending');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

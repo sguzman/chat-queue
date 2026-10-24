@@ -8,7 +8,7 @@
   "options_ui": { "page": "options/options.html", "open_in_tab": true },
   "content_scripts": [{
     "matches": ["https://chatgpt.com/*"],
-    "js": ["src/core.js", "src/signal.js", "src/content.js"],
+    "js": ["src/core.js", "src/signal.js", "src/rules.js", "src/rule-store.js", "src/content.js"],
     "run_at": "document_idle", "all_frames": false
   }],
   "browser_specific_settings": {

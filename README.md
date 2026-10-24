@@ -61,6 +61,8 @@ The preferences page includes a **visual, dry-run rule editor** for building dec
 
 The initial pure rule engine and its focused Node regressions passed in [GitHub Actions](https://github.com/sguzman/chat-queue/actions/runs/40035678496). Real headless Firefox Developer Edition accepted the production simulator scripts on a synthetic preferences document (including replay suppression, restored-state rejection and inert HTML text) in [run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429). Neither test is authenticated ChatGPT conditional-send acceptance. See [conditional rule contract](docs/CONDITIONAL-RULES.md).
 
+The Queue HUD now also offers **per-conversation, session-only opt-in conditional proposals**. Only a browser-authenticated Chat Signals event may create an offer. The user must separately click **Approve proposal** to add text to the paused queue or pause; no automatic Send or retry occurs. The real Chat Signals publisher is not yet implemented, so this is currently testable only with a disposable synthetic Firefox provider.
+
 ## 🔗 Conditional dependencies and skip previews
 
 The simulation-only rule engine supports bounded `dependsOn` and `skipIf` rule-ID links, cycle rejection and caller-supplied completed-rule context. The Options editor can save, reload and preview these branches; no saved rule can observe ChatGPT or Send automatically. [Rules contract](docs/CONDITIONAL-RULES.md).

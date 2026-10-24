@@ -242,3 +242,7 @@ The external-client disposable Firefox Developer Edition fixture rejects an actu
 ## 🛟 HUD mutation rollback after storage rejection
 
 The production HUD's local **Edit**, **Delete**, arrow-keyboard reorder, and pointer reorder operations now use the same revision-scoped durable mutation helper as the external API. They refuse overlapping queued writes and restore the exact prior item values and ordering if `storage.local.set` fails. A disposable native Firefox regression injects failure separately into local Edit, Delete, and Reorder, checks the immediately restored HUD and then reloads the tab to verify stored state was not modified. The user's actual profile is not involved; this does not imply transactional writes across independent tabs or a live ChatGPT send test.
+
+## 🔐 Authenticated, opt-in conditional proposal review
+
+A synthetic independent Firefox provider exercises the new HUD **Conditional proposals** setting. Native FDE must show no action on page-forged phases or before opt-in, then display one manually reviewable offer on a fresh authenticated v1 terminal event. Only a separate Approve click may enqueue bounded text, and the scheduler must remain paused with **zero Send clicks**. SPA navigation and reload remove preview consent and any offer without losing already queued items. This establishes only synthetic Firefox integration, not a live Chat Signals publisher or authenticated ChatGPT behavior.

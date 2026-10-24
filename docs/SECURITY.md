@@ -25,7 +25,7 @@ Unlike Jobflick Bridge, Chat Queue has no native code execution capability or ge
 
 ## Locally saved rule definitions
 
-The Options rule editor stores user-authored proposal text under `chatqueue:conditional-rules:v1` in Firefox local extension storage after deliberate changes. It is subject to the same local-profile privacy threat as queued prompts. The external `rules` scope does not disclose or mutate these definitions; rule previews are made from caller-provided input only. Unknown storage schema versions are preserved unread and edits are blocked. There is no automatic execution, listener on real conversations, or telemetry.
+The Options rule editor stores user-authored proposal text under `chatqueue:conditional-rules:v1` in Firefox local extension storage after deliberate changes. It is subject to the same local-profile privacy threat as queued prompts. The external `rules` scope does not disclose or mutate these definitions; rule previews are made from caller-provided input only. Unknown storage schema versions are preserved unread and edits are blocked. The Queue HUD may evaluate an authenticated Signal only after explicit per-conversation preview opt-in; there is no automatic rule execution, Send, retry, transcript collection or telemetry. Each proposal requires separate local approval and the approved prompt enters a paused queue.
 
 ## Asynchronous external permission revocation
 

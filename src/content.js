@@ -6,7 +6,9 @@
   const api = globalThis.browser || globalThis.chrome;
   const core = globalThis.ChatQueueCore;
   const contract = globalThis.ChatQueueSignal;
-  if (!api?.runtime?.sendMessage || !core || !contract) return;
+  const rulesEngine = globalThis.ChatQueueRules;
+  const ruleStore = globalThis.ChatQueueRuleStore;
+  if (!api?.runtime?.sendMessage || !core || !contract || !rulesEngine || !ruleStore) return;
   const uid = () => crypto.randomUUID();
   const UI_KEY='chatqueue:ui:v1';
   const uiValid=x=>x?.version===1&&Number.isSafeInteger(x.right)&&x.right>=0&&x.right<=10000&&Number.isSafeInteger(x.bottom)&&x.bottom>=0&&x.bottom<=10000&&typeof x.collapsed==='boolean';
@@ -15,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [] };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -73,11 +75,12 @@
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
     <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
+    <details id="rules-panel"><summary>Conditional proposals (off)</summary><div id="rules-note" class="data-note" aria-live="polite">Disabled until explicitly enabled. No automatic sending.</div><div class="data-buttons"><button id="rules-toggle" type="button">Enable previews</button><button id="rules-approve" type="button" hidden>Approve proposal</button><button id="rules-dismiss" type="button" hidden>Dismiss</button></div></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   // Unsaved HUD drafts must not migrate into another ChatGPT conversation.
   // Keep at most 32 volatile, exact-route drafts within this tab; never sync
   // or expose them to the page. Persisted queued items have separate storage.
@@ -166,6 +169,16 @@
     els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
     els.add.disabled=state.importing||state.adding;
     els.run.disabled=state.importing;
+    els['rules-panel'].querySelector('summary').textContent=state.rulesEnabled?'Conditional proposals (on)':'Conditional proposals (off)';
+    els['rules-toggle'].textContent=state.rulesLoading?'Loading rules':state.rulesEnabled?'Disable previews':'Enable previews';
+    els['rules-toggle'].disabled=state.rulesLoading;
+    els['rules-approve'].hidden=!state.ruleOffer;
+    els['rules-dismiss'].hidden=!state.ruleOffer;
+    els['rules-note'].textContent=state.ruleOffer
+      ? (state.ruleOffer.action.type==='pause'
+        ? 'Rule '+state.ruleOffer.ruleId+' proposes pausing. Requires explicit approval.'
+        : 'Rule '+state.ruleOffer.ruleId+' proposes queued text (never automatic Send): '+state.ruleOffer.action.text)
+      : (state.rulesEnabled?'Waiting for future authenticated events. No automatic Send.':'Disabled until explicitly enabled. No automatic sending.');
     els.toggle.textContent = state.collapsed ? '+' : '−';
     els.toggle.setAttribute('aria-label',state.collapsed ? 'Expand queue' : 'Collapse queue');
     els.body.hidden = state.collapsed;
@@ -404,6 +417,18 @@
     if (buttons.length !== 1) throw new Error('Send button missing, disabled or ambiguous');
     return buttons[0];
   }
+  // This is preview-only: authenticated provider events may offer an action,
+  // but only the explicit local Approve control can enqueue or pause.
+  function considerConditionalPreview(signal) {
+    if(!state.rulesEnabled||!state.initialized||state.routing||
+       state.ruleOffer||state.key!==storageKey())return;
+    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen);
+    if(!result?.ok||!result.decision)return;
+    state.ruleSeen.push(result.decision.eventKey);
+    if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
+    state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,action:result.decision.action};
+    statusNote('Conditional proposal requires explicit approval');
+  }
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function dispatchOne() {
     if (!state.running || state.attempting || state.awaiting || !pending()) return;
@@ -587,6 +612,9 @@
     // a new path is waiting on slow or failed extension-storage reads.
     host.style.setProperty('visibility','hidden');
     state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;state.pendingRecovery=null;
+    // Explicit preview consent belongs to this exact conversation, not every
+    // future ChatGPT route in this tab. Navigation invalidates all offers.
+    state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1006,6 +1034,48 @@
     const response=await act(state.running?'pause':'start',null,true);
     if(!response.ok)statusNote(response.error);
   });
+  els['rules-toggle'].addEventListener('click',async()=>{
+    if(state.rulesLoading||!state.initialized||state.routing)return;
+    if(state.rulesEnabled){
+      state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
+      state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
+    }
+    const key=state.key,generation=routeGeneration;
+    state.rulesLoading=true;render();
+    try{
+      const data=await api.storage.local.get(ruleStore.KEY);
+      const decoded=ruleStore.decode(data[ruleStore.KEY]);
+      if(!decoded.ok)throw new Error(decoded.error);
+      if(state.destroyed||state.key!==key||routeGeneration!==generation||
+         storageKey()!==key)throw new Error('conversation-changed');
+      state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
+      state.rulesEnabled=true;
+      statusNote('Conditional previews enabled; future authenticated events only');
+    }catch(error){
+      state.rulesEnabled=false;
+      state.ruleLibrary=[];state.ruleOffer=null;
+      statusNote('Conditional previews unavailable: '+String(error?.message||error));
+    }finally{state.rulesLoading=false;if(!state.destroyed)render();}
+  });
+  els['rules-dismiss'].addEventListener('click',()=>{
+    state.ruleOffer=null;statusNote('Conditional proposal dismissed; no action');
+  });
+  els['rules-approve'].addEventListener('click',async()=>{
+    const offer=state.ruleOffer;
+    if(!offer||state.routing||state.key!==offer.key||state.key!==storageKey())return;
+    // Disarm immediately against rapid double-clicks. Never authorize Send.
+    state.ruleOffer=null;state.running=false;
+    if(state.scheduler)clearTimeout(state.scheduler);
+    state.scheduler=null;render();publish();
+    if(offer.action.type==='pause'){
+      statusNote('Conditional pause approved; manually Start to resume');
+      return;
+    }
+    if(offer.action.type!=='propose')return;
+    const response=await act('enqueue',{text:offer.action.text},true);
+    if(response.ok)statusNote('Conditional text queued; press Start separately');
+    else statusNote('Conditional proposal was not queued: '+response.error);
+  });
   els.toggle.addEventListener('click',()=>{state.collapsed=!state.collapsed;render();saveLayout();});
   els.reset.addEventListener('click',()=>{state.collapsed=false;state.position={right:20,bottom:84};render();saveLayout();});
   els.theme.addEventListener('change',async()=>{
@@ -1016,6 +1086,11 @@
   });
   api.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
+    if(changes[ruleStore.KEY]){
+      // Never execute a library updated after the current opt-in snapshot.
+      state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
+      state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
+    }
     if(changes['chatqueue:settings:v1']){
       const next=changes['chatqueue:settings:v1'].newValue?.theme;
       state.theme=['system','light','dark'].includes(next)?next:'system';
@@ -1044,6 +1119,7 @@
       if(proof&&proof.key===state.key&&contract.newBusy(next,proof.baseline)&&
          proof.editor.isConnected&&!proof.busy)proof.busy=next;
       processSignal();
+      considerConditionalPreview(next);
       return Promise.resolve({ok:true});
     }
     if (message?.type!=='chat-queue-api/v1') return;

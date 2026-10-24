@@ -35,7 +35,7 @@ async function main(){
    fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify(manifest));
    fs.mkdirSync(path.join(root,'src'));
    fs.cpSync(path.join(src,'options'),path.join(root,'options'),{recursive:true});
-   for(const file of ['core.js','signal.js','grants.js','rules.js','content.js','background.js'])
+   for(const file of ['core.js','signal.js','grants.js','rules.js','rule-store.js','content.js','background.js'])
      fs.copyFileSync(path.join(src,'src',file),path.join(root,'src',file));
    let bg=fs.readFileSync(path.join(root,'src/background.js'),'utf8');
    const originLine=bg.split('\n').find(x=>x.includes('sender.url || tab.url')&&x.includes('chatgpt'));

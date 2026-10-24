@@ -29,7 +29,7 @@ async function main(){
     manifest.background.scripts=['qa-background.js'];
     fs.writeFileSync(path.join(temp,'manifest.json'),JSON.stringify(manifest));
     fs.mkdirSync(path.join(temp,'src'));
-    for(const name of ['core.js','signal.js'])fs.copyFileSync(path.join(root,'src',name),path.join(temp,'src',name));
+    for(const name of ['core.js','signal.js','rules.js','rule-store.js'])fs.copyFileSync(path.join(root,'src',name),path.join(temp,'src',name));
     let content=fs.readFileSync(path.join(root,'src/content.js'),'utf8');
     const marker="attachShadow({mode:'closed'})";
     assert.equal(content.split(marker).length,2);
