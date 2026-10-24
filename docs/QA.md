@@ -35,15 +35,15 @@ Do not install the unsigned prototype into a personal browser for automatic send
 | Scenario | Required outcome | Current evidence |
 | --- | --- | --- |
 | Unknown/missing provider | No automatic Send | Node logic only |
-| Restored/historical `finished` | No falsely attributed response | Candidate consumer and Node regression; producer/FDE pending |
-| Reply interrupted/failed/limited | Pause; no blind retry | Prototype implementation only |
-| Existing draft or attachment | Remains untouched | Prototype adapter only; not live tested |
+| Restored/historical `finished` | No falsely attributed response | Synthetic two-addon Firefox acceptance; real Chat Signals publisher pending |
+| Reply interrupted/failed/limited | Pause; no blind retry | Synthetic Firefox interruption/limit/recovery tests; authenticated live cases pending |
+| Existing draft or attachment | Remains untouched | Native Firefox synthetic human drafts and selected file inputs passed in [run 40045489196](https://github.com/sguzman/chat-queue/actions/runs/40045489196); authenticated site pending |
 | Navigation to another conversation | No misrouted send | Synthetic Firefox pushState/replaceState, route return and no-send passed in run 40034372239; authenticated live navigation pending |
-| Two tabs same conversation | Deterministic ownership | Not implemented |
-| Same tab after browser restart | No automatic resumption | Volatile run flag; real restart untested |
+| Two tabs same conversation | Deterministic ownership | Native synthetic Firefox lease passed in [run 40042415793](https://github.com/sguzman/chat-queue/actions/runs/40042415793); project URL alias and live identity acceptance separate |
+| Same tab after browser restart | No automatic resumption | Genuine Firefox **event-page** restart and paused recovery passed in [run 40058326692](https://github.com/sguzman/chat-queue/actions/runs/40058326692); whole-browser crash/relaunch untested |
 | Synthetic cross-extension caller denied | No queue contents disclosed | Node tests pass |
-| Approved caller revocation | Immediate denial on new calls | Code present; FDE port tests pending |
-| Three themes and system preference | Legible HUD and preferences persist | CSS/selector implementation only |
+| Approved caller revocation | Immediate denial on new calls | Independent Firefox extension-client acceptance passed; no production-account test |
+| Three themes and system preference | Legible HUD and preferences persist | Synthetic Firefox System/Light/Dark and persistence tests passed; authenticated site pending |
 | User keyboard-only drag alternative | Reorder without mouse | Buttons implemented; FDE QA pending |
 | Consecutive queued messages | Exactly once, ordered after matching response | Not live tested |
 
