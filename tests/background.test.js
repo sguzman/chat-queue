@@ -491,9 +491,26 @@ test('same-route re-registration invalidates old in-flight metadata generations'
   context.browser.tabs.get=originalGet;
   assert.equal((await listeners.internal(reg,sender)).ok,true,
     'registering a fresh generation may preserve the same browser pathname');
+  const peer={tab:{id:814,url},url};
+  assert.equal((await listeners.internal(reg,peer)).ok,true);
+  const signal={version:1,route:'/c/same-route-rebind',
+    documentToken:'c'.repeat(32),sequence:1,epoch:1,
+    phase:'idle',origin:'fresh',confidence:'observed'};
+  const provider={id:'chat-signals@sguzman.github'};
+  for(const tab of [sender,peer])
+    assert.equal((await listeners.external({
+      type:'chat-queue-signal/v1',tabId:tab.tab.id,signal
+    },provider)).ok,true);
+  const check=tab=>listeners.internal({
+    type:'chat-queue-internal/v1',action:'dispatch-check',
+    route:'/c/same-route-rebind',documentToken:'c'.repeat(32),
+    sequence:1,epoch:1},tab);
+  assert.equal((await check(sender)).ok,true);
   resumeOld({id:813,url});
   assert.equal((await old).error,'stale-state',
     'old registration callbacks must not modify the new volatile state');
+  assert.equal((await check(peer)).error,'conversation-owned-by-another-tab',
+    'stale callback from previous registration must not release the new owner');
   const first=await listeners.internal({type:'chat-queue-internal/v1',action:'state',
     sequence:1,phase:'generating',running:true,awaiting:true},sender);
   assert.equal(first.ok,true,'new registration starts its own state sequence');
