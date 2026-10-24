@@ -965,9 +965,10 @@
                   "id": "M6-11",
                   "emoji": "🔌",
                   "title": "Expose rule CRUD, evaluation and notifications in a versioned API",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Versioned external preview evaluation is scoped and Firefox-tested; Options-only local rule save/edit/remove does not yet expose rule CRUD to external callers and no live notifications are implemented: src/background.js, src/grants.js, options/rule-preview.js, API.md. https://github.com/sguzman/chat-queue/actions/runs/40038729574"
+                    "Versioned external `previewRules`, caller-isolated persistent `rulesGet`/`rulesPut` with optimistic revisions and metadata-only `rulesChanged` subscriptions implemented and tested by an independent synthetic Firefox Developer Edition client: https://github.com/sguzman/chat-queue/actions/runs/40118134016. Same-client concurrency yields exactly one successful same-revision writer; changes persist and revoked rules scope denies further reads/writes.",
+                    "Rules change notifications revalidate the rules ACL and withhold even revision metadata when only `discover` survives, including revocation during an in-flight write. Background adversarial regression and complete Firefox suite green: https://github.com/sguzman/chat-queue/actions/runs/40118348042. Live Chat Signals-backed execution and proposal approvals remain separate M6 gates."
                   ]
                 },
                 {
