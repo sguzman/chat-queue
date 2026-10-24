@@ -171,7 +171,10 @@
       const p=message.payload;
       if(!p||typeof p!=='object')return {ok:false,error:'invalid-preview'};
       const response=rulesEngine?.evaluate(p.rules,p.signal,p.consumedKeys??[],p.context);
-      return response||{ok:false,error:'rules-engine-unavailable'};
+      if(!response)return {ok:false,error:'rules-engine-unavailable'};
+      // Additive, sanitized preview receipt. No live provider event, queue
+      // prompt, proposal text, route or document token enters the receipt.
+      return {...response,audit:rulesEngine.auditPreview(response,p.signal)};
     }
     if (message.action === 'listTabs') {
       return { ok: true, tabs: Array.from(TABS, ([tabId, status]) => ({ tabId, ...status })) };
