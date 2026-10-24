@@ -87,3 +87,13 @@ Preview-only duration filters accept optional `when.minDurationMs` / `when.maxDu
 When an extension grant changes while a background authorization read is pending, Chat Queue rejects that operation with `authorization-changed`, even if the older policy would have allowed it. Discovery event ports pending connection are disconnected rather than being activated under stale permissions. A private `status` response already in flight is also discarded if the grant record changes before its response returns, preventing late disclosure of prompt text. Clients should refresh capabilities after a grant change and obtain fresh status instead of treating this rejection as a transport failure.
 
 **Mutating operations already delivered to a queue tab cannot be cancelled retroactively.** Their actual result is returned, rather than reporting a fictitious rejection after a change may have happened. Callers must not automatically replay an operation whose completion is uncertain. This is a narrow revocation/response privacy hardening, not a distributed transaction guarantee.
+
+## Version negotiation and stable error handling
+
+The wire **request protocol** is identified by `type: "chat-queue/v1"` (protocol version **1**). This is distinct from the **grant policy schema version 2** stored under `chatqueue:api-grants:v2`.
+
+For backwards compatibility, `capabilities` retains `version:2` (the historical grant schema number) and adds `protocolVersion:1` and `grantVersion:2`. New consumers should check `protocolVersion` explicitly before using mutations. The subscription events `ready` and `stateChanged` carry `{type:"chat-queue/v1", protocolVersion:1, event:...}`. These fields are additive; existing v1 clients ignoring them continue to work. No private prompt, route or authenticated provider token is included in either subscription event.
+
+All handled API errors return `{ok:false,error:"string-code"}`. Known error categories include: `unauthorized`, `forbidden-scope`, `authorization-changed`, `request-too-large`, `invalid-request`, `invalid-order`, `tab-not-registered`, `tab-unavailable`, `revision-conflict`, and protected route/Signal errors. Additional specific codes may appear in minor releases. Treat unknown errors as failures, **not** as retry authorization. Requests with an unsupported wire `type` are not dispatched; clients must never silently retry them as v1 mutations. An uncertain mutation response must not be blindly replayed.
+
+A real synthetic Firefox Developer Edition client now asserts the protocol/grant version distinction and a versioned `ready` event. Pure background tests also verify `stateChanged` version metadata and the absence of prompt/history fields. This does not establish a real authenticated ChatGPT Send.
