@@ -534,3 +534,40 @@ test('background cannot authorize a Send on any non-conversation route',async()=
   }
   assert.equal(forwards.length,0);
 });
+
+test('different assigned route shapes sharing an ID cannot simultaneously own Send',async()=>{
+  const {listeners}=create();
+  const provider={id:'chat-signals@sguzman.github'};
+  const paths=['/c/collision','/g/g-project/c/collision','/c/independent'];
+  const senders=paths.map((route,i)=>({
+    tab:{id:170+i,url:'https://chatgpt.com'+route},
+    url:'https://chatgpt.com'+route
+  }));
+  for(let i=0;i<senders.length;i++){
+    const route=paths[i],tabId=senders[i].tab.id;
+    assert.equal((await listeners.internal({
+      type:'chat-queue-internal/v1',action:'register',route
+    },senders[i])).ok,true);
+    assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId,
+      signal:{version:1,route,documentToken:String(i+1).repeat(32),
+        epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}
+    },provider)).ok,true);
+  }
+  const check=i=>listeners.internal({
+    type:'chat-queue-internal/v1',action:'dispatch-check',
+    route:paths[i],documentToken:String(i+1).repeat(32),epoch:0,sequence:1
+  },senders[i]);
+  assert.equal((await check(0)).ok,true);
+  assert.equal((await check(1)).error,'conversation-owned-by-another-tab',
+    'project-shaped and ordinary chat paths must collide conservatively');
+  assert.equal((await check(2)).ok,true,'a different conversation ID remains independent');
+  // A background pause with an outstanding response does not unlock either
+  // URL shape, even when both pages report their exact assigned routes.
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    phase:'verifying',size:1,running:false,awaiting:true,sequence:1},senders[0]);
+  assert.equal((await check(1)).error,'conversation-owned-by-another-tab');
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    phase:'finished',size:1,running:false,awaiting:false,sequence:2},senders[0]);
+  assert.equal((await check(1)).ok,true);
+  assert.equal((await check(0)).error,'conversation-owned-by-another-tab');
+});
