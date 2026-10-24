@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 56/96 verified (58%) · █████░░░░░ · 37 implemented awaiting acceptance.**
+**Overall: 57/96 verified (59%) · █████░░░░░ · 36 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -158,7 +158,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M5-03` 👁️ Offer read-only status, tab discovery and subscription events
 - [x] `M5-04` ✍️ Support validated enqueue/update/move/remove/reorder commands
 - [x] `M5-05` 🧪 Run real add-on-to-add-on messaging in Firefox Developer Edition
-- [~] `M5-06` ♻️ Recover tab registry after event-page shutdown _(implemented; acceptance pending)_
+- [x] `M5-06` ♻️ Recover tab registry after event-page shutdown
 
 **F11 · API security & compatibility**
 
@@ -171,7 +171,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M5-11` 📋 Expose capability negotiation and safe feature detection
 - [x] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers
 
-**M5 acceptance:** 10/12 verified (83%) · ████████░░ · 2 implemented but not accepted.
+**M5 acceptance:** 11/12 verified (91%) · █████████░ · 1 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
