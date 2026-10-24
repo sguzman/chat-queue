@@ -43,13 +43,15 @@ async function main(){
       `browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
               const record=msg.route==='/c/future-record'
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
-                : {items:[{id:'legacy0001',text:'Synthetic legacy prompt',status:'pending'}]};
+                : msg.route==='/c/history-record'
+                  ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
+                  : {items:[{id:'legacy0001',text:'Synthetic legacy prompt',status:'pending'}]};
               return browser.storage.local.set({[key]:record}).then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
@@ -341,6 +343,22 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),5000);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='2 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='forget-history';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/history-record`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('history')})`),10000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length===1`),5000);
+    const forget=await driver.executeScript(`return ${jsEl('history-clear')}`);
+    await forget.click();
+    assert.equal(await driver.executeScript(`return ${jsEl('history-clear')}.textContent`),'Confirm forget');
+    assert.equal(await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length`),1);
+    await forget.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length===0`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('history')})`),10000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    assert.equal(await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length`),0,'History deletion must survive reload');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
