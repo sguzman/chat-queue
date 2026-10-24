@@ -10,7 +10,7 @@ const required=new Set([
   'browser-actions/setup-firefox',
   'browser-actions/setup-geckodriver'
 ]);
-const uses=[...workflow.matchAll(/^\s*-\s+uses:\s+([^\s#]+)/gm)].map(x=>x[1]);
+const uses=[...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)/gm)].map(x=>x[1]);
 const fail=[];
 if(uses.length<required.size)fail.push('Missing required audited actions');
 for(const action of uses){
