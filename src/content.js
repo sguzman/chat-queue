@@ -249,7 +249,9 @@
         if(!target)return;
         const next=core.moveTo(state.items,item.id,target.beforeId);
         if(next.every((entry,index)=>entry.id===state.items[index]?.id))return;
-        state.items=next;void save();render();
+        void persistItemMutation(()=>{state.items=next;}).then(result=>{
+          if(!result.ok)statusNote(result.error);
+        });
       }
       row.addEventListener('pointerup',event=>endPointer(event));
       row.addEventListener('pointercancel',event=>endPointer(event,true));
@@ -258,15 +260,35 @@
         textarea.value=editorDraft===undefined?item.text:editorDraft;
         textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
         const ctrls=document.createElement('div');ctrls.className='controls';
-        ctrls.append(button('Save','Save edit',()=>{if (state.importing||!core.validText(textarea.value)) return;item.text=textarea.value;state.editing=null;void save();render();},state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
+        ctrls.append(button('Save','Save edit',()=>{
+          if(state.importing||!core.validText(textarea.value))return;
+          const text=textarea.value,id=item.id;
+          void persistItemMutation(()=>{item.text=text;}).then(result=>{
+            if(!result.ok){statusNote(result.error);return;}
+            const current=els.items.querySelector('textarea[aria-label="Edit queued message"]');
+            // Preserve fresh keystrokes entered while storage was pending.
+            if(state.editing===id&&current?.value===text){state.editing=null;render();}
+          });
+        },state.importing),button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
       } else {
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Remove or resolve before restarting.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
         const locked=Boolean(state.attempting||state.importing);
-        ctrls.append(button('↑','Move earlier',()=>{state.items=core.nextPosition(state.items,item.id,-1);void save();render();},index===0||locked),
-          button('↓','Move later',()=>{state.items=core.nextPosition(state.items,item.id,1);void save();render();},index===state.items.length-1||locked),
+        const editItems=mutate=>{
+          void persistItemMutation(mutate).then(result=>{
+            if(!result.ok)statusNote(result.error);
+          });
+        };
+        ctrls.append(button('↑','Move earlier',()=>editItems(()=>{
+          state.items=core.nextPosition(state.items,item.id,-1);
+        }),index===0||locked),
+          button('↓','Move later',()=>editItems(()=>{
+            state.items=core.nextPosition(state.items,item.id,1);
+          }),index===state.items.length-1||locked),
           button('Edit','Edit message',()=>{state.editing=item.id;render();},locked),
-          button('Delete','Remove message',()=>{state.items=state.items.filter(x=>x.id!==item.id);void save();render();},locked));
+          button('Delete','Remove message',()=>editItems(()=>{
+            state.items=state.items.filter(x=>x.id!==item.id);
+          }),locked));
         if (item.status==='uncertain') ctrls.append(button('Retry','Allow manually requested retry',async()=>{
           const reply=await act('resolve',{id:item.id,decision:'retry'},true);
           if(!reply.ok)statusNote(reply.error);
@@ -606,6 +628,10 @@
   // Changes must either reach durable storage or leave no in-memory phantom.
   // Deep-copy items because updating one item mutates an existing object.
   async function persistItemMutation(mutate) {
+    if(state.routing||state.key!==storageKey())return {ok:false,error:'route-transition'};
+    if(state.importing)return {ok:false,error:'import-in-progress'};
+    if(state.blockedRecord)return {ok:false,error:'unsupported-saved-queue'};
+    if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
     if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
     const key=state.key,revision=state.revision;
     const before=state.items.map(item=>({...item}));

@@ -238,3 +238,7 @@ The disposable Firefox Developer Edition fixture types distinct **unsubmitted** 
 ## 🔁 Atomic Firefox API edits under rejected storage writes
 
 The external-client disposable Firefox Developer Edition fixture rejects an actual queue `storage.local.set` during an `update` with optimistic `ifMatch`, then requires both the **in-memory prompt text and order** to match the prior status exactly, with a rotated revision token. Only a **new**, explicitly issued update using the fresh revision may commit afterward. The Queue's bounded `update`, `move`, `reorder`, `remove`, `clear` and explicit uncertain-item resolution now share one revision-scoped durable mutation/rollback path and decline overlapping pending saves. Native acceptance is bounded to the tested scenarios, not a cross-tab transactional guarantee.
+
+## 🛟 HUD mutation rollback after storage rejection
+
+The production HUD's local **Edit**, **Delete**, arrow-keyboard reorder, and pointer reorder operations now use the same revision-scoped durable mutation helper as the external API. They refuse overlapping queued writes and restore the exact prior item values and ordering if `storage.local.set` fails. A disposable native Firefox regression injects failure separately into local Edit, Delete, and Reorder, checks the immediately restored HUD and then reloads the tab to verify stored state was not modified. The user's actual profile is not involved; this does not imply transactional writes across independent tabs or a live ChatGPT send test.

@@ -1092,6 +1092,84 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     console.log('FDE 100-item Signal status workload (80 changes): '+JSON.stringify(perf));
 
+
+    qaStage='hud-edit-delete-reorder-storage-rollback';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/ui-rollback');
+    await driver.wait(async()=>await driver.executeScript(()=>
+      Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('draft'))),10000);
+    for(const prompt of ['First durable synthetic item','Second durable synthetic item']){
+      await driver.executeScript(text=>{
+        const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+        sh.getElementById('draft').value=text;
+        sh.getElementById('add').click();
+      },prompt);
+      await driver.wait(async()=>await driver.executeScript(()=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft').value===''),10000);
+    }
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child .controls button:nth-child(3)').click());
+    await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const editor=sh.querySelector('.item:first-child textarea');
+      editor.value='Rejected synthetic edited text';
+      document.documentElement.dataset.qaRejectQueueSave='yes';
+      sh.querySelector('.item:first-child .controls button:first-child').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('queue-save-failed')),7000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child textarea').value),'Rejected synthetic edited text');
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child .controls button:nth-child(2)').click());
+    assert.deepEqual(await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent)),
+      ['First durable synthetic item','Second durable synthetic item'],
+      'Rejected local Edit must leave original item text unchanged');
+    await driver.executeScript(() => {
+      document.documentElement.dataset.qaRejectQueueSave='yes';
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child .controls button:nth-child(4)').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('queue-save-failed') &&
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent).join('|')==='First durable synthetic item|Second durable synthetic item'),7000);
+    assert.deepEqual(await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent)),
+      ['First durable synthetic item','Second durable synthetic item'],
+      'Rejected local Delete must restore the removed item immediately');
+    await driver.executeScript(() => {
+      document.documentElement.dataset.qaRejectQueueSave='yes';
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:nth-child(2) .controls button:first-child').click();
+    });
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status')
+        .textContent.includes('queue-save-failed') &&
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent).join('|')==='First durable synthetic item|Second durable synthetic item'),7000);
+    assert.deepEqual(await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent)),
+      ['First durable synthetic item','Second durable synthetic item'],
+      'Rejected local Reorder must restore previous order');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.querySelectorAll('.item .preview').length===2),10000);
+    assert.deepEqual(await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
+        .map(x=>x.textContent)),
+      ['First durable synthetic item','Second durable synthetic item']);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
