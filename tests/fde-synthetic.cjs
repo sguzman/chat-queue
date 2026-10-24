@@ -43,6 +43,16 @@ async function main(){
       `browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
+          if(msg.route==='/c/recovery-record'){
+            const oldKey='chatqueue:v1:tab:987654321:/c/recovery-record';
+            return browser.storage.local.get(oldKey).then(saved=>{
+              if(Object.hasOwn(saved,oldKey))return {ok:true,tabId:sender.tab.id};
+              const oldRecord={version:1,items:[
+                {id:'orphan0001',text:'Previously queued message',status:'pending'}]};
+              return browser.storage.local.set({[oldKey]:oldRecord})
+                .then(()=>({ok:true,tabId:sender.tab.id}));
+            });
+          }
           if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
@@ -359,6 +369,31 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('history')})`),10000);
     await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
     assert.equal(await driver.executeScript(`return ${jsEl('history')}.querySelectorAll('.historyitem').length`),0,'History deletion must survive reload');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='explicit-orphan-recovery';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/recovery-record`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    const findOld=await driver.executeScript(`return ${jsEl('recovery-find')}`);
+    const confirmOld=await driver.executeScript(`return ${jsEl('recovery-confirm')}`);
+    await findOld.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden===false`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued',
+      'Discovery alone must never modify the active queue');
+    await confirmOld.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),5000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'A prior tab pending message must become uncertain on explicit recovery');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('data-note')}.textContent.includes('No other compatible queue')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
