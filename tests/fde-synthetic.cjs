@@ -590,6 +590,11 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('qa-storage-rejected')`),5000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued');
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('backup-export')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Backup unavailable while queue changes')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('backup-export')}.disabled`),true);
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('storage-unavailable')`),5000);
@@ -613,6 +618,11 @@ async function main(){
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='delay'");
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Slow local save must finish first';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('backup-export')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Backup unavailable while queue changes')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('backup-export')}.disabled`),true);
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('queue-save-pending')`),5000);
