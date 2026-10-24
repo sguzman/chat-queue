@@ -907,9 +907,11 @@
       const proof=state.inflightProof;
       // Only an authenticated new busy epoch can prove this journaled Send.
       // Retain its first transition across a rapid terminal event.
+      // The trusted busy transition may precede React clearing the draft.
+      // Recording its epoch does not itself confirm Send: confirmation below
+      // still requires the composer to be empty and the matching context.
       if(proof&&proof.key===state.key&&contract.newBusy(next,proof.baseline)&&
-         proof.editor.isConnected&&!editorValue(proof.editor).trim()&&
-         !proof.busy)proof.busy=next;
+         proof.editor.isConnected&&!proof.busy)proof.busy=next;
       processSignal();
       return Promise.resolve({ok:true});
     }

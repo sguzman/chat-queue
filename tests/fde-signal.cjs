@@ -18,7 +18,11 @@ window.__sent=[];window.__acks=[];
 document.querySelector('[data-testid="send-button"]').addEventListener('click',()=>{
  const editor=document.getElementById('prompt-textarea');
  window.__sent.push(editor.innerText);
- editor.textContent='';editor.dispatchEvent(new Event('input',{bubbles:true}));
+ const clear=()=>{editor.textContent='';editor.dispatchEvent(new Event('input',{bubbles:true}));};
+ // Deliberately keep the draft occupied until the provider has published
+ // both busy and terminal events. QA then simulates React clearing it.
+ if(location.pathname==='/c/rapid-terminal')window.__qaPendingClear=clear;
+ else clear();
 });
 window.addEventListener('message',event=>{if(event.data?.kind==='qa-provider-ack')window.__acks.push(event.data)});
 </script></body></html>`;
@@ -526,9 +530,15 @@ async function main(){
     await waitSends(1);
     await emit('generating',1,81,'observed','fresh','/c/rapid-terminal');
     await emit('finished',1,82,'observed','fresh','/c/rapid-terminal');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),
+      'Rapid synthetic A','Authenticated busy and terminal must precede React clearing');
+    await driver.executeScript('window.__qaPendingClear()');
     await waitSends(2);
     await emit('generating',2,83,'observed','fresh','/c/rapid-terminal');
     await emit('finished',2,84,'observed','fresh','/c/rapid-terminal');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),
+      'Rapid synthetic B','Second response proof must be captured before clear');
+    await driver.executeScript('window.__qaPendingClear()');
     await waitNote('Queue completed');
     assert.deepEqual(await driver.executeScript('return window.__sent'),
       ['Rapid synthetic A','Rapid synthetic B']);

@@ -201,7 +201,7 @@ The Firefox two-addon provider fixture opens an ordinary `/c/<id>` tab and a `/g
 
 ## ⚡ Rapid authenticated response completion
 
-A native two-extension synthetic FDE fixture tests `generating` followed by matching `finished` *before* the next Send-confirmation poll. The content script retains the first browser-authenticated new busy epoch for its journaled attempt; only a cleared composer and completion of that exact epoch can advance to a second queued item. This route widens the test's polling interval to expose the timing race. The real Chat Signals publisher and authenticated ChatGPT remain unverified.
+A native two-extension synthetic FDE fixture tests `generating` followed by matching `finished` *before* the next Send-confirmation poll. The content script retains the first browser-authenticated new busy epoch for its journaled attempt; only a cleared composer and completion of that exact epoch can advance to a second queued item. This route widens the test's polling interval and deliberately retains the synthetic draft until *after both authenticated events are acknowledged*, then clears it to simulate a delayed React update. The test deterministically rejects premature acceptance and verifies the captured busy epoch survives its terminal transition. The real Chat Signals publisher and authenticated ChatGPT remain unverified.
 
 ## 🔏 Rejected sequenced enqueue writes
 
