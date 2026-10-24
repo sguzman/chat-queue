@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 53/96 verified (55%) · █████░░░░░ · 37 implemented awaiting acceptance.**
+**Overall: 53/96 verified (55%) · █████░░░░░ · 38 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -167,11 +167,11 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M5-07` 🎫 Separate read, append, edit, control and content-disclosure scopes
 - [~] `M5-08` ⏱️ Add bounded API request sizes, replay guard, mutation revisions _(implemented; acceptance pending)_
 - [x] `M5-09` 🏷️ Version response/event schemas and document compatibility guarantees
-- [ ] `M5-10` 🛡️ Protect prompts from unapproved page scripts and extension principals
+- [~] `M5-10` 🛡️ Protect prompts from unapproved page scripts and extension principals _(implemented; acceptance pending)_
 - [x] `M5-11` 📋 Expose capability negotiation and safe feature detection
 - [~] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers _(implemented; acceptance pending)_
 
-**M5 acceptance:** 8/12 verified (66%) · ██████░░░░ · 3 implemented but not accepted.
+**M5 acceptance:** 8/12 verified (66%) · ██████░░░░ · 4 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
