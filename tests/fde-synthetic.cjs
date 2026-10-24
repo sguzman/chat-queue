@@ -344,6 +344,7 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),0);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
     const exportButton=await driver.executeScript(`return ${jsEl('backup-export')}`);
     await exportButton.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('download requested')`),5000);
