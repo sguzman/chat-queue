@@ -273,7 +273,7 @@ async function main(){
     // A user must inspect/clear the occupied composer; the extension will
     // never replace it automatically on Retry after an uncertain attempt.
     await driver.executeScript("const el=document.getElementById('prompt-textarea');el.textContent='';el.dispatchEvent(new Event('input',{bubbles:true}))");
-    const retry=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
+    const retry=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button[aria-label=\"Allow manually requested retry\"]')");
     assert.equal(await retry.getText(),'Retry');
     await retry.click(); // explicit manual decision, never background retry
     await waitNote('Retry marked pending; press Start separately');
