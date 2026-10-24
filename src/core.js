@@ -59,7 +59,30 @@
         return {ok:false,error:'unsupported-saved-queue'};
       ids.add(item.id);
     }
-    // Historical unknown statuses remain readable but restore as uncertain.
+    // History and explicit old-tab recovery markers are also retained in the
+    // same record. Never silently truncate or discard them on the next save.
+    if(value.history!==undefined) {
+      if(!Array.isArray(value.history)||value.history.length>20)return {ok:false,error:'unsupported-saved-queue'};
+      for(const entry of value.history) {
+        if(!entry||typeof entry!=='object'||Array.isArray(entry)||
+           typeof entry.id!=='string'||!validText(entry.text)||
+           !Number.isSafeInteger(entry.at)||
+           !['submitted','finished','interrupted','failed'].includes(entry.status))
+          return {ok:false,error:'unsupported-saved-queue'};
+      }
+    }
+    if(value.recoveredSources!==undefined) {
+      if(!Array.isArray(value.recoveredSources)||value.recoveredSources.length>32)
+        return {ok:false,error:'unsupported-saved-queue'};
+      const seenSources=new Set();
+      for(const source of value.recoveredSources){
+        if(typeof source!=='string'||source.length>1024||
+           !source.startsWith('chatqueue:v1:tab:')||seenSources.has(source))
+          return {ok:false,error:'unsupported-saved-queue'};
+        seenSources.add(source);
+      }
+    }
+    // Historical unknown item statuses remain readable but restore as uncertain.
     return {ok:true};
   }
   const MAX_REQUEST_CLIENTS=32;
