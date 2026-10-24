@@ -76,6 +76,34 @@ async function main(){
     stage='second-live-light';
     await driver.wait(async()=>await driver.executeScript(`return ${get('theme')}.value==='light'`),7000);
     assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
+    stage='cross-tab-unrelated-storage-mutations';
+    await driver.sleep(150);
+    await driver.executeScript(() => {
+      window.__qaStatusMutations=0;
+      const status=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status');
+      window.__qaStatusObserver=new MutationObserver(records=>{
+        window.__qaStatusMutations+=records.length;
+      });
+      window.__qaStatusObserver.observe(status,{childList:true,subtree:true,characterData:true});
+    });
+    await driver.switchTo().window(first);
+    await driver.executeScript(`const d=${get('draft')};d.value='Extra cross-tab synthetic message';d.dispatchEvent(new Event('input',{bubbles:true}));`);
+    await driver.executeScript(`return ${get('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${get('count')}.textContent==='2 queued' && ${get('draft')}.value===''`),10000);
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:nth-child(2) .controls button:nth-child(4)').click());
+    await driver.wait(async()=>await driver.executeScript(`return ${get('count')}.textContent==='1 queued'`),9000);
+    await driver.sleep(300);
+    await driver.switchTo().window(second);
+    const unrelatedRedraws=await driver.executeScript(() => {
+      window.__qaStatusObserver.disconnect();
+      return window.__qaStatusMutations;
+    });
+    assert.equal(unrelatedRedraws,0,
+      'Private queue edits in another tab must not redraw this tab\'s status');
+    assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
     stage='sixteen-tab-isolation';
     const backgroundTabs=[];
     for(let i=0;i<14;i++){

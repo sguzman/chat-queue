@@ -250,3 +250,7 @@ A synthetic independent Firefox provider exercises the new HUD **Conditional pro
 ## ⏸️ Conditional proposal preempts the next Send
 
 A second independent-provider native Firefox scenario starts an explicitly authorized synthetic two-message queue, observes Send for the first message and its authenticated generating→finished epoch, then enables a matching finished-rule review boundary. The proposed rule must synchronously pause the Queue and cancel its pending 350-ms next dispatch; after a full 1-second interval the second Send count must remain zero. Manual approval may enqueue additional proposed text but cannot resume Send, and the paused queue remains persistent after a full tab refresh. The test exercises an isolated synthetic provider; the real Chat Signals publisher remains missing.
+
+## 🪶 Skip unrelated cross-tab storage redraws
+
+A disposable Firefox Developer Edition two-tab test observes the second tab's Queue HUD status node while the first tab appends and removes a private queued prompt. Those storage writes must not mutate the second tab's status subtree at all; theme and shared HUD placement changes still trigger local rendering. This avoids proportional cross-tab HUD churn for queue-only local storage changes, including the existing 16-tab workload. It is a measured DOM-work correctness/performance regression, not CPU, memory, battery or authenticated-chat certification.

@@ -1092,19 +1092,25 @@
   });
   api.storage.onChanged.addListener((changes,area)=>{
     if(area!=='local')return;
+    // A write to any of up to 16 other tabs' private prompt queues is not
+    // a reason to redraw this tab's HUD. Only shared presentation and local
+    // conditional-rule configuration can affect this document.
+    let relevant=false;
     if(changes[ruleStore.KEY]){
-      // Never execute a library updated after the current opt-in snapshot.
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
+      relevant=true;
     }
     if(changes['chatqueue:settings:v1']){
       const next=changes['chatqueue:settings:v1'].newValue?.theme;
       state.theme=['system','light','dark'].includes(next)?next:'system';
+      relevant=true;
     }
     if(changes[UI_KEY]&&uiValid(changes[UI_KEY].newValue)){
       const ui=changes[UI_KEY].newValue;state.position={right:ui.right,bottom:ui.bottom};state.collapsed=ui.collapsed;
+      relevant=true;
     }
-    render();
+    if(relevant)render();
   });
   api.runtime.onMessage.addListener((message) => {
     if(message?.type==='chat-queue-route-changed/v1'){

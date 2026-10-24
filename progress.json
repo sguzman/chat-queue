@@ -877,7 +877,8 @@
                   "title": "Support successful completed-response branches",
                   "status": "implemented",
                   "evidence": [
-                    "Preview-only evaluator matches a fresh finished response; no conditional dispatch acceptance: src/rules.js and tests/rules.test.js"
+                    "Preview-only evaluator matches a fresh finished response; no conditional dispatch acceptance: src/rules.js and tests/rules.test.js",
+                    "Browser-authenticated synthetic Firefox v1 finished event now creates an opt-in success proposal; explicit local approval queues only a paused pending item, with zero automatic Send (Actions 40138970399 and 40139342546). Real Chat Signals publisher and live ChatGPT acceptance remain pending."
                   ]
                 },
                 {
@@ -952,7 +953,8 @@
                   "title": "Require explicit user policy for sensitive retries and sends",
                   "status": "implemented",
                   "evidence": [
-                    "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js"
+                    "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js",
+                    "Native disposable FDE verifies per-conversation opt-in, page-DOM spoof rejection, local approval, automatic next-Send preemption while review is pending, and no auto-resume; pause/approval policy remains unaccepted against real authenticated ChatGPT (Actions 40139342546)."
                   ]
                 },
                 {
