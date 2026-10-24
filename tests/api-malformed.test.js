@@ -80,7 +80,7 @@ test('bounded deterministic adversarial IPC corpus never forwards or discloses t
     {type:'chat-queue/v1',action:[]},
     {type:'chat-queue/v1',action:{x:'enqueue'}}];
   for(let i=0;i<128;i++){
-    const actions=['unsupported-'+i,'enqueue','previewRules','update','remove','capabilities','listTabs'];
+    const actions=['unsupported-'+i,'enqueue','previewRules','update','remove','move','start'];
     const body=[null,secret,{text:secret},[secret],{deep:{nested:[secret]}}][i%5];
     // The queue is never registered in this fixture, so even typed mutation
     // frames with a plausible tabId cannot dispatch to a content script.
