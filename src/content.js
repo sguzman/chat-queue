@@ -756,11 +756,17 @@
     const draft=state.pendingRecovery;
     if(!draft||draft.key!==state.key||storageKey()!==state.key||
        draft.revision!==state.revision||state.blockedRecord||state.running||
-       state.awaiting||state.attempting||state.routing||state.importing)return;
+       state.awaiting||state.attempting||state.routing||state.importing||
+       state.pendingSaves>0)return;
     // Disarm confirmation synchronously. Two fast clicks must not import
     // the same staged record twice while an asynchronous read is pending.
     state.pendingRecovery=null;
+    // Recovery is a local import with two asynchronous boundaries: source
+    // revalidation and durable persistence. Lock *before* either can yield.
+    // Otherwise a later edit could be lost if persistence rolls back.
+    state.importing=true;
     render();
+    try {
     let latest;
     try { latest=await api.storage.local.get(draft.sourceKey); }
     catch {statusNote('Could not recheck earlier queue; search again');return;}
@@ -783,12 +789,19 @@
     state.recoveredSources.push(draft.sourceKey);
     try{
       await save();
-      state.pendingRecovery=null;
-      els['data-note'].textContent='Recovered '+draft.items.length+' messages for manual review; queue remains paused';
-      render();
+      if(state.key===draft.key&&!state.destroyed){
+        els['data-note'].textContent='Recovered '+draft.items.length+' messages for manual review; queue remains paused';
+        render();
+      }
     }catch{
-      state.items=before;state.recoveredSources=sources;
-      state.pendingRecovery=null;statusNote('Recovery could not be saved; no automatic send');
+      if(state.key===draft.key){
+        state.items=before;state.recoveredSources=sources;
+        statusNote('Recovery could not be saved; no automatic send');
+      }
+    }
+    } finally {
+      state.importing=false;
+      if(!state.destroyed)render();
     }
   });
   els['history-clear'].addEventListener('click',async()=>{
