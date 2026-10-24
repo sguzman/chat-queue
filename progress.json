@@ -896,8 +896,10 @@
                   "id": "M6-05",
                   "emoji": "🔗",
                   "title": "Support dependencies, explicit priorities and skip conditions",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "src/rules.js now validates up to eight bounded dependsOn/skipIf references per rule, denies dangling/cyclic/contradictory conditions, and uses caller-supplied synthetic completedRuleIds. Saved rule editor and external preview API expose dry-run behavior. Pure tests and native Firefox Options QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051268536. No authenticated provider or live conditional execution."
+                  ]
                 },
                 {
                   "id": "M6-06",
@@ -950,8 +952,10 @@
                   "id": "M6-10",
                   "emoji": "📬",
                   "title": "Emit auditable outcomes without recording response text",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "implemented",
+                  "evidence": [
+                    "ChatQueueRules.auditPreview returns bounded fixed-schema metadata without prompt text, eventKey, route or document token. Options keeps last 20 dry-run entries in memory only; scoped external previewRules response adds sanitized audit receipt. Pure, Options and independent Firefox extension QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051586583. No persistent authenticated live outcome journal or active rule sends."
+                  ]
                 },
                 {
                   "id": "M6-11",
