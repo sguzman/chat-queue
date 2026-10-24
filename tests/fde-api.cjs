@@ -134,6 +134,11 @@ async function main(){
     payload:{rules:[syntheticRule],signal:syntheticSignal}});
   assert.equal(result.ok,true);assert.equal(result.decision.ruleId,'pause-on-error');
   assert.equal(result.decision.approvalRequired,true);
+  assert.equal(result.audit.phase,'failed');
+  assert.equal(result.audit.ruleId,'pause-on-error');
+  assert.equal(result.audit.action,'pause');
+  assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.route),false);
+  assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.documentToken),false);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.ok,true);assert.equal(result.tabs.length,1);
