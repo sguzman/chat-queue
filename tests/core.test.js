@@ -62,3 +62,31 @@ test('unrecognized future queue schemas are explicitly read-only; legacy records
   q.savedRecordSupport(future);
   assert.equal(future.items[0].text,'keep this');
 });
+
+test('queue backup excludes route identifiers and preserves uncertain statuses',()=>{
+  const original=[
+    {id:'aaaaaaaa',text:'Synthetic pending prompt',status:'pending'},
+    {id:'bbbbbbbb',text:'Synthetic uncertain prompt',status:'uncertain'}
+  ];
+  const payload=q.backupItems(original);
+  assert.deepEqual(payload,{kind:q.BACKUP_KIND,version:1,items:[
+    {text:'Synthetic pending prompt',status:'pending'},
+    {text:'Synthetic uncertain prompt',status:'uncertain'}
+  ]});
+  assert.deepEqual(q.parseBackup(JSON.parse(JSON.stringify(payload))),payload.items);
+  assert.equal(JSON.stringify(payload).includes('aaaaaaaa'),false);
+  assert.notEqual(payload.items[0],original[0]);
+});
+test('malformed, oversize, and future backup versions fail closed without mutating data',()=>{
+  const valid=q.backupItems([{id:'aaaaaaaa',text:'Fixture',status:'pending'}]);
+  for(const bad of [
+    null,[],{}, {...valid,version:2}, {...valid,kind:'other'},
+    {...valid,items:[{text:'',status:'pending'}]},
+    {...valid,items:[{text:'fixture',status:'sent'}]},
+    {...valid,items:[{text:'fixture',status:'pending'},{text:'x'.repeat(q.MAX_CHARS+1),status:'pending'}]},
+    {...valid,items:Array.from({length:q.MAX_ITEMS+1},()=>({text:'x',status:'pending'}))}
+  ])assert.throws(()=>q.parseBackup(bad));
+  assert.throws(()=>q.backupItems([{id:'aaaaaaaa',text:'no status'}]));
+  assert.throws(()=>q.backupItems(Array.from({length:2},()=>({id:'aaaaaaaa',text:'same',status:'pending'}))));
+  assert.equal(valid.items[0].status,'pending','validator never edits input');
+});
