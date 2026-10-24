@@ -15,8 +15,8 @@ const initialPolicy={version:2,grants:{[clientId]:['discover','append','rules']}
 const html=`<!doctype html><html><head><meta charset="utf-8"><title>API fixture</title></head><body>
 <main><form><div id="prompt-textarea" role="textbox" contenteditable="true"></div>
 <button type="button" data-testid="send-button" onclick="window.__sent++">Send</button></form></main>
-<script>window.__sent=0;window.__apiResults=[];window.__grantResults=[];
-window.addEventListener('message',e=>{if(e.data?.kind==='qa-api-response')window.__apiResults.push(e.data);if(e.data?.kind==='qa-grants-ack')window.__grantResults.push(e.data)});
+<script>window.__sent=0;window.__apiResults=[];window.__grantResults=[];window.__metadataResults=[];
+window.addEventListener('message',e=>{if(e.data?.kind==='qa-api-response')window.__apiResults.push(e.data);if(e.data?.kind==='qa-grants-ack')window.__grantResults.push(e.data);if(e.data?.kind==='qa-meta-response')window.__metadataResults.push(e.data)});
 </script></body></html>`;
 function createQueue(dest,root){
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
@@ -40,6 +40,16 @@ function createQueue(dest,root){
  const nav="!change.url.startsWith('https://chatgpt.com/')";
  assert.equal(bg.split(nav).length,2);
  bg=bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')");
+ // QA-only: delay one stale tab metadata state before URL inspection.
+ const section=bg.indexOf("    if (message.action === 'state') {");
+ assert.ok(section>=0);
+ const lookup="      return currentRoute(sender).then(live=>{";
+ const fragment=bg.slice(section);
+ assert.equal(fragment.split(lookup).length,2);
+ bg=bg.slice(0,section)+fragment.replace(lookup,
+   "      return (message.sequence===100001 ? "+
+   "new Promise(resolve=>setTimeout(resolve,900)).then(()=>currentRoute(sender)) : "+
+   "currentRoute(sender)).then(live=>{");
  fs.writeFileSync(bgFile,bg);
  // QA-only bootstrap and permission update handler. Production extension
  // remains unchanged; it receives genuine browser.storage.local writes.
@@ -56,6 +66,13 @@ function createQueue(dest,root){
   browser.runtime.sendMessage({type:'qa-grants-update',policy})
     .then(result=>window.postMessage({kind:'qa-grants-ack',nonce,result},'*'))
     .catch(()=>window.postMessage({kind:'qa-grants-ack',nonce,result:{ok:false}},'*'));
+ });
+ window.addEventListener('message',event=>{
+  if(event.source!==window||event.data?.kind!=='qa-meta-send')return;
+  const {nonce,message}=event.data;
+  browser.runtime.sendMessage(message)
+    .then(result=>window.postMessage({kind:'qa-meta-response',nonce,result},'*'))
+    .catch(()=>window.postMessage({kind:'qa-meta-response',nonce,result:{ok:false,error:'transport'}},'*'));
  });`);
 }
 function createClient(dest){
@@ -333,6 +350,31 @@ async function main(){
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
   const stream=await command({action:'portState'});
   assert.equal(stream.events.find(x=>x.event==='ready')?.protocolVersion,1);
+  stage='native-firefox-metadata-ordering';
+  const staleNonce=++nonce,latestNonce=++nonce;
+  const oldState={type:'chat-queue-internal/v1',action:'state',
+    sequence:100001,phase:'idle',running:false,awaiting:false,size:3,revision:100};
+  const newestState={...oldState,sequence:100002,phase:'generating',
+    running:true,awaiting:true,revision:101};
+  await driver.executeScript((a,b,m,n)=>{
+    window.postMessage({kind:'qa-meta-send',nonce:a,message:m},'*');
+    window.postMessage({kind:'qa-meta-send',nonce:b,message:n},'*');
+  },staleNonce,latestNonce,oldState,newestState);
+  await driver.wait(async()=>await driver.executeScript(
+    'return [arguments[0],arguments[1]].every(id=>window.__metadataResults.some(x=>x.nonce===id))',
+    staleNonce,latestNonce),12000);
+  const staleResult=await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result',staleNonce);
+  const newestResult=await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result',latestNonce);
+  assert.equal(newestResult.ok,true,'latest metadata wins in Firefox');
+  assert.equal(staleResult.error,'stale-state','delayed paused metadata must be rejected');
+  const stateAfterRace=await command({type:'chat-queue/v1',action:'listTabs'});
+  const entry=stateAfterRace.tabs.find(x=>x.tabId===tabId);
+  assert.equal(entry.running,true);
+  assert.equal(entry.awaiting,true);
+  assert.equal(entry.phase,'generating');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   stage='grant-revocation';
   const grantNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{}}},"*")',grantNonce);
