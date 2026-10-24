@@ -107,6 +107,10 @@
       });
     }
     if (message.action === 'dispatch-check') {
+      // A compromised/stale caller cannot authorize a Send on a home,
+      // shared, GPT landing or other non-conversation pathname.
+      if(!signalContract.assignedConversationRoute(message.route))
+        return Promise.resolve({ok:false,error:'conversation-not-assigned'});
       // A restarted event page has no provider registration. A previously
       // observed content-script Signal cannot authorize a new Send by itself.
       const last=SIGNALS.get(tab.id);
