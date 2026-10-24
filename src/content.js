@@ -429,7 +429,9 @@
     if(!result?.ok||!result.decision)return;
     state.ruleSeen.push(result.decision.eventKey);
     if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
-    state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,action:result.decision.action};
+    state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,
+      action:result.decision.action,documentToken:signal.documentToken,
+      epoch:signal.epoch,phase:signal.phase,confidence:signal.confidence};
     // A proposal requiring manual review must stop any already-scheduled
     // next Send synchronously. processSignal may have just scheduled it on
     // the terminal event; the timeout cannot fire until this listener ends.
@@ -1080,6 +1082,14 @@
   els['rules-approve'].addEventListener('click',async()=>{
     const offer=state.ruleOffer;
     if(!offer||state.routing||state.key!==offer.key||state.key!==storageKey())return;
+    // A newer provider epoch/phase must invalidate the pending review; an
+    // obsolete success/failure offer cannot be approved for a later response.
+    if(!state.trusted||state.trusted.documentToken!==offer.documentToken||
+       state.trusted.epoch!==offer.epoch||state.trusted.phase!==offer.phase||
+       state.trusted.confidence!==offer.confidence||state.trusted.origin!=='fresh'){
+      state.ruleOffer=null;statusNote('Conditional proposal expired; review current response');
+      return;
+    }
     // Disarm immediately against rapid double-clicks. Never authorize Send.
     state.ruleOffer=null;state.running=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -1134,6 +1144,16 @@
       if(!state.initialized||!next||next.route!==routeKey()||
          !contract.advance(state.trusted,next))return Promise.resolve({ok:false,error:'invalid-signal'});
       state.trusted=next;state.trustedAt=performance.now();
+      const offer=state.ruleOffer;
+      if(offer&&(next.documentToken!==offer.documentToken||
+         next.epoch!==offer.epoch||next.phase!==offer.phase||
+         next.confidence!==offer.confidence||next.origin!=='fresh')){
+        state.ruleOffer=null;
+        state.running=false;
+        if(state.scheduler)clearTimeout(state.scheduler);
+        state.scheduler=null;
+        statusNote('Conditional proposal expired; review current response');
+      }
       const proof=state.inflightProof;
       // Only an authenticated new busy epoch can prove this journaled Send.
       // Retain its first transition across a rapid terminal event.

@@ -663,6 +663,31 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
 
+
+    qaStage='superseded-authenticated-rule-proposal';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-expiry');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',1,120,'observed','fresh','/c/rule-expiry');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    await emit('generating',2,121,'observed','fresh','/c/rule-expiry');
+    await waitNote('Conditional proposal expired');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'A newer response epoch must revoke the prior proposal');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
+      'A stale, programmatically clicked approval must not enqueue anything');
+    await emit('finished',2,122,'observed','fresh','/c/rule-expiry');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
     qaStage='inflight-rule-library-revocation';
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-config-race');

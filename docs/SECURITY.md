@@ -50,3 +50,7 @@ A closed ShadowRoot is an **encapsulation boundary**, not encryption or a guaran
 ## Rule configuration invalidation
 
 Per-conversation conditional preview consent is volatile and is invalidated when the stored local rule definitions change. Pending storage reads also carry a rule-library generation token, so an outdated asynchronous result cannot reinstate the superseded policy. Changing conversations discards the current offer and disables previews. The user must opt in again before authenticated events can create another proposal, and review cannot be bypassed by either HUD or permissioned API Start.
+
+## Conditional proposal epoch binding
+
+An approval is never a reusable authorization token: it is tied to the original authenticated provider document, response epoch, phase and confidence. A superseding provider transition discards it and pauses further dispatch. Even an obsolete button callback must recheck the current authenticated Signal before a proposed queue addition. This does not supply the missing real Chat Signals publisher or establish authenticated ChatGPT acceptance.

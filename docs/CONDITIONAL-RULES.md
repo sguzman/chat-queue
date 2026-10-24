@@ -72,3 +72,7 @@ This boundary has only **synthetic disposable Firefox Developer Edition acceptan
 ## 🔄 Revoking asynchronous rule-library loads
 
 Rule-library reads are asynchronous. A storage change to `chatqueue:conditional-rules:v1` increments an in-document policy generation and disables current previews and offers immediately. Enabling previews snapshots that generation and the selected conversation; if the library changes before the read resolves, the old snapshot is rejected. A delayed read from another conversation cannot overwrite the newly selected route's rule state. The user must explicitly opt in again to the current stored rules. There is no automatic action, Send or retry.
+
+## ⌛ Proposal identity expires on a newer authenticated response
+
+A pending offer is tied to its verified source document token, response epoch, terminal phase and confidence. If a newer authenticated Signal changes any of these, the offer is revoked immediately and the queue stays paused. Approve separately rechecks the current trusted Signal before acting, protecting against obsolete user-interface callbacks. Fresh later events may create their own distinct proposals only while this conversation remains opted in. This is review-only behavior and does not automatically Send or retry a message.

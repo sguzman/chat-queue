@@ -262,3 +262,7 @@ A native two-extension Firefox QA scenario attempts HUD **Start** after an authe
 ## 🔄 Native Firefox rule-policy race
 
 A disposable two-extension Firefox Developer Edition fixture delays the Queue's opt-in rule read only on one QA pathname. A separate temporary content-script helper changes the Queue's own synthetic `storage.local` rule definitions while the read is pending. After the obsolete read settles, the HUD must remain disabled, keep Approve hidden and reject a fresh authenticated terminal event as a rule offer. The helper and delay substitution are QA-only and absent from the production extension. This does not validate the real Chat Signals publisher or genuine ChatGPT execution.
+
+## 🧪 Superseded conditional proposal
+
+A disposable Firefox two-extension fixture publishes a fresh authenticated finished-phase event and verifies that its matching proposal is visible. The synthetic provider then advances to a new generating response epoch. The old offer must expire, stay expired when its old Approve control is invoked programmatically, and leave the queue empty with zero Send clicks. A later independently authenticated fresh finish may show a new reviewable offer that can be dismissed. This uses the synthetic v1 publisher rather than the unimplemented real publisher.
