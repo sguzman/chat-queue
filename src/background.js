@@ -36,13 +36,21 @@
       :{ok:false,error:'invalid-stored-rules'};
   }
   function notifyPeerRules(id,revision){
-    // Event payload has no rule IDs, prompts, routes or event epochs.
-    for(const [port,owner] of PORTS){
-      if(owner!==id)continue;
-      try{port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,
-        event:'rulesChanged',revision});}
-      catch{PORTS.delete(port);}
-    }
+    // A discover-only subscriber must not learn even a rule revision after
+    // the separate rules capability has been revoked. Revalidate the current
+    // durable ACL at publication time, including in-flight write completions.
+    const revisionAtRead=grantRevision;
+    void api.storage.local.get(grants.KEY).then(config=>{
+      if(revisionAtRead!==grantRevision||
+         !grants.has(config[grants.KEY],id,'rules'))return;
+      // Only fixed-schema metadata; no rule IDs, prompt text or event keys.
+      for(const [port,owner] of PORTS){
+        if(owner!==id)continue;
+        try{port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,
+          event:'rulesChanged',revision});}
+        catch{PORTS.delete(port);}
+      }
+    }).catch(()=>{});
   }
   // Invalidates pending authorization reads when Options changes the ACL.
   let grantRevision=0;
