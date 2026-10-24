@@ -386,3 +386,49 @@ test('rules-scoped per-client libraries are revisioned, durable and concurrent-w
   assert.equal(unrelated.error,'forbidden-scope');
   assert.equal(forwards.length,0);
 });
+
+test('rulesChanged events stop after rules grant revocation while discover remains',async()=>{
+  const {listeners,state,context,forwards}=create();
+  const peer='sandbox@example.test';
+  const inReceiver=value=>vm.runInContext('JSON.parse('+JSON.stringify(JSON.stringify(value))+')',context);
+  state['chatqueue:api-grants:v2']={version:2,grants:{[peer]:['discover','rules']}};
+  const received=[];let disconnected=0;
+  listeners.connect({name:'chat-queue/v1',sender:{id:peer},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:event=>received.push(event),
+    disconnect:()=>disconnected++});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received[0]?.event,'ready');
+  const sample={id:'rule-a',version:1,enabled:true,priority:7,
+    when:{phase:'failed'},then:{type:'pause'}};
+  const put=revision=>listeners.external(inReceiver({type:'chat-queue/v1',
+    action:'rulesPut',payload:{revision,rules:[sample]}}),{id:peer});
+  assert.equal((await put(0)).ok,true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received.filter(x=>x.event==='rulesChanged').length,1);
+  const realSet=context.browser.storage.local.set;
+  let finishWrite;
+  context.browser.storage.local.set=changes=>new Promise(resolve=>{
+    finishWrite=()=>{void realSet(changes).then(resolve);};
+  });
+  const ongoing=put(1);
+  for(let attempts=0;attempts<12&&!finishWrite;attempts++)
+    await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof finishWrite,'function');
+  const before=state['chatqueue:api-grants:v2'];
+  const after={version:2,grants:{[peer]:['discover']}};
+  state['chatqueue:api-grants:v2']=after;
+  listeners.changed({'chatqueue:api-grants:v2':{oldValue:before,newValue:after}},'local');
+  finishWrite();
+  // A write that was already in progress may commit, but cannot grant new
+  // authority to receive rulesChanged after rules scope is revoked.
+  const committed=await ongoing;
+  assert.equal(committed.ok,true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received.filter(x=>x.event==='rulesChanged').length,1);
+  assert.equal(disconnected,0,'Discover-only subscribers remain connected');
+  assert.equal((await listeners.external(inReceiver({type:'chat-queue/v1',
+    action:'rulesGet'}),{id:peer})).error,'forbidden-scope');
+  assert.equal((await put(2)).error,'forbidden-scope');
+  assert.equal(forwards.length,0);
+});
