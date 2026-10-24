@@ -76,11 +76,40 @@ async function main(){
     stage='second-live-light';
     await driver.wait(async()=>await driver.executeScript(`return ${get('theme')}.value==='light'`),7000);
     assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
+    stage='sixteen-tab-isolation';
+    const backgroundTabs=[];
+    for(let i=0;i<14;i++){
+      await driver.switchTo().newWindow('tab');
+      await driver.get(`${origin}/c/workload-${i}`);
+      await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('count')})`),15000);
+      await driver.wait(async()=>await driver.executeScript(`return ${get('theme')}.value==='light'`),7000);
+      assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
+      if(i%3===0){
+        await driver.executeScript(`const d=${get('draft')};d.value='Synthetic tab ${i}';`);
+        await driver.executeScript(`return ${get('add')}.click()`);
+        await driver.wait(async()=>await driver.executeScript(`return ${get('count')}.textContent==='1 queued'`),5000);
+      }
+      assert.equal(await driver.executeScript('return window.__sendCount'),0);
+      backgroundTabs.push({handle:await driver.getWindowHandle(),queued:i%3===0});
+    }
+    assert.equal((await driver.getAllWindowHandles()).length,16);
+    stage='hidden-tab-preservation';
     await driver.switchTo().window(first);
     assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(`return ${get('count')}?.textContent==='1 queued'`),10000);
+    await driver.switchTo().window(second);
+    assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    for(const item of [backgroundTabs[0],backgroundTabs[7],backgroundTabs[13]]){
+      await driver.switchTo().window(item.handle);
+      await driver.wait(async()=>await driver.executeScript(`return Boolean(${get('count')})`),5000);
+      assert.equal(await driver.executeScript(`return ${get('count')}.textContent`),item.queued?'1 queued':'0 queued');
+      assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    }
     await driver.uninstallAddon(addon);
-    console.log('FDE themes: system default, shared live light/dark preference, independent conversation queues and no Send');
+    console.log('FDE themes: 16 isolated conversations, hidden-tab retention, synced appearance and no Send');
   }catch(error){
     console.error('FDE theme-sync stage:',stage,'reason:',error.message);
     throw error;
