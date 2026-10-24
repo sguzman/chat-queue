@@ -467,6 +467,45 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     assert.equal(await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    qaStage='cross-route-collision-lease';
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/cross-route-owner`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Owner of exact synthetic conversation ID';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,70,'observed','fresh','/c/cross-route-owner');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,71,'observed','fresh','/c/cross-route-owner');
+    await waitNote('Waiting for confirmed response completion');
+    const crossRouteOwner=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    const alternateRoute='/g/g-project/c/cross-route-owner';
+    await driver.get(`http://127.0.0.1:${server.address().port}${alternateRoute}`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Project-route competing prompt';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await emit('idle',0,72,'observed','fresh',alternateRoute);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.switchTo().window(crossRouteOwner);
+    await emit('finished',1,72,'inferred','fresh','/c/cross-route-owner');
+    await waitNote('Queue completed');
+    await driver.switchTo().window((await driver.getAllWindowHandles()).at(-1));
+    await emit('idle',0,73,'observed','fresh',alternateRoute);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,74,'observed','fresh',alternateRoute);
+    await waitNote('Waiting for confirmed response completion');
+    await emit('finished',1,75,'inferred','fresh',alternateRoute);
+    await waitNote('Queue completed');
+    assert.deepEqual(await driver.executeScript('return window.__sent'),
+      ['Project-route competing prompt']);
     console.log('Headless FDE synthetic Signal: editor replacement, late attachment and route guards');
   }catch(error){
     throw new Error('stage '+qaStage+': '+error.message);
