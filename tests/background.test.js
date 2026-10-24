@@ -344,10 +344,13 @@ test('route ownership cannot persist through tab registration or unrelated route
 });
 
 test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
-  const {listeners,state,forwards}=create();
+  const {listeners,state,forwards,context}=create();
+  // Firefox structured-clones peer messages into the recipient realm. Pass
+  // parsed receiver-realm objects through the VM like the preview API tests.
+  const inReceiver=value=>vm.runInContext('JSON.parse('+JSON.stringify(JSON.stringify(value))+')',context);
   const sender={id:'sandbox@example.test'};
   const request=(action,payload)=>listeners.external(
-    {type:'chat-queue/v1',action,payload},sender);
+    inReceiver({type:'chat-queue/v1',action,payload}),sender);
   const initial=await request('rulesGet');
   assert.equal(initial.ok,true);assert.equal(initial.revision,0);
   assert.equal(initial.rules.length,0);
