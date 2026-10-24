@@ -124,3 +124,7 @@ A pending Firefox local-storage write blocks Start; a rejected save pauses the q
 The disposable Firefox Developer Edition cross-tab regression now opens **16 independent ChatGPT-shaped conversation routes**, checks exact-route queue isolation, and revisits a previously hidden tab after additional queues are created. It verifies shared Light/Dark preference and zero Send clicks. [Firefox workload run](https://github.com/sguzman/chat-queue/actions/runs/40046956628).
 
 This is bounded synthetic browser QA, not authenticated ChatGPT, a realistic large transcript, long-idle power profiling, a true event-page restart or a full multi-tab performance acceptance. The corresponding M7-05 milestone remains `implemented` rather than verified.
+
+## 🧾 Dry-run decision audit
+
+The Options rule simulator keeps a bounded, in-memory trace of preview outcomes without proposed text, conversation route or document token; it disappears on refresh. This helps inspect dependency/skip branches without connecting rules to real messages. [Preview and privacy contract](docs/CONDITIONAL-RULES.md).
