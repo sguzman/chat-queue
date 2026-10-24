@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 46 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 56 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -100,7 +100,7 @@ The first visual QA screenshot run exposed clipped Add/Clear/Start controls. The
 
 ## 📦 Local backup and retention
 
-The floating HUD's **Recently submitted / backup** disclosure offers JSON export, manual import with separate confirmation, and two-click recent-history deletion. No import can auto-start the queue; uncertain messages still require review. Backups intentionally omit route, tab, document, epoch, and authorization metadata. [Full backup contract](docs/BACKUP.md) · [Passing Firefox import/download/deletion QA](https://github.com/sguzman/chat-queue/actions/runs/40044676209). This does not provide automatic recovery after a tab-ID change.
+The floating HUD's **Recently submitted / backup** disclosure offers JSON export, manual import with separate confirmation, and two-click recent-history deletion. No import can auto-start the queue; uncertain messages still require review. Backups intentionally omit route, tab, document, epoch, and authorization metadata. [Full backup contract](docs/BACKUP.md) · [Passing Firefox import/download/deletion QA](https://github.com/sguzman/chat-queue/actions/runs/40044676209). After a tab-ID change, **Find earlier queues → Recover for review** can explicitly copy compatible saved messages from the exact same conversation. All recovered messages become uncertain, no automatic Send is enabled, and the source remains intact. [Synthetic Firefox recovery acceptance](https://github.com/sguzman/chat-queue/actions/runs/40045727469). This is not authenticated browser-restart acceptance.
 
 ## 🔌 Versioned cross-extension API
 
