@@ -257,6 +257,33 @@ async function main(){
     ['Synthetic updated message','Single synthetic sequenced enqueue','Another synthetic sequenced enqueue']);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
+  stage='concurrent-optimistic-api-edits';
+  const raceSnapshot=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.equal(raceSnapshot.ok,true);
+  const raceNonces=[++nonce,++nonce];
+  const raceUpdates=['Synthetic concurrent A','Synthetic concurrent B'].map(text=>({
+    type:'chat-queue/v1',action:'update',tabId,
+    payload:{id:itemId,text,ifMatch:raceSnapshot.etag}
+  }));
+  await driver.executeScript((ids,requests)=>{
+    requests.forEach((request,i)=>window.postMessage({
+      kind:'qa-api-request',nonce:ids[i],request
+    },'*'));
+  },raceNonces,raceUpdates);
+  await driver.wait(async()=>await driver.executeScript(
+    'return arguments[0].every(id=>window.__apiResults.some(x=>x.nonce===id))',
+    raceNonces),10000);
+  const raceResults=await driver.executeScript(
+    'return arguments[0].map(id=>window.__apiResults.find(x=>x.nonce===id).result)',
+    raceNonces);
+  assert.equal(raceResults.filter(x=>x.ok===true).length,1,
+    'Only one concurrent same-revision edit may commit');
+  assert.equal(raceResults.filter(x=>x.error==='revision-conflict').length,1,
+    'The loser must fail closed with an explicit stale revision');
+  const raceWinner=await command({type:'chat-queue/v1',action:'status',tabId});
+  assert.ok(['Synthetic concurrent A','Synthetic concurrent B'].includes(
+    raceWinner.items.find(x=>x.id===itemId).text));
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
   const stream=await command({action:'portState'});
