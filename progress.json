@@ -377,9 +377,9 @@
                   "id": "M2-07",
                   "emoji": "💾",
                   "title": "Persist queued items before treating changes as committed",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "storage.local save chain; crash and quota QA pending"
+                    "Native synthetic Firefox Developer Edition fault injection: rejection blocks Start with storage-unavailable; subsequent successful save requires manual Start; delayed write blocks Start with queue-save-pending; reload persists correct items, with no Send. https://github.com/sguzman/chat-queue/actions/runs/40046386978. Full crash/quota and live browser acceptance remain separate gates."
                   ]
                 },
                 {
