@@ -502,7 +502,16 @@
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     let stored;
     try{stored=await api.storage.local.get(newKey);}catch{
-      if(generation===routeGeneration)statusNote('Could not load conversation queue');
+      if(generation!==routeGeneration||storageKey()!==newKey)return;
+      // Failed reads must never display the previous conversation's queued
+      // prompts under a new route. Block editing without overwriting either
+      // persistent record, and let a later navigation/reload retry.
+      state.key=newKey;
+      state.storageFault=true;state.blockedRecord=true;
+      state.items=[];state.history=[];state.recoveredSources=[];
+      state.revision=0;state.etag=uid();state.editing=null;
+      state.running=false;state.awaiting=false;state.routing=false;
+      statusNote('Could not load conversation queue; reload to retry');
       return;
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
