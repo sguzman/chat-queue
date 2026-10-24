@@ -55,7 +55,7 @@ Mark a gate complete only with test output or reproducible authenticated FDE res
 
 ## 🔁 Stale API mutation evidence
 
-In synthetic FDE, a deliberate read/edit grant allows an approved extension to retrieve an opaque queue edit token, reject stale and replayed `update` operations, and accept only a current `ifMatch`. A separate History API roundtrip must rotate the token so a previous conversation snapshot cannot silently overwrite later edits. Omitted preconditions remain allowed for backwards-compatible API clients; exactly-once external requests and authenticated ChatGPT QA are still open.
+In synthetic FDE, a deliberate read/edit grant allows an approved extension to retrieve an opaque queue edit token, reject stale and replayed `update` operations, and accept only a current `ifMatch`. A separate History API roundtrip must rotate the token so a previous conversation snapshot cannot silently overwrite later edits. Omitted preconditions remain allowed for backwards-compatible API clients. A separate opt-in, monotonic per-caller `enqueueSequenced` operation has an atomic local-storage high-watermark with a same-tab reload test; legacy operations and authenticated ChatGPT QA remain separately unaccepted.
 
 ## 🌓 Keyboard, themes and guarded clearing
 
@@ -152,3 +152,7 @@ A disposable Firefox Developer Edition two-addon regression delays the second au
 ## ✍️ Whitespace and exact composer preservation
 
 The production adapter rejects whitespace-only human drafts as occupied and compares the queued text to the composer without trimming leading or trailing whitespace. Only browser newline/NBSP normalization is tolerated; other differences stop the attempt. The synthetic Firefox test explicitly preserves a whitespace-only draft before dispatch and separately checks user edits during delayed authorization. There is no live ProseMirror acceptance yet.
+
+## 🔢 Sequenced API replay after Firefox tab reload
+
+The independent synthetic Firefox API client uses a browser-attested caller ID with the `append` scope, enqueues sequence 1, rejects replay of sequence 1 and invalid 0, reloads the queue tab, and verifies sequence 1 remains rejected while sequence 2 appends exactly once. No automatic Send or authenticated ChatGPT connection is involved. Source acceptance: [Firefox API fixture](../tests/fde-api.cjs). Client high-watermarks live in each exact queue record and are bounded to 32 distinct principals; deleting the record removes that history.
