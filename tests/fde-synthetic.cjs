@@ -68,7 +68,7 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/corrupt-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
@@ -76,7 +76,11 @@ async function main(){
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
                 : msg.route==='/c/history-record'
                   ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
-                  : {items:[{id:'legacy0001',text:'Synthetic legacy prompt',status:'pending'}]};
+                  : msg.route==='/c/corrupt-record'
+                    ? {version:1,items:[
+                      {id:'corrupt0001',text:'Preserve full synthetic record',status:'pending'},
+                      {id:'corrupt0001',text:'Duplicate ID must not be silently discarded',status:'pending'}]}
+                    : {items:[{id:'legacy0001',text:'Synthetic legacy prompt',status:'pending'}]};
               return browser.storage.local.set({[key]:record}).then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
@@ -394,6 +398,21 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // A supported v1 record with duplicate IDs is not safe to normalize:
+    // restore the entire original record read-only rather than dropping items.
+    qaStage='malformed-persisted-queue-read-only';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/corrupt-record`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.executeScript(`const el=${jsEl('draft')};el.value='Never overwrite damaged queue';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('unsupported-saved-queue')`),5000);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}?.textContent.includes('Unsupported saved queue')`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // A recognizable versionless legacy record remains readable. Saving a
     // second queued item writes an accepted v1 record, which reload preserves.
