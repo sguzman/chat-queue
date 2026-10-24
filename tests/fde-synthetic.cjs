@@ -131,6 +131,20 @@ async function main(){
     await downAfterDrag.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    // The lower half of the last row must insert AFTER it, not before it.
+    const dragFirst=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')");
+    const dropLast=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2)')");
+    const dropRect=await dropLast.getRect();
+    await driver.actions({async:true})
+      .move({origin:dragFirst}).press().pause(200)
+      .move({origin:dropLast,x:0,y:Math.max(7,Math.floor(dropRect.height/4)),duration:750}).pause(250)
+      .release().perform();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic second message'"),6000);
+    const upAfterLowerDrop=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:first-child')");
+    await upAfterLowerDrop.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
