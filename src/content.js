@@ -148,7 +148,7 @@
     els['recovery-confirm'].textContent=state.pendingRecovery?'Recover '+state.pendingRecovery.items.length+' for review':'Recover for review';
     els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing||state.importing;
     els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting)||state.importing;
-    els['backup-export'].disabled=state.importing;
+    els['backup-export'].disabled=state.importing||state.storageFault||state.pendingSaves>0;
     els['backup-choose'].disabled=state.importing;
     els['recovery-confirm'].disabled=state.importing;
     els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
@@ -657,7 +657,7 @@
   // All file operations are deliberately initiated by a local user gesture.
   // No backup is transferred to the page, a server, or another extension.
   els['backup-export'].addEventListener('click',()=>{
-    if(state.blockedRecord||state.attempting||state.routing||state.importing){statusNote('Backup unavailable while queue changes');return;}
+    if(state.blockedRecord||state.attempting||state.routing||state.importing||state.storageFault||state.pendingSaves>0){statusNote('Backup unavailable while queue changes');return;}
     try{
       const payload=core.backupItems(state.items);
       const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'});
