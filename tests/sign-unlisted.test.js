@@ -56,4 +56,10 @@ test('signing implementation confines upload to unlisted channel and allowlisted
  assert.match(script,/WEB_EXT_API_SECRET/);
  assert.match(script,/\bfs\.copyFileSync\(from,to\)/);
  assert.doesNotMatch(script,/shell:true/);
+ assert.match(script,/delete preflightEnv\.WEB_EXT_API_KEY/);
+ assert.match(script,/delete preflightEnv\.WEB_EXT_API_SECRET/);
+ assert.match(script,/scripts\/release-gate\.mjs'\],\{env:preflightEnv\}/);
+ assert.match(script,/\['run','check'\],\{env:preflightEnv\}/);
+ assert.match(script,/--warnings-as-errors','--boring'\],\{env:preflightEnv\}/);
+ assert.match(script,/--no-input'\],\{env:process\.env\}/);
 });
