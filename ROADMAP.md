@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 50/96 verified (52%) · █████░░░░░ · 31 implemented awaiting acceptance.**
+**Overall: 52/96 verified (54%) · █████░░░░░ · 32 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -89,11 +89,11 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M2-07` 💾 Persist queued items before treating changes as committed _(implemented; acceptance pending)_
 - [~] `M2-08` 🧭 Isolate queues by stable exact conversation identity _(implemented; acceptance pending)_
 - [~] `M2-09` 🔀 Define explicit new-chat and history.pushState handling _(implemented; acceptance pending)_
-- [ ] `M2-10` 🗂️ Recover orphaned queues after tab ID or browser restart changes
+- [x] `M2-10` 🗂️ Recover orphaned queues after tab ID or browser restart changes
 - [x] `M2-11` 🧷 Resolve same-conversation multi-tab ownership deterministically
 - [x] `M2-12` 🧹 Offer user-controlled retention, export, import and deletion
 
-**M2 acceptance:** 8/12 verified (66%) · ██████░░░░ · 3 implemented but not accepted.
+**M2 acceptance:** 9/12 verified (75%) · ███████░░░ · 3 implemented but not accepted.
 
 ### 📡 M3 — Signal integration & scheduler
 
@@ -128,7 +128,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 **Composer adapter**
 
 - [~] `M4-01` 🎯 Locate exactly one current ChatGPT composer and Send control _(implemented; acceptance pending)_
-- [~] `M4-02` ✉️ Reject occupied drafts and existing attachments without mutation _(implemented; acceptance pending)_
+- [x] `M4-02` ✉️ Reject occupied drafts and existing attachments without mutation
 - [~] `M4-03` 🧷 Insert exact prompt without invoking unrelated editors _(implemented; acceptance pending)_
 - [~] `M4-04` 🔎 Verify prepared text and enabled Send at dispatch time _(implemented; acceptance pending)_
 - [~] `M4-05` 👆 Attempt one Send click, never blindly retry _(implemented; acceptance pending)_
@@ -145,7 +145,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M4-11` 🛑 Refuse automatic resumption after browser or event-page restart _(implemented; acceptance pending)_
 - [ ] `M4-12` 🧪 Test duplicate avoidance, error recovery and wrong-conversation races
 
-**M4 acceptance:** 1/12 verified (8%) · ░░░░░░░░░░ · 8 implemented but not accepted.
+**M4 acceptance:** 2/12 verified (16%) · █░░░░░░░░░ · 7 implemented but not accepted.
 
 ### 🔌 M5 — External extension API
 
@@ -169,9 +169,9 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M5-09` 🏷️ Version response/event schemas and document compatibility guarantees
 - [ ] `M5-10` 🛡️ Protect prompts from unapproved page scripts and extension principals
 - [x] `M5-11` 📋 Expose capability negotiation and safe feature detection
-- [ ] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers
+- [~] `M5-12` 🧪 Fuzz malformed payloads, unload, revocation and concurrent callers _(implemented; acceptance pending)_
 
-**M5 acceptance:** 8/12 verified (66%) · ██████░░░░ · 1 implemented but not accepted.
+**M5 acceptance:** 8/12 verified (66%) · ██████░░░░ · 2 implemented but not accepted.
 
 ### 🧠 M6 — Conditional queue workflows
 
@@ -210,7 +210,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M7-03` 🤝 Verify Chat Signals and Chat Queue coexist without DOM races _(implemented; acceptance pending)_
 - [ ] `M7-04` 💬 Verify actual authenticated ChatGPT send, completion and retry
 - [ ] `M7-05` 🧭 Test navigation, restarts, 16-tab workloads and hidden tabs
-- [ ] `M7-06` 🪄 Test System/Light/Dark HUD, keyboard and accessibility in FDE
+- [~] `M7-06` 🪄 Test System/Light/Dark HUD, keyboard and accessibility in FDE _(implemented; acceptance pending)_
 
 **F15 · Release discipline**
 
@@ -223,7 +223,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [ ] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 2 implemented but not accepted.
+**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 3 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 
