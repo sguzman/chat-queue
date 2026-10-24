@@ -60,7 +60,7 @@ See [API.md](../API.md). The current API is `chat-queue/v1`, with explicit exter
 
 ## Concurrent mutation boundary
 
-Each content-script instance assigns a fresh random revision token and rotates it on each saved queue mutation. The external API can supply an optional `ifMatch` precondition for ordered queue edits; a stale or previous-document token is rejected rather than silently overwriting a newer arrangement. Omitted preconditions retain experimental v1 compatibility; this does not yet protect all cross-tab ownership or provide durable exactly-once API request IDs.
+Each content-script instance assigns a fresh random revision token and rotates it on each saved queue mutation. The external API can supply an optional `ifMatch` precondition for ordered queue edits; a stale or previous-document token is rejected rather than silently overwriting a newer arrangement. Omitted preconditions retain experimental v1 compatibility. A separate opt-in `enqueueSequenced` operation stores a per-caller monotonically increasing sequence in the same exact-route queue record as the appended item. Replay of that sequence is rejected even after a content-script reload; the legacy `enqueue` path and deleted/moved storage records are not covered. This does not make ChatGPT Send exactly-once or protect arbitrary cross-tab mutations.
 
 ## Firefox tab URL transition boundary
 
