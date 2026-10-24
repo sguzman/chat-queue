@@ -254,3 +254,7 @@ A second independent-provider native Firefox scenario starts an explicitly autho
 ## 🪶 Skip unrelated cross-tab storage redraws
 
 A disposable Firefox Developer Edition two-tab test observes the second tab's Queue HUD status node while the first tab appends and removes a private queued prompt. Those storage writes must not mutate the second tab's status subtree at all; theme and shared HUD placement changes still trigger local rendering. This avoids proportional cross-tab HUD churn for queue-only local storage changes, including the existing 16-tab workload. It is a measured DOM-work correctness/performance regression, not CPU, memory, battery or authenticated-chat certification.
+
+## 🛑 Pending conditional approval blocks explicit Start
+
+A native two-extension Firefox QA scenario attempts HUD **Start** after an authenticated finished-phase proposal has paused a two-message queue. The command must return `review-conditional-proposal`, keep the offer visible, leave the second message unsent, and require an independent Approve or Dismiss action before the user may start again. The same `act('start')` authorization gate serves permissioned external clients; an isolated browser fixture verifies the HUD invocation, not a real Chat Signals publisher or live ChatGPT send.

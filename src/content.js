@@ -806,6 +806,9 @@
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
+        // A pending conditional offer explicitly paused the scheduler.
+        // No UI or privileged API Start may skip its required review.
+        if(state.ruleOffer)return {ok:false,error:'review-conditional-proposal'};
         if (state.storageFault)return {ok:false,error:'storage-unavailable'};
         if (state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         if (uncertain())return {ok:false,error:'resolve-uncertain-message'};

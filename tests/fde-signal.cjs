@@ -630,6 +630,12 @@ async function main(){
       'Awaiting a user-reviewed conditional decision must cancel next Send');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript(`return !${hud('rules-approve')}.hidden`),true);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('review-conditional-proposal');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Explicit Start cannot bypass pending conditional review');
+    assert.equal(await driver.executeScript(`return !${hud('rules-approve')}.hidden`),true,
+      'Denied Start must not dismiss or approve the offer');
     await driver.executeScript(`return ${hud('rules-approve')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='2 queued' && ${hud('rules-approve')}.hidden`),10000);
