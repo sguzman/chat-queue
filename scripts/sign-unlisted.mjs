@@ -12,7 +12,12 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const run=(command,args,options={})=>spawnSync(command,args,{
   cwd:root,stdio:'inherit',shell:false,timeout:20*60*1000,...options
 });
-const gate=run(process.execPath,['scripts/release-gate.mjs']);
+// Preflight tools do not need Mozilla credentials. Strip them even when the
+// caller has opted into signing; only web-ext sign receives them.
+const preflightEnv={...process.env};
+delete preflightEnv.WEB_EXT_API_KEY;
+delete preflightEnv.WEB_EXT_API_SECRET;
+const gate=run(process.execPath,['scripts/release-gate.mjs'],{env:preflightEnv});
 if(gate.status!==0){
   process.stderr.write('Signing refused: release acceptance ledger is not complete.\n');
   process.exit(1);
@@ -21,7 +26,7 @@ if(!process.env.WEB_EXT_API_KEY||!process.env.WEB_EXT_API_SECRET){
   process.stderr.write('Signing refused: Mozilla API credentials are required in WEB_EXT_API_KEY and WEB_EXT_API_SECRET.\n');
   process.exit(1);
 }
-const check=run('npm',['run','check']);
+const check=run('npm',['run','check'],{env:preflightEnv});
 if(check.status!==0){
   process.stderr.write('Signing refused: local source, permission and regression checks failed.\n');
   process.exit(1);
@@ -48,12 +53,12 @@ try{
   fs.mkdirSync(artifacts,{recursive:true});
   const runner=['exec','--yes','--package=web-ext@10.8.0','--','web-ext'];
   const lint=run('npm',[...runner,'lint','--source-dir',stage,
-    '--self-hosted','--warnings-as-errors','--boring']);
+    '--self-hosted','--warnings-as-errors','--boring'],{env:preflightEnv});
   if(lint.status!==0)throw Error('Mozilla source lint rejected staged signing bundle');
   // web-ext reads WEB_EXT_API_KEY and WEB_EXT_API_SECRET from environment.
   // Never place secrets in arguments, persistent files or console output.
   const signed=run('npm',[...runner,'sign','--source-dir',stage,
-    '--artifacts-dir',artifacts,'--channel','unlisted','--no-input']);
+    '--artifacts-dir',artifacts,'--channel','unlisted','--no-input'],{env:process.env});
   if(signed.status!==0)throw Error('Mozilla unlisted signing did not complete');
   process.stdout.write('Unlisted signed XPI requested. Inspect dist/signed; do not install or release without independent artifact review.\n');
 }catch(error){
