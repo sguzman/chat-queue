@@ -67,6 +67,10 @@ jobs:
           path: ${{ runner.temp }}/chat-queue-hud-qa/*.png
           if-no-files-found: ignore
           retention-days: 7
+      - name: Headless FDE closed HUD and private queue boundary
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-privacy.cjs
       - name: Headless FDE cross-tab theme and queue isolation
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
