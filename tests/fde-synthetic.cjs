@@ -229,6 +229,16 @@ async function main(){
     }
     await driver.executeScript('document.documentElement.style.zoom="1";window.dispatchEvent(new Event("resize"))');
     await driver.manage().window().setRect(oldRect);
+    // Screenshots contain ONLY hard-coded synthetic fixture strings, never a
+    // real user session or private prompts. Uploaded for visual acceptance.
+    if(process.env.CQ_QA_SCREENSHOT_DIR){
+      fs.mkdirSync(process.env.CQ_QA_SCREENSHOT_DIR,{recursive:true});
+      for(const themeName of ['light','dark']){
+        await driver.executeScript("document.querySelector('#chat-queue-extension-root').dataset.theme=arguments[0]",themeName);
+        const png=await driver.takeScreenshot();
+        fs.writeFileSync(path.join(process.env.CQ_QA_SCREENSHOT_DIR,'hud-'+themeName+'.png'),Buffer.from(png,'base64'));
+      }
+    }
     // Verify individual deletion, then require two separate clicks to clear.
     const del=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:nth-child(2) .controls button:nth-child(4)')");
     await del.click();
