@@ -75,7 +75,7 @@
   shadow.append(panel);
   const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   const button = (label, title, fn, disabled=false) => {
-    const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.disabled=disabled; b.addEventListener('click',fn); return b;
+    const b=document.createElement('button'); b.type='button'; b.textContent=label; b.title=title; b.setAttribute('aria-label',title); b.disabled=disabled; b.addEventListener('click',fn); return b;
   };
   const pending = () => state.items.some(item => item.status === 'pending');
   const uncertain = () => state.items.some(item => item.status === 'uncertain');
