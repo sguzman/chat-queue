@@ -15,7 +15,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], storageFault: false, pendingSaves: 0 };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], storageFault: false, pendingSaves: 0, registryRecovering: false };
   let routeGeneration=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
@@ -229,9 +229,35 @@
     });
   }
   function statusNote(message) { state.note = message; render();publish(); }
+  async function recoverRegistry(){
+    if(state.registryRecovering||!state.initialized||state.destroyed||
+       state.routing||state.key!==storageKey())return;
+    state.registryRecovering=true;
+    const key=state.key,route=routeKey();
+    // Re-registration is metadata-only. A restarted event page lost every
+    // authenticated provider epoch; never inherit authority from this tab.
+    state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
+    state.waiting=null;state.awaiting=false;state.busySeen=false;
+    if(state.scheduler)clearTimeout(state.scheduler);
+    state.scheduler=null;
+    state.note='Signal registry restarted; manually resume after reconnect';
+    render();
+    try{
+      const answer=await api.runtime.sendMessage({
+        type:'chat-queue-internal/v1',action:'register',route});
+      if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){
+        state.tabId=answer.tabId;
+        publish();
+      }
+    }catch{
+      if(state.key===key&&!state.destroyed)statusNote('Background registry unavailable; paused');
+    }finally{state.registryRecovering=false;}
+  }
   function publish() {
-    if (state.tabId == null || state.destroyed) return;
-    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision}).catch(()=>{});
+    if (state.tabId == null || state.destroyed || state.registryRecovering) return;
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision})
+      .then(reply=>{if(reply?.error==='route-mismatch')void recoverRegistry();})
+      .catch(()=>{});
   }
   function save() {
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
