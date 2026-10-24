@@ -59,6 +59,37 @@
       seen.add(item.id); return true;
     }).map(item => ({ id: item.id, text: item.text, status: item.status === 'pending' ? 'pending' : 'uncertain' }));
   }
+  const BACKUP_KIND = 'chat-queue-message-backup';
+  const BACKUP_VERSION = 1;
+  function backupItems(items) {
+    if(!Array.isArray(items)||items.length>MAX_ITEMS)
+      throw new Error('invalid-backup-items');
+    const ids=new Set();
+    const exported=[];
+    for(const item of items) {
+      if(!item||typeof item.id!=='string'||ids.has(item.id)||
+         !validText(item.text)||!['pending','uncertain'].includes(item.status))
+        throw new Error('invalid-backup-item');
+      ids.add(item.id);
+      exported.push({text:item.text,status:item.status});
+    }
+    // No tab ID, route, document token or scheduler state leaves the backup.
+    return {kind:BACKUP_KIND,version:BACKUP_VERSION,items:exported};
+  }
+  function parseBackup(value) {
+    if(!value||typeof value!=='object'||Array.isArray(value)||
+       value.kind!==BACKUP_KIND||value.version!==BACKUP_VERSION||
+       !Array.isArray(value.items)||value.items.length>MAX_ITEMS)
+      throw new Error('unsupported-backup');
+    const items=[];
+    for(const item of value.items) {
+      if(!item||typeof item!=='object'||Array.isArray(item)||
+         !validText(item.text)||!['pending','uncertain'].includes(item.status))
+        throw new Error('invalid-backup-item');
+      items.push({text:item.text,status:item.status});
+    }
+    return items;
+  }
   function mayDispatch(phase, waitingForCompletion, busySeen) {
     phase = validPhase(phase);
     if (BLOCKED.has(phase)) return false;
@@ -70,7 +101,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, BACKUP_KIND, BACKUP_VERSION, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
