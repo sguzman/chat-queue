@@ -787,6 +787,19 @@ async function main(){
       'Three offers and three explicit approvals produce only bounded metadata');
     assert.equal(await driver.executeScript(`return ${hud('rules-audit')}.textContent.includes('/c/')`),false);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    qaStage='conditional-audit-bounded';
+    for(let n=0;n<8;n++){
+      await emit('limit',4+n,300+n,'observed','fresh','/c/rule-terminal-errors');
+      await driver.wait(async()=>await driver.executeScript(
+        `return !${hud('rules-dismiss')}.hidden`),8000);
+      await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    }
+    const boundedAudit=await driver.executeScript(`return [...${hud('rules-audit')}.children].map(x=>x.textContent)`);
+    assert.equal(boundedAudit.length,20,'Only the 20 most recent review outcomes may remain');
+    assert.match(boundedAudit[0],/offered · synthetic-changed · interrupted · pause/,
+      'Oldest metadata is discarded without changing newer events');
+    assert.equal(boundedAudit.some(x=>x.includes('/c/')||x.includes('Synthetic delayed approval')),false);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
     qaStage='conditional-approval-route-privacy';
     await driver.switchTo().newWindow('tab');

@@ -287,3 +287,7 @@ A native Firefox Developer Edition two-extension scenario replaces the QA-only d
 ## 🦊 Volatile conditional review audit and navigation race
 
 The disposable headless Firefox two-extension test checks that a genuine synthetic authenticated offer adds only metadata to the collapsed HUD Review history; no proposed message content, route or document token appears. After explicit approval it shows a separate approved record. SPA navigation wipes that history. A superseding provider epoch produces an expired record, and the failure/interruption/limit policy tests yield only bounded offered/approved records. A separate QA-only delayed queue storage write allows navigation between clicking Approve and its completion; the new chat must remain free of the old offer's rule ID/status, while the original queued item remains durable in its original route. This does not test the real Chat Signals publisher.
+
+### Bounded review history under repeated authenticated signals
+
+The native two-extension Firefox QA emits eight additional distinct response-epoch limit outcomes after the initial six review records. Each requires a separate manual Dismiss, and the closed-shadow audit must retain exactly the latest 20 fixed-schema entries, drop the two oldest, and contain no route, token or synthetic proposed message text. No Send may occur during this workload. This verifies the in-memory bound without claiming live ChatGPT provider acceptance.
