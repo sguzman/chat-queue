@@ -236,6 +236,12 @@ test('rules-only external client can preview synthetics but cannot enumerate or 
     payload:{rules:[rule],signal}}),sender);
   assert.equal(preview.ok,true);assert.equal(preview.decision.action.type,'pause');
   assert.equal(preview.decision.approvalRequired,true);
+  assert.equal(preview.audit.ruleId,'halt');
+  assert.equal(preview.audit.phase,'failed');
+  assert.equal(preview.audit.action,'pause');
+  assert.equal(preview.audit.approvalRequired,true);
+  assert.equal(JSON.stringify(preview.audit).includes(signal.documentToken),false);
+  assert.equal(JSON.stringify(preview.audit).includes(signal.route),false);
   const timedRule={...rule,when:{phase:'failed',minDurationMs:5000}};
   const noDuration=await listeners.external(inReceiver({type:'chat-queue/v1',action:'previewRules',
     payload:{rules:[timedRule],signal}}),sender);
