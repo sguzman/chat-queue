@@ -114,6 +114,17 @@ async function main(){
     await input.sendKeys('Synthetic second message');await add.click();
     const count=await driver.executeScript(`return ${jsEl('count')}.textContent`);
     assert.equal(count,'2 queued');
+    // Accessible names must describe actions rather than exposing only
+    // pictographic arrows; verify the actual Firefox ShadowRoot controls.
+    const names=await driver.executeScript(()=>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .controls button')]
+        .map(button=>({visible:button.textContent,name:button.getAttribute('aria-label')})));
+    assert.equal(names.length,8);
+    assert.ok(names.every(entry=>entry.name&&entry.name.length>=9),
+      'Each interactive queue action requires a descriptive accessible name');
+    assert.ok(names.some(entry=>entry.visible==='↑'&&entry.name==='Move earlier'));
+    assert.ok(names.some(entry=>entry.visible==='↓'&&entry.name==='Move later'));
+    assert.ok(names.some(entry=>entry.name==='Remove message'));
     // Edit queue contents without overwriting the HUD input or ChatGPT draft.
     await input.sendKeys('Synthetic unsaved HUD draft');
     await driver.executeScript("document.getElementById('prompt-textarea').textContent='Synthetic site draft'");
