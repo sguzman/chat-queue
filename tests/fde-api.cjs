@@ -77,6 +77,13 @@ function createClient(dest){
    return Promise.resolve({ok:true});
   }
   if(req?.action==='portState')return Promise.resolve({ok:true,events,disconnected});
+  if(req?.action==='qa-cyclic-message'){
+   const cycle={type:'chat-queue/v1',action:'enqueue',tabId:req.tabId,
+     payload:{text:'Synthetic private message; do not leak'}};
+   cycle.self=cycle;
+   return browser.runtime.sendMessage('${queueId}',cycle)
+     .catch(()=>({ok:false,error:'browser-transport-error'}));
+  }
   return browser.runtime.sendMessage('${queueId}',req)
     .catch(e=>({ok:false,error:'browser-transport-error'}));
  });`);
@@ -131,6 +138,20 @@ async function main(){
   result=await command({type:'chat-queue/v1',action:'listTabs'});
   assert.equal(result.ok,true);assert.equal(result.tabs.length,1);
   const tabId=result.tabs[0].tabId;
+  stage='adversarial-ipc';
+  // A hostile peer add-on can send a cyclic object under Firefox's structured
+  // clone semantics. Either the transport rejects it or Chat Queue returns a
+  // structured fail-closed error; it must never reach a tab or disclose text.
+  const cyclic=await command({action:'qa-cyclic-message',tabId});
+  assert.equal(cyclic.ok,false);
+  assert.ok(['invalid-request','browser-transport-error'].includes(cyclic.error));
+  assert.ok(!JSON.stringify(cyclic).includes('Synthetic private message'));
+  const oversized=await command({type:'chat-queue/v1',action:'enqueue',tabId,
+    payload:{text:'X'.repeat(33000)}});
+  assert.equal(oversized.error,'request-too-large');
+  assert.equal(await driver.executeScript(
+    'return document.querySelector("#chat-queue-extension-root").shadowRoot.getElementById("count").textContent'),'0 queued');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   for(const action of ['status','start','remove']){
    result=await command({type:'chat-queue/v1',action,tabId,payload:{id:'unused'}});
    assert.equal(result.error,'forbidden-scope');
