@@ -503,6 +503,13 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('data-note')}.textContent.includes('Imported 2 messages') && ${jsEl('count')}.textContent==='2 queued'`),8000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // This backup contains an uncertain entry: review it explicitly before
+    // clearing the remaining pending one; bulk Clear must not erase it.
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('[aria-label="Discard uncertain submission after review"]').click());
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='1 queued'`),8000);
     const clearAfterRecovery=await driver.executeScript(`return ${jsEl('clear')}`);
     await clearAfterRecovery.click();await clearAfterRecovery.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
@@ -536,6 +543,13 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea').value"),'Original before backup import');
     await driver.executeScript(
       "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(2)').click()");
+    // The imported uncertain item must be deliberately discarded first;
+    // ordinary Clear is valid only for the two remaining pending entries.
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('[aria-label="Discard uncertain submission after review"]').click());
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='2 queued'`),8000);
     const clearLocked=await driver.executeScript(`return ${jsEl('clear')}`);
     await clearLocked.click();await clearLocked.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),8000);
