@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 56 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 60 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -10,7 +10,8 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - [📊 Progress ledger](progress.json) — canonical machine-readable status and bounded evidence for each task; `npm run progress` prints current percentages.
 - [🏗️ Architecture](docs/ARCHITECTURE.md) — independent ownership, signal flow, identity/epoch contract, UI and queue lifecycle.
 - [📡 Signal contract](docs/SIGNAL-CONTRACT.md) — authenticated consumer envelope, attribution and pending provider work.
-- [🛡️ Security](docs/SECURITY.md) — browser privacy, threat model and single-send guarantees.
+- [🛡️ Security](docs/SECURITY.md)
+- [🔍 Static security audit](docs/SECURITY-AUDIT.md) — automated permission, local-asset and no-network regression checks. — browser privacy, threat model and single-send guarantees.
 - [🦊 Firefox QA](docs/QA.md) — dedicated profile, synthetic and authenticated acceptance tiers.
 - [🧬 Source provenance](docs/PROVENANCE.md) — what was studied in Jobflick Bridge/Chat Signals.
 - [🔌 External API](API.md) — implemented experimental v1 and future permission model.
@@ -105,3 +106,7 @@ The floating HUD's **Recently submitted / backup** disclosure offers JSON export
 ## 🔌 Versioned cross-extension API
 
 The API's message type remains `chat-queue/v1`. Capability negotiation now exposes `protocolVersion:1` and `grantVersion:2` while retaining the older `version:2` grant field. The subscription's `ready` and `stateChanged` events carry `protocolVersion:1` without private message text. [Protocol and error contract](API.md) · [Independent Firefox client acceptance](https://github.com/sguzman/chat-queue/actions/runs/40045093724). This does not authorize clients without explicit scoped grants or make live automatic Send available.
+
+## 🔍 Security regression checks
+
+`npm run check` includes the production permission/privacy audit and tests that deliberately inject prohibited permissions, network code and remote UI assets. The audit protects against regressions but does not certify authenticated ChatGPT sending, Mozilla signing or the safety of already-authorized extensions. [Audit boundaries](docs/SECURITY-AUDIT.md).
