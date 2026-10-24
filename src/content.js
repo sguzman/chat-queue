@@ -59,7 +59,7 @@
     textarea{display:block;width:100%;min-height:58px;max-height:160px;resize:vertical;padding:9px;border:1px solid var(--button-border);border-radius:7px;background:var(--input);color:var(--text);font:inherit;margin-bottom:8px}
     .footrow{display:flex;align-items:center;justify-content:space-between;gap:8px}.empty{padding:12px;color:var(--muted);text-align:center}
     [hidden]{display:none!important}.uncertain{border-color:var(--warning)}.hint{padding:4px 0;color:var(--muted);font-size:11px}
-    @media(max-width:520px){.panel{max-height:55vh}.items{max-height:170px}.top{gap:5px;padding:8px}.top strong{font-size:12px}select{max-width:90px}}
+    @media(max-width:520px){.panel{max-height:55vh}#body{overflow:auto}.items{flex:0 0 auto;max-height:170px}.top{gap:5px;padding:8px}.top strong{font-size:12px}select{max-width:90px}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
   `;
   shadow.append(style);
