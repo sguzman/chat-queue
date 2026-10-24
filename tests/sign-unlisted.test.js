@@ -107,7 +107,7 @@ process.exit(0);
    {cwd:temp,env,encoding:'utf8',timeout:15000});
   assert.equal(result.status,0,result.stderr);
   const observed=fs.readFileSync(path.join(temp,'observed-signing-processes.jsonl'),'utf8')
-   .trim().split('\\n').map(JSON.parse);
+   .trim().split('\n').map(JSON.parse);
   assert.deepEqual(observed.map(o=>o.phase),['check','lint','sign']);
   assert.deepEqual(observed.map(o=>[o.hasKey,o.hasSecret]),[
    [false,false],[false,false],[true,true]
