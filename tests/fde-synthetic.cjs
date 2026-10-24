@@ -50,7 +50,7 @@ async function main(){
     const navigationLoad='api.storage.local.get(newKey)';
     assert.equal(content.split(navigationLoad).length,2);
     content=content.replace(navigationLoad,
-      "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : api.storage.local.get(newKey))");
+      "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : newKey.endsWith('/c/load-fail') ? Promise.reject(new Error('qa-read-failure')) : api.storage.local.get(newKey))");
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
@@ -526,6 +526,20 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),8500);
     await driver.executeScript("history.pushState({},'', '/c/aba-home')");
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),8000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='failed-navigation-storage-read';
+    await driver.executeScript("history.pushState({},'', '/c/load-fail')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Could not load conversation queue; reload to retry')`),7000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Must never overwrite unreadable queue';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('unsupported-saved-queue')`),6000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript("history.pushState({},'', '/c/aba-home')");
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),7000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     qaStage='teardown';
     await driver.uninstallAddon(id);
