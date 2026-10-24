@@ -657,7 +657,8 @@
                   "title": "Durably journal attempted/accepted/uncertain sends before repetition",
                   "status": "implemented",
                   "evidence": [
-                    "Durable uncertain marker is saved before send click: src/content.js; crash and authenticated browser acceptance pending."
+                    "Durable uncertain marker is saved before send click: src/content.js; crash and authenticated browser acceptance pending.",
+                    "A native Firefox synthetic dispatch opens an editor before authority loss, then verifies uncertain status closes the editor, preserves the original payload and disallows ordinary edits: Actions 40143672392. Real ChatGPT and publisher acceptance remain open."
                   ]
                 },
                 {
@@ -887,7 +888,8 @@
                   "title": "Support failure/interruption/limit branches and recoveries",
                   "status": "implemented",
                   "evidence": [
-                    "Preview-only failure, interruption and limit phase selection. Recovery orchestration is not implemented: src/rules.js"
+                    "Preview-only failure, interruption and limit phase selection. Recovery orchestration is not implemented: src/rules.js",
+                    "Firefox Developer Edition native two-extension regression exercises fresh and restored authenticated failed/interrupted/limit phase pause proposals, explicit local approval, no automatic Send and duplicate terminal suppression; Actions 40143843590. Recovery orchestration and real provider remain unaccepted."
                   ]
                 },
                 {
@@ -954,7 +956,8 @@
                   "status": "implemented",
                   "evidence": [
                     "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js",
-                    "Native disposable FDE verifies per-conversation opt-in, page-DOM spoof rejection, local approval, automatic next-Send preemption while review is pending, and no auto-resume; pause/approval policy remains unaccepted against real authenticated ChatGPT (Actions 40139342546)."
+                    "Native disposable FDE verifies per-conversation opt-in, page-DOM spoof rejection, local approval, automatic next-Send preemption while review is pending, and no auto-resume; pause/approval policy remains unaccepted against real authenticated ChatGPT (Actions 40139342546).",
+                    "Pending opt-in conditional proposals block even explicit Start and manual approval never Sends; policy library changes revoke previews and superseding provider response expires an old approval: Actions 40140595102, 40140727193, 40140873933. Authenticated real publisher acceptance remains open."
                   ]
                 },
                 {
@@ -982,7 +985,8 @@
                   "title": "Cover success/error/limit/recovery and stale-state adversarial cases",
                   "status": "implemented",
                   "evidence": [
-                    "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js"
+                    "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js",
+                    "Authenticated synthetic Firefox terminal-error policy review, stale policy-load invalidation and superseded response-epoch offer expiry now pass: Actions 40140727193, 40140873933 and 40143843590. Full live-publisher/recovery acceptance remains open."
                   ]
                 }
               ]
