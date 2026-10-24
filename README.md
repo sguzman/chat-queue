@@ -2,7 +2,7 @@
 
 A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floating HUD. Author multiple prompts, adjust their order during generation, and let the queue submit one at a time only when the independent [Chat Signals](https://github.com/sguzman/chat-signals) observer indicates control has returned. The project also targets a permissioned API for other Firefox extensions and future conditional queues based on state transitions.
 
-**Status: early development prototype, not authenticated-site verified.** The implementation has passed 61 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
+**Status: early development prototype, not authenticated-site verified.** The implementation has passed 67 Node tests, pinned Mozilla add-on lint with zero warnings/errors, actual Firefox Developer Edition installation, synthetic HUD and queue-persistence interaction, and a two-add-on synthetic Signal transport test. These **do not** establish authenticated ChatGPT sending or a working publisher in the real Chat Signals extension.
 
 ## 🧭 Project navigation
 
@@ -57,7 +57,7 @@ A synthetic Firefox Developer Edition test verifies switching away and back rest
 
 The preferences page includes a **visual, dry-run rule editor** for building declarative conditions, setting priorities, and simulating fresh/restored Chat Signals outcomes. Preview output is rendered as text, never injected HTML. Rule definitions can now be saved in local extension storage, but the simulation replay history clears on reload. There is no live background dispatch integration or automatic conditional action.
 
-The pure rule engine and its 8 focused Node regressions passed in [GitHub Actions](https://github.com/sguzman/chat-queue/actions/runs/40035678496). Real headless Firefox Developer Edition accepted the production simulator scripts on a synthetic preferences document (including replay suppression, restored-state rejection and inert HTML text) in [run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429). Neither test is authenticated ChatGPT conditional-send acceptance. See [conditional rule contract](docs/CONDITIONAL-RULES.md).
+The initial pure rule engine and its focused Node regressions passed in [GitHub Actions](https://github.com/sguzman/chat-queue/actions/runs/40035678496). Real headless Firefox Developer Edition accepted the production simulator scripts on a synthetic preferences document (including replay suppression, restored-state rejection and inert HTML text) in [run 40036012429](https://github.com/sguzman/chat-queue/actions/runs/40036012429). Neither test is authenticated ChatGPT conditional-send acceptance. See [conditional rule contract](docs/CONDITIONAL-RULES.md).
 
 ## 🔗 Conditional dependencies and skip previews
 
