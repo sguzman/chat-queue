@@ -62,14 +62,21 @@ function createQueue(dest,root){
  fs.writeFileSync(path.join(dest,'qa-grants-background.js'),`
  browser.storage.local.set({[${JSON.stringify(grantsKey)}]:${JSON.stringify(initialPolicy)}});
  browser.runtime.onMessage.addListener((msg,sender)=>{
-   if(msg?.type!=='qa-grants-update'||!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
+   if(!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
+   if(msg?.type==='qa-seed-uncertain'){
+     const key='chatqueue:v1:tab:'+sender.tab.id+':/c/api-uncertain';
+     return browser.storage.local.set({[key]:{version:1,
+       items:[{id:'qa-uncertain-item',text:'Synthetic possibly submitted payload',status:'uncertain'}]
+     }}).then(()=>({ok:true}));
+   }
+   if(msg?.type!=='qa-grants-update')return;
    return browser.storage.local.set({[${JSON.stringify(grantsKey)}]:msg.policy}).then(()=>({ok:true}));
  });`);
  fs.writeFileSync(path.join(dest,'qa-grants-content.js'),`
  window.addEventListener('message',event=>{
-  if(event.source!==window||event.data?.kind!=='qa-grants-set')return;
-  const {nonce,policy}=event.data;
-  browser.runtime.sendMessage({type:'qa-grants-update',policy})
+  if(event.source!==window||!['qa-grants-set','qa-seed-uncertain'].includes(event.data?.kind))return;
+  const {nonce,policy,kind}=event.data;
+  browser.runtime.sendMessage(kind==='qa-seed-uncertain'?{type:'qa-seed-uncertain'}:{type:'qa-grants-update',policy})
     .then(result=>window.postMessage({kind:'qa-grants-ack',nonce,result},'*'))
     .catch(()=>window.postMessage({kind:'qa-grants-ack',nonce,result:{ok:false}},'*'));
  });
@@ -448,6 +455,41 @@ async function main(){
     newNonce),true);
   assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
+
+  stage='api-uncertain-item-resolution';
+  const seedNonce=++nonce;
+  await driver.executeScript('window.postMessage({kind:"qa-seed-uncertain",nonce:arguments[0]},"*")',seedNonce);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',seedNonce),10000);
+  assert.equal(await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result.ok',seedNonce),true);
+  await driver.executeScript('history.pushState({},"","/c/api-uncertain")');
+  await driver.wait(async()=>await driver.executeScript(
+    "return document.querySelector('#chat-queue-extension-root')?.shadowRoot?.querySelectorAll('.item.uncertain').length===1"),12000);
+  const uncertainStatus=await driver.wait(async()=>{
+    const current=await command({type:'chat-queue/v1',action:'status',tabId});
+    return current.ok&&current.items.length===1&&current.items[0].status==='uncertain'?current:false;
+  },12000);
+  const uncertainId=uncertainStatus.items[0].id;
+  for(const [action,payload] of [
+    ['update',{id:uncertainId,text:'Synthetic forbidden rewrite'}],
+    ['remove',{id:uncertainId}],
+    ['clear',null]
+  ]){
+    const answer=await command({type:'chat-queue/v1',action,tabId,payload});
+    assert.equal(answer.error,'resolve-uncertain-message',
+      'Generic '+action+' must not discard evidence of a possibly sent prompt');
+    const unchanged=await command({type:'chat-queue/v1',action:'status',tabId});
+    assert.deepEqual(unchanged.items,uncertainStatus.items);
+  }
+  assert.equal((await command({type:'chat-queue/v1',action:'resolve',tabId,
+    payload:{id:uncertainId,decision:'discard'}})).ok,true);
+  assert.deepEqual((await command({type:'chat-queue/v1',action:'status',tabId})).items,[]);
+  await driver.executeScript('history.pushState({},"","/c/synthetic")');
+  await driver.wait(async()=>await driver.executeScript(
+    "return document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('count')?.textContent==='3 queued'"),12000);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+
   stage='grant-revocation';
   const grantNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{}}},"*")',grantNonce);

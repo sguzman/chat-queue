@@ -433,7 +433,7 @@ async function main(){
     // Retry uses the same guarded action as the external API and cannot
     // trigger a Send without another, separate Start.
     const retryImported=await driver.executeScript(
-      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button:last-child')");
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .controls button[aria-label=\"Allow manually requested retry\"]')");
     assert.equal(await retryImported.getText(),'Retry');
     await retryImported.click();
     await driver.wait(async()=>await driver.executeScript(

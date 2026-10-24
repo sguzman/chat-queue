@@ -270,3 +270,7 @@ A disposable Firefox two-extension fixture publishes a fresh authenticated finis
 ## ⚠️ Explicit uncertain-item resolution
 
 A disposable Firefox Developer Edition QA scenario recovers an old tab's message as `uncertain`, verifies Edit and generic Delete are disabled and the separate Retry/Discard decisions remain accessible. It tries the normal two-step bulk Clear, which must return `resolve-uncertain-message` and retain the original uncertain text. Only an explicit Discard removes the item, with persistence after refresh and zero Send clicks. This is synthetic safety acceptance, not live delivery confirmation.
+
+## 🦊 Independent Firefox API uncertain-item guard
+
+A separate granted Firefox extension exercises a QA-only seeded, versioned queue record containing one `uncertain` item. External `update`, `remove` and `clear` all must reject with `resolve-uncertain-message` while preserving the original items exactly. Only a deliberate `resolve(discard)` may remove it; switching back to the prior conversation must recover its unrelated existing queue without Send. This tests the actual extension-to-extension API under Firefox rather than only disabled HUD controls.
