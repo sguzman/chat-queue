@@ -279,6 +279,34 @@ async function main(){
     await clear.click();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Local JSON import is a paused, explicit two-step operation. This
+    // fixture uses Firefox's native file-input upload, never remote fetches.
+    qaStage='backup-import';
+    const backupPath=path.join(root,'synthetic-import.json');
+    fs.writeFileSync(backupPath,JSON.stringify({kind:'chat-queue-message-backup',version:1,items:[
+      {text:'Imported fixture pending',status:'pending'},
+      {text:'Imported fixture uncertain',status:'uncertain'}
+    ]}));
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    const backupFile=await driver.executeScript(`return ${jsEl('backup-file')}`);
+    // WebDriver needs a visible QA input to supply an explicit fixture path;
+    // the production control remains hidden behind its Import JSON button.
+    await driver.executeScript(`return ${jsEl('backup-file')}.hidden=false`);
+    await backupFile.sendKeys(backupPath);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('backup-confirm')}&&! ${jsEl('backup-confirm')}.hidden`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    await (await driver.executeScript(`return ${jsEl('backup-confirm')}`)).click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='2 queued'`),5000);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const exportButton=await driver.executeScript(`return ${jsEl('backup-export')}`);
+    await exportButton.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('status')}.textContent.includes('download requested')`),5000);
+    // Clean up fixture queue using the normal confirmed UI.
+    const clearImported=await driver.executeScript(`return ${jsEl('clear')}`);
+    await clearImported.click();await clearImported.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // QA seeds the unsupported record only once. If a queue edit clobbers
     // it, a reload will reveal that corruption instead of resetting the test.
     await driver.get(`http://127.0.0.1:${server.address().port}/c/future-record`);
