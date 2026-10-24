@@ -723,7 +723,7 @@
       if(!items.length||state.items.length+items.length>core.MAX_ITEMS){
         els['data-note'].textContent='Recovery would exceed the 100-message limit';render();return;
       }
-      state.pendingRecovery={key,sourceKey:choice.key,revision,items};
+      state.pendingRecovery={key,sourceKey:choice.key,revision,items,sourceSnapshot:JSON.stringify(records[choice.key])};
       els['data-note'].textContent='Found '+choices.length+' earlier queue(s) for this exact conversation. '+items.length+' message(s) will be restored as uncertain, never sent automatically. Confirm to copy.';
       render();
     }catch{els['data-note'].textContent='Could not inspect earlier local queues';render();}
@@ -733,6 +733,27 @@
     if(!draft||draft.key!==state.key||storageKey()!==state.key||
        draft.revision!==state.revision||state.blockedRecord||state.running||
        state.awaiting||state.attempting||state.routing)return;
+    // Disarm confirmation synchronously. Two fast clicks must not import
+    // the same staged record twice while an asynchronous read is pending.
+    state.pendingRecovery=null;
+    render();
+    let latest;
+    try { latest=await api.storage.local.get(draft.sourceKey); }
+    catch {statusNote('Could not recheck earlier queue; search again');return;}
+    // The source tab can mutate/delete/upgrade its record after discovery.
+    // Never recover the stale cached copy or silently interpret a new schema.
+    if(!Object.hasOwn(latest,draft.sourceKey)||
+       !core.savedRecordSupport(latest[draft.sourceKey]).ok||
+       JSON.stringify(latest[draft.sourceKey])!==draft.sourceSnapshot){
+      statusNote('Earlier queue changed; search again before recovering');
+      return;
+    }
+    if(state.destroyed||draft.key!==state.key||storageKey()!==state.key||
+       draft.revision!==state.revision||state.blockedRecord||state.running||
+       state.awaiting||state.attempting||state.routing){
+      statusNote('Conversation or queue changed; recovery cancelled');
+      return;
+    }
     if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
     const before=state.items.slice(),sources=state.recoveredSources.slice();
     state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:'uncertain'})));
