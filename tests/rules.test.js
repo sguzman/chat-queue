@@ -76,3 +76,65 @@ test('duration filter validates integer bounds, order and context with no implic
   }
   assert.equal(rules.evaluate([base],e()).decision.ruleId,'a');
 });
+
+test('rule dependencies and skip predicates are validated and deterministic',()=>{
+  const prerequisite=r('prerequisite','failed','pause',100);
+  const gated={...r('gated','finished','propose',50),
+    when:{phase:'finished',dependsOn:['prerequisite']}};
+  const fallback=r('fallback','finished','pause',10);
+  const ruleset=[gated,fallback,prerequisite];
+  assert.equal(rules.normalize(ruleset).ok,true);
+  assert.equal(rules.evaluate(ruleset,e()).decision.ruleId,'fallback',
+    'missing completed evidence must fail closed');
+  const gatedResult=rules.evaluate(ruleset,e(),[],{completedRuleIds:['prerequisite']});
+  assert.equal(gatedResult.ok,true);
+  assert.equal(gatedResult.decision.ruleId,'gated');
+  assert.equal(gatedResult.decision.approvalRequired,true);
+  const skipped={...r('skipped','finished','pause',90),
+    when:{phase:'finished',skipIf:['prerequisite']}};
+  const selection=[prerequisite,skipped,gated,fallback];
+  assert.equal(rules.evaluate(selection,e()).decision.ruleId,'skipped');
+  assert.equal(rules.evaluate(selection,e(),[],{completedRuleIds:['prerequisite']}).decision.ruleId,'gated');
+});
+test('reject missing dependency, self dependency, cross-link contradictions and cycles',()=>{
+  const base=r('a','finished'),b=r('b','failed');
+  for(const candidate of [
+    [{...base,when:{phase:'finished',dependsOn:['missing']}},b],
+    [{...base,when:{phase:'finished',dependsOn:['a']}},b],
+    [{...base,when:{phase:'finished',skipIf:['a']}},b],
+    [{...base,when:{phase:'finished',dependsOn:['b'],skipIf:['b']}},b],
+    [{...base,when:{phase:'finished',dependsOn:['b']}},
+      {...b,when:{phase:'failed',dependsOn:['a']}}],
+    [{...base,when:{phase:'finished',dependsOn:['b']}},
+      {...b,when:{phase:'failed',dependsOn:['c']}},
+      {...r('c','limit'),when:{phase:'limit',dependsOn:['a']}}],
+  ])assert.equal(rules.normalize(candidate).error,'invalid-dependency');
+});
+test('reject overlong, repeated, non-string and invalid rule references',()=>{
+  const base=r('a','finished'), b=r('b','failed');
+  const bad=[
+    ['b','b'],[7],[''],['bad id'],new Array(9).fill('b'),null,
+    {0:'b',length:1}
+  ];
+  for(const links of bad) {
+    assert.equal(rules.normalize([{...base,when:{phase:'finished',dependsOn:links}},b]).ok,false);
+    assert.equal(rules.normalize([{...base,when:{phase:'finished',skipIf:links}},b]).ok,false);
+  }
+  const accepted=rules.normalize([{...base,when:{phase:'finished',dependsOn:['b']}},b]);
+  assert.equal(accepted.ok,true);
+  assert.equal(Object.isFrozen(accepted.rules[0].when.dependsOn),true);
+  assert.equal(accepted.rules[0].when.dependsOn[0],'b');
+});
+test('simulated completion context is explicit, bounded and cannot be forged as executable code',()=>{
+  const linked=[r('first','failed'),{...r('next','finished'),when:{phase:'finished',dependsOn:['first']}}];
+  for(const completedRuleIds of [
+    ['missing'],['first','first'],[null],42,'first',
+    new Array(33).fill('first')
+  ]){
+    assert.equal(rules.evaluate(linked,e(),[],{completedRuleIds}).error,'invalid-context');
+  }
+  assert.equal(rules.evaluate(linked,e(),[],{completedRuleIds:['first'],script:'alert(1)'}).error,'invalid-context');
+  assert.equal(rules.evaluate(linked,e(),[],{completedRuleIds:['first']}).decision.ruleId,'next');
+  assert.equal(rules.evaluate(linked,e('finished','restored'),[],{completedRuleIds:['first']}).reason,'not-actionable');
+  assert.equal(rules.evaluate(linked,e('finished','fresh',0),[],{completedRuleIds:['first']}).reason,'not-actionable');
+});
