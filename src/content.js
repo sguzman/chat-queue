@@ -491,6 +491,7 @@
     try{
       const payload=core.backupItems(state.items);
       const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'});
+      if(blob.size>core.MAX_BACKUP_BYTES)throw new Error('backup-too-large');
       const url=URL.createObjectURL(blob);
       const link=document.createElement('a');link.href=url;link.download='chat-queue-messages.json';
       shadow.append(link);link.click();link.remove();
@@ -509,7 +510,7 @@
     if(!file)return;
     const key=state.key,generation=routeGeneration;
     state.pendingImport=null;
-    if(file.size>2600000){els['data-note'].textContent='File too large (2.6 MB limit)';render();return;}
+    if(file.size>core.MAX_BACKUP_BYTES){els['data-note'].textContent='File too large (16 MiB limit)';render();return;}
     try{
       const data=core.parseBackup(JSON.parse(await file.text()));
       if(state.destroyed||state.key!==key||generation!==routeGeneration||
