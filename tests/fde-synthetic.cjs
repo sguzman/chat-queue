@@ -451,6 +451,37 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='0 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='backup-import-editor-lock';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/import-edit-lock`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),10000);
+    await driver.executeScript(`const draft=${jsEl('draft')};draft.value='Original before backup import';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='1 queued'`),8000);
+    await driver.executeScript(
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(3)').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return Boolean(document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea'))"),5000);
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`const input=${jsEl('backup-file')};input.hidden=false;input.value=''`);
+    await (await driver.executeScript(`return ${jsEl('backup-file')}`)).sendKeys(backupPath);
+    await driver.wait(async()=>await driver.executeScript(`return !${jsEl('backup-confirm')}.hidden`),5000);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='delay'");
+    await driver.executeScript(`return ${jsEl('backup-confirm')}.click()`);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:first-child').disabled"),true,
+      'An already-open edit Save must lock during backup persistence');
+    assert.equal(await driver.executeScript(`return ${jsEl('add')}.disabled && ${jsEl('run')}.disabled`),true);
+    await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='3 queued' && !${jsEl('add')}.disabled`),9000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child textarea').value"),'Original before backup import');
+    await driver.executeScript(
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .controls button:nth-child(2)').click()");
+    const clearLocked=await driver.executeScript(`return ${jsEl('clear')}`);
+    await clearLocked.click();await clearLocked.click();
+    await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}.textContent==='0 queued'`),8000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // QA seeds the unsupported record only once. If a queue edit clobbers
     // it, a reload will reveal that corruption instead of resetting the test.
     await driver.get(`http://127.0.0.1:${server.address().port}/c/future-record`);
