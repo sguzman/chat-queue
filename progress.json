@@ -388,7 +388,8 @@
                   "title": "Isolate queues by stable exact conversation identity",
                   "status": "implemented",
                   "evidence": [
-                    "tab+pathname provisional; restart/routing QA pending"
+                    "Provisional tab+pathname isolation with explicit same-route multi-tab lease; stable authenticated ChatGPT conversation ID and restart migration remain outstanding.",
+                    "Assigned pathname gate in src/signal.js, src/content.js and src/background.js restricts Start/dispatch-check to /c/<id> and /g/<group>/c/<id>; synthetic native Firefox rejects shared, home, search and unassigned routes while keeping provider authentication mandatory: https://github.com/sguzman/chat-queue/actions/runs/40122932608. Actual ChatGPT project/temporary route identity remains unverified; do not promote to verified."
                   ]
                 },
                 {
@@ -397,7 +398,8 @@
                   "title": "Define explicit new-chat and history.pushState handling",
                   "status": "verified",
                   "evidence": [
-                    "Native synthetic Firefox Developer Edition validates browser-verified pathname registration, pushState and replaceState queue isolation, and A→B→A return while B's storage read is delayed; a failed new-route storage load hides old-chat prompts without overwriting source data. No Send or cross-conversation leakage. CI https://github.com/sguzman/chat-queue/actions/runs/40057485670. Authenticated ChatGPT acceptance remains the separate M7-04 gate."
+                    "Native synthetic Firefox Developer Edition validates browser-verified pathname registration, pushState and replaceState queue isolation, and A→B→A return while B's storage read is delayed; a failed new-route storage load hides old-chat prompts without overwriting source data. No Send or cross-conversation leakage. CI https://github.com/sguzman/chat-queue/actions/runs/40057485670. Authenticated ChatGPT acceptance remains the separate M7-04 gate.",
+                    "Native Firefox Developer Edition regression hides previous-conversation HUD during delayed next-route storage read, restores only after the winning route loads, and exposes an empty blocked HUD on read failure; A→B→A storage/visibility checks passed: https://github.com/sguzman/chat-queue/actions/runs/40122724990."
                   ]
                 },
                 {
