@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 53/96 verified (55%) · █████░░░░░ · 39 implemented awaiting acceptance.**
+**Overall: 53/96 verified (55%) · █████░░░░░ · 40 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -220,10 +220,10 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M7-08` 📦 Produce reproducible unsigned QA add-on package from extension directory
 - [~] `M7-09` 🔒 Audit permissions, CSP, storage, private data and supply chain _(implemented; acceptance pending)_
 - [~] `M7-10` 📚 Publish installation, API, QA and recovery documentation _(implemented; acceptance pending)_
-- [ ] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
+- [~] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes _(implemented; acceptance pending)_
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 5 implemented but not accepted.
+**M7 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 6 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 
