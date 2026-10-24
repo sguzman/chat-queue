@@ -17,6 +17,10 @@
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false };
   let routeGeneration=0;
+  // Every metadata publication is ordered within the content-script document.
+  // Async Firefox tab URL lookups may otherwise apply a stale paused state
+  // after a later running state, incorrectly releasing a dispatch-owner lease.
+  let statePublishSequence=0;
   const routeKey = () => location.pathname;
   const storageKey = () => `chatqueue:v1:tab:${state.tabId}:${routeKey()}`;
   const host = document.createElement('div');
@@ -265,7 +269,7 @@
   }
   function publish() {
     if (state.tabId == null || state.destroyed || state.registryRecovering) return;
-    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision})
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision,sequence:++statePublishSequence})
       .then(reply=>{if(reply?.error==='route-mismatch')void recoverRegistry();})
       .catch(()=>{});
   }
