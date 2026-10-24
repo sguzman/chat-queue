@@ -50,9 +50,12 @@ function prepareQueue(dir,source){
       if(event.source!==window||event.data?.kind!=='qa-change-rule-config')return;
       const phase=['failed','interrupted','limit'].includes(event.data.phase)
         ? event.data.phase:'failed';
+      const then=event.data.action==='propose'
+        ? {type:'propose',text:'Synthetic delayed approval'}
+        : {type:'pause'};
       browser.storage.local.set({'chatqueue:conditional-rules:v1':{
         version:1,rules:[{version:1,id:'synthetic-changed',enabled:true,
-          priority:10,when:{phase},then:{type:'pause'}}]
+          priority:10,when:{phase},then}]
       }}).then(()=>document.documentElement.dataset.qaRuleMutationDone='yes')
         .catch(()=>document.documentElement.dataset.qaRuleMutationDone='failed');
     });`);
@@ -67,6 +70,8 @@ function prepareQueue(dir,source){
     // invalidation arrives before a previously initiated read settles.
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
+    .replace('api.storage.local.set({[key]:data})',
+      "((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -612,6 +617,11 @@ async function main(){
       `return !${hud('rules-approve')}.hidden`),8000);
     assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
       /Synthetic approved follow-up/);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /offered · synthetic-followup · finished · propose/);
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit')}.textContent.includes('Synthetic approved follow-up')`),false,
+      'Audit cannot contain proposed message text');
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit')}.textContent.includes('/c/manual-rule-review')`),false);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
       'Authenticated proposal cannot enqueue without explicit local approval');
@@ -620,11 +630,15 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued' && ${hud('rules-approve')}.hidden`),10000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Approval queues the proposed text but cannot click Send');
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /approved · synthetic-followup · finished · propose/);
     await driver.executeScript("history.pushState({},'', '/c/rule-other-chat')");
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}?.textContent==='0 queued' && ${hud('rules-toggle')}.textContent==='Enable previews'`),10000);
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'SPA navigation must invalidate consent and any pending proposal');
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0',
+      'Metadata audit from an earlier conversation cannot appear after SPA navigation');
     await driver.executeScript("history.pushState({},'', '/c/manual-rule-review')");
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}?.textContent==='1 queued'`),10000);
@@ -695,6 +709,8 @@ async function main(){
       `return !${hud('rules-approve')}.hidden`),8000);
     await emit('generating',2,121,'observed','fresh','/c/rule-expiry');
     await waitNote('Conditional proposal expired');
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /expired · synthetic-followup · finished · propose/);
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'A newer response epoch must revoke the prior proposal');
     await driver.executeScript(`return ${hud('rules-approve')}.click()`);
@@ -765,6 +781,47 @@ async function main(){
         'Duplicate terminal phase must not repeatedly propose actions');
       assert.equal(await driver.executeScript('return window.__sent.length'),0);
     }
+
+
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'6',
+      'Three offers and three explicit approvals produce only bounded metadata');
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit')}.textContent.includes('/c/')`),false);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    qaStage='conditional-approval-route-privacy';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-approval-route-race');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    // Put a synthetic propose rule back; this is a QA-only storage write
+    // through the temporary rule configuration fixture, never a production
+    // extension change or a request to the real provider.
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',phase:'failed',action:'propose'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    // This QA-only configuration proposes a bounded synthetic message.
+    // The delayed durable enqueue permits an actual route transition race.
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('failed',1,240,'observed','fresh','/c/rule-approval-route-race');
+    await driver.wait(async()=>await driver.executeScript(`return !${hud('rules-approve')}.hidden`),8000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaDelayRuleApproval='yes';"+
+      `${hud('rules-approve')}.click();`+
+      "history.pushState({},'', '/c/rule-approval-new-chat');"+
+      "window.dispatchEvent(new PopStateEvent('popstate'));");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='0 queued' && ${hud('rules-toggle')}.textContent==='Enable previews'`),10000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0',
+      'Async old-route approval must not leak its audit into a new chat');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    await driver.executeScript("history.pushState({},'', '/c/rule-approval-route-race');window.dispatchEvent(new PopStateEvent('popstate'))");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued' && ${hud('rules-toggle')}.textContent==='Enable previews'`),10000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review');
   }catch(error){

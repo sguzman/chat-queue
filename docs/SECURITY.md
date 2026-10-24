@@ -62,3 +62,8 @@ An approval is never a reusable authorization token: it is tied to the original 
 ## Previously opened editors cannot rewrite uncertain items
 
 The content HUD closes an already-open item editor when a preflight or Send attempt makes its formerly pending message uncertain. Its Save action goes through the same guarded `update` validation used for permissioned callers, not directly through the persistence helper; an old user-interface callback cannot bypass the pending-only mutation rule. The initial possibly submitted payload remains preserved until an explicit Retry or Discard.
+
+
+## Volatile conditional audit containment
+
+Only validated rule IDs, enumerated phase/action labels and fixed outcomes enter the in-memory review history (maximum 20). No proposal text, stored queued prompt, route, document token, response epoch, timestamp or raw exception is retained in the audit. Navigation and reload clear it. A delayed approval after route transition must not render its metadata in the subsequent conversation. Losing authenticated provider registry authority discards active offers and disables previews; restored authorization requires fresh explicit consent.

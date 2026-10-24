@@ -17,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [] };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [] };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -75,12 +75,12 @@
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
     <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
-    <details id="rules-panel"><summary>Conditional proposals (off)</summary><div id="rules-note" class="data-note" aria-live="polite">Disabled until explicitly enabled. No automatic sending.</div><div class="data-buttons"><button id="rules-toggle" type="button">Enable previews</button><button id="rules-approve" type="button" hidden>Approve proposal</button><button id="rules-dismiss" type="button" hidden>Dismiss</button></div></details>
+    <details id="rules-panel"><summary>Conditional proposals (off)</summary><div id="rules-note" class="data-note" aria-live="polite">Disabled until explicitly enabled. No automatic sending.</div><div class="data-buttons"><button id="rules-toggle" type="button">Enable previews</button><button id="rules-approve" type="button" hidden>Approve proposal</button><button id="rules-dismiss" type="button" hidden>Dismiss</button></div><details id="rules-audit-panel"><summary>Review history (<span id="rules-audit-count">0</span>, this conversation only)</summary><div id="rules-audit" class="history" aria-label="Conditional review audit"></div></details></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','rules-audit','rules-audit-count','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   // Unsaved HUD drafts must not migrate into another ChatGPT conversation.
   // Keep at most 32 volatile, exact-route drafts within this tab; never sync
   // or expose them to the page. Persisted queued items have separate storage.
@@ -151,7 +151,17 @@
   const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
     state.trusted.origin==='fresh'&&state.trusted.confidence!=='unknown'&&
     performance.now()-state.trustedAt>=0&&performance.now()-state.trustedAt<15000);
-  let paintedRows=null;
+  // Volatile fixed-schema outcomes: no prompt text, route, document token,
+  // response epoch, timestamps, or cross-extension publication.
+  function auditOffer(outcome,offer){
+    if(!offer||!['offered','approved','dismissed','expired','invalidated','save-failed'].includes(outcome)||
+       !/^[a-zA-Z0-9_-]{1,64}$/.test(offer.ruleId)||
+       !['propose','pause'].includes(offer.action?.type)||
+       !['finished','failed','interrupted','limit'].includes(offer.phase))return;
+    state.ruleAudit=[...state.ruleAudit,{outcome,ruleId:offer.ruleId,
+      phase:offer.phase,action:offer.action.type}].slice(-20);
+  }
+  let paintedRows=null,paintedAudit=null;
   function render() {
     if (state.destroyed) return;
     host.dataset.theme=state.theme;els.theme.value=state.theme;
@@ -177,6 +187,16 @@
     els['rules-toggle'].disabled=state.rulesLoading;
     els['rules-approve'].hidden=!state.ruleOffer;
     els['rules-dismiss'].hidden=!state.ruleOffer;
+    els['rules-audit-count'].textContent=String(state.ruleAudit.length);
+    if(paintedAudit!==state.ruleAudit){
+      els['rules-audit'].replaceChildren();
+      for(const entry of state.ruleAudit){
+        const line=document.createElement('div');line.className='historyitem';
+        line.textContent=[entry.outcome,entry.ruleId,entry.phase,entry.action].join(' · ');
+        els['rules-audit'].append(line);
+      }
+      paintedAudit=state.ruleAudit;
+    }
     els['rules-note'].textContent=state.ruleOffer
       ? (state.ruleOffer.action.type==='pause'
         ? 'Rule '+state.ruleOffer.ruleId+' proposes pausing. Requires explicit approval.'
@@ -344,6 +364,8 @@
     const key=state.key,route=routeKey();
     // Re-registration is metadata-only. A restarted event page lost every
     // authenticated provider epoch; never inherit authority from this tab.
+    if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
+    state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -446,6 +468,7 @@
     state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,
       action:result.decision.action,documentToken:signal.documentToken,
       epoch:signal.epoch,phase:signal.phase,confidence:signal.confidence};
+    auditOffer('offered',state.ruleOffer);
     // A proposal requiring manual review must stop any already-scheduled
     // next Send synchronously. processSignal may have just scheduled it on
     // the terminal event; the timeout cannot fire until this listener ends.
@@ -639,7 +662,7 @@
     state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;state.pendingRecovery=null;
     // Explicit preview consent belongs to this exact conversation, not every
     // future ChatGPT route in this tab. Navigation invalidates all offers.
-    state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];
+    state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1071,6 +1094,7 @@
   els['rules-toggle'].addEventListener('click',async()=>{
     if(state.rulesLoading||!state.initialized||state.routing)return;
     if(state.rulesEnabled){
+      if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
@@ -1097,6 +1121,7 @@
     }finally{state.rulesLoading=false;if(!state.destroyed)render();}
   });
   els['rules-dismiss'].addEventListener('click',()=>{
+    if(state.ruleOffer)auditOffer('dismissed',state.ruleOffer);
     state.ruleOffer=null;statusNote('Conditional proposal dismissed; no action');
   });
   els['rules-approve'].addEventListener('click',async()=>{
@@ -1107,6 +1132,7 @@
     if(!state.trusted||state.trusted.documentToken!==offer.documentToken||
        state.trusted.epoch!==offer.epoch||state.trusted.phase!==offer.phase||
        state.trusted.confidence!==offer.confidence||state.trusted.origin!=='fresh'){
+      auditOffer('expired',offer);
       state.ruleOffer=null;statusNote('Conditional proposal expired; review current response');
       return;
     }
@@ -1115,11 +1141,18 @@
     if(state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;render();publish();
     if(offer.action.type==='pause'){
+      auditOffer('approved',offer);
       statusNote('Conditional pause approved; manually Start to resume');
       return;
     }
     if(offer.action.type!=='propose')return;
     const response=await act('enqueue',{text:offer.action.text},true);
+    // The asynchronous durable append may settle after SPA navigation.
+    // Never display a previous conversation's rule ID or review outcome in
+    // the newly selected conversation's volatile audit/status.
+    if(state.destroyed||state.routing||state.key!==offer.key||
+       storageKey()!==offer.key)return;
+    auditOffer(response.ok?'approved':'save-failed',offer);
     if(response.ok)statusNote('Conditional text queued; press Start separately');
     else statusNote('Conditional proposal was not queued: '+response.error);
   });
@@ -1138,6 +1171,7 @@
     // conditional-rule configuration can affect this document.
     let relevant=false;
     if(changes[ruleStore.KEY]){
+      if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       ruleLibraryGeneration++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
@@ -1168,6 +1202,7 @@
       if(offer&&(next.documentToken!==offer.documentToken||
          next.epoch!==offer.epoch||next.phase!==offer.phase||
          next.confidence!==offer.confidence||next.origin!=='fresh')){
+        auditOffer('expired',offer);
         state.ruleOffer=null;
         state.running=false;
         if(state.scheduler)clearTimeout(state.scheduler);

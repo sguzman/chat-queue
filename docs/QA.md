@@ -282,3 +282,8 @@ A native Firefox Developer Edition two-extension regression opens Edit on a pend
 ## 🧪 Authenticated terminal-error policy review
 
 A native Firefox Developer Edition two-extension scenario replaces the QA-only declarative rule library with a synthetic explicit pause rule for `failed`, `interrupted`, and `limit` in turn. Each phase is checked under a restored provider event (no action), a fresh authenticated event (manual approval offer but no Send), and a repeated fresh same-epoch event (no duplicate offer after approval). Each configuration change invalidates existing preview consent and requires an explicit new Enable action. Browser clicks must never Send queued prompts. The test does not claim the real Chat Signals publisher is complete.
+
+
+## 🦊 Volatile conditional review audit and navigation race
+
+The disposable headless Firefox two-extension test checks that a genuine synthetic authenticated offer adds only metadata to the collapsed HUD Review history; no proposed message content, route or document token appears. After explicit approval it shows a separate approved record. SPA navigation wipes that history. A superseding provider epoch produces an expired record, and the failure/interruption/limit policy tests yield only bounded offered/approved records. A separate QA-only delayed queue storage write allows navigation between clicking Approve and its completion; the new chat must remain free of the old offer's rule ID/status, while the original queued item remains durable in its original route. This does not test the real Chat Signals publisher.

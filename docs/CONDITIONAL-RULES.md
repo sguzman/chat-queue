@@ -80,3 +80,10 @@ A pending offer is tied to its verified source document token, response epoch, t
 ## Authenticated error terminal acceptance boundary
 
 Synthetic Firefox QA now drives fresh and restored authenticated provider messages for `failed`, `interrupted`, and `limit` through the existing production HUD rule-review path. The v1 declarative pause rule may propose action only after per-conversation Enable and a fresh signal; restoring an old status or repeating the same terminal event cannot execute or re-propose an action. Approval remains a manual pause, never permission to Send or automatically retry. Live published Chat Signals behavior is still a separate acceptance gate.
+
+
+## 🧾 Volatile authenticated review outcomes
+
+The opt-in per-conversation HUD now has a collapsed **Review history** section for actual browser-authenticated *synthetic* rule offers and user actions. It records up to 20 fixed-schema entries with only a validated rule ID and a known terminal phase, action kind and outcome: offered, approved, dismissed, expired, invalidated or failed to save. This is **not** transcript collection: no message text, prompt, route, document token, response epoch or timestamp is recorded. It never enters browser storage, logs, external APIs or the page's global namespace; the volatile list is discarded on conversation navigation and on document reload. The audit is updated after durable manual approval so an unsuccessful enqueue is never mislabeled as committed.
+
+A registry restart clears any pending proposal and disables consent, rather than leaving an approval tied to lost provider authority. A late asynchronous approval cannot write its status or audit record into a different conversation. Real Chat Signals publication and authenticated ChatGPT acceptance remain unverified.
