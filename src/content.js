@@ -43,6 +43,10 @@
     .items{overflow:auto;max-height:260px;padding:8px;display:flex;flex-direction:column;gap:7px}
     .item{background:var(--item);border:1px solid var(--border);border-radius:8px;padding:8px;min-width:0}
     .preview{white-space:pre-wrap;word-break:break-word;max-height:84px;overflow:hidden;margin-bottom:6px}
+    .item .preview{cursor:grab;touch-action:none;user-select:none}
+    .item[data-dragging] .preview{cursor:grabbing}
+    .item[data-drop-side="before"]{border-top:3px solid var(--focus)}
+    .item[data-drop-side="after"]{border-bottom:3px solid var(--focus)}
     .controls{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
     button,select{font:inherit;cursor:pointer;border:1px solid var(--button-border);border-radius:6px;color:var(--text);background:var(--button);padding:5px 9px}
     button:hover,select:hover{background:var(--button-hover)}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -151,14 +155,53 @@
     });
     state.items.forEach((item,index) => {
       const row=document.createElement('div');row.className='item'+(item.status==='uncertain'?' uncertain':'');
-      row.draggable=!state.attempting;
+      // Handle real pointer drag with explicit before/after insertion zones.
+      // Keyboard Up/Down remains available and never depends on pointer input.
       row.dataset.itemId=item.id;
-      row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',item.id);event.dataTransfer.effectAllowed='move';});
-      row.addEventListener('dragover',event=>{if (row.draggable)event.preventDefault();});
-      row.addEventListener('drop',event=>{
-        event.preventDefault();if(state.attempting)return;const id=event.dataTransfer.getData('text/plain');
-        state.items=core.moveTo(state.items,id,item.id);void save();render();
+      let pointer=null;
+      const locate=(x,y)=>{
+        for(const candidate of els.items.querySelectorAll('.item')){
+          const rect=candidate.getBoundingClientRect();
+          if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)continue;
+          const index=state.items.findIndex(entry=>entry.id===candidate.dataset.itemId);
+          if(index<0)return null;
+          const after=y>rect.top+rect.height/2;
+          return {row:candidate,side:after?'after':'before',
+            beforeId:after?(state.items[index+1]?.id||null):candidate.dataset.itemId};
+        }
+        return null;
+      };
+      const clearDrop=()=>{
+        for(const candidate of els.items.querySelectorAll('[data-drop-side]'))
+          delete candidate.dataset.dropSide;
+        delete row.dataset.dragging;
+      };
+      row.addEventListener('pointerdown',event=>{
+        if(state.attempting||event.button!==0||!event.target?.closest?.('.preview'))return;
+        pointer={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
+        try{row.setPointerCapture(event.pointerId);}catch{pointer=null;}
       });
+      row.addEventListener('pointermove',event=>{
+        if(!pointer||pointer.id!==event.pointerId)return;
+        if(!pointer.moved && Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<8)return;
+        pointer.moved=true;
+        clearDrop();row.dataset.dragging='true';
+        const target=locate(event.clientX,event.clientY);
+        if(target)target.row.dataset.dropSide=target.side;
+      });
+      function endPointer(event,cancelled=false){
+        if(!pointer||pointer.id!==event.pointerId)return;
+        const drag=pointer;pointer=null;
+        const target=!cancelled&&drag.moved&&!state.attempting?locate(event.clientX,event.clientY):null;
+        clearDrop();
+        try{if(row.hasPointerCapture(event.pointerId))row.releasePointerCapture(event.pointerId);}catch{}
+        if(!target)return;
+        const next=core.moveTo(state.items,item.id,target.beforeId);
+        if(next.every((entry,index)=>entry.id===state.items[index]?.id))return;
+        state.items=next;void save();render();
+      }
+      row.addEventListener('pointerup',event=>endPointer(event));
+      row.addEventListener('pointercancel',event=>endPointer(event,true));
       if (state.editing === item.id) {
         const textarea=document.createElement('textarea');textarea.value=item.text;textarea.setAttribute('aria-label','Edit queued message');row.append(textarea);
         const ctrls=document.createElement('div');ctrls.className='controls';
