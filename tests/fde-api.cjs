@@ -116,6 +116,9 @@ async function main(){
   };
   let result=await command({type:'chat-queue/v1',action:'capabilities'});
   assert.equal(result.ok,true);assert.deepEqual(result.scopes,['discover','append','rules']);
+  assert.equal(result.protocolVersion,1);
+  assert.equal(result.grantVersion,2);
+  assert.equal(result.version,2);
   const syntheticSignal={version:1,route:'/c/synthetic',documentToken:'a'.repeat(32),
     sequence:1,epoch:1,phase:'failed',origin:'fresh',confidence:'observed'};
   const syntheticRule={version:1,id:'pause-on-error',enabled:true,priority:40,
@@ -208,6 +211,8 @@ async function main(){
   assert.equal((await command({type:'chat-queue/v1',action:'start',tabId})).error,'forbidden-scope');
   result=await command({action:'subscribe'});assert.equal(result.ok,true);
   await driver.wait(async()=>{const s=await command({action:'portState'});return s.events.some(x=>x.event==='ready')},7000);
+  const stream=await command({action:'portState'});
+  assert.equal(stream.events.find(x=>x.event==='ready')?.protocolVersion,1);
   stage='grant-revocation';
   const grantNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{}}},"*")',grantNonce);
