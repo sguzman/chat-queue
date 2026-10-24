@@ -269,8 +269,15 @@
   }
   function publish() {
     if (state.tabId == null || state.destroyed || state.registryRecovering) return;
+    const key=state.key,route=routeKey(),generation=routeGeneration;
     void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision,sequence:++statePublishSequence})
-      .then(reply=>{if(reply?.error==='route-mismatch')void recoverRegistry();})
+      .then(reply=>{
+        // A delayed rejection for an earlier SPA route is not evidence that
+        // the newly selected conversation lost its background registration.
+        if(reply?.error==='route-mismatch'&&!state.destroyed&&!state.routing&&
+           state.key===key&&routeKey()===route&&routeGeneration===generation)
+          void recoverRegistry();
+      })
       .catch(()=>{});
   }
   function save() {
