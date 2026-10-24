@@ -155,7 +155,12 @@
       return { ok: false, error: 'unauthorized' };
     }
     // Size limits cover all verbs, including metadata-only capability probes.
-    if(JSON.stringify(message).length>32768)return {ok:false,error:'request-too-large'};
+    // Malformed IPC must fail closed; no response may echo a private prompt.
+    let serialized;
+    try { serialized=JSON.stringify(message); }
+    catch { return {ok:false,error:'invalid-request'}; }
+    if(typeof serialized!=='string')return {ok:false,error:'invalid-request'};
+    if(serialized.length>32768)return {ok:false,error:'request-too-large'};
     if(message.action==='capabilities')return {ok:true,version:2,protocolVersion:PROTOCOL_VERSION,grantVersion:2,scopes:authorized};
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
