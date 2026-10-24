@@ -148,6 +148,15 @@ async function main(){
       'return window.__sent.length===arguments[0]',amount),10000);
     await emit('idle',0,1);
     await waitNote('Signal: idle');
+    // Whitespace alone is still a user's composer draft: do not replace it.
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent='   '");
+    await start.click();
+    await waitNote('Composer contains a draft; preserved it');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'   ');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    await driver.wait(async()=>await driver.executeScript(
+      "return !document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item .controls button:nth-child(4)').disabled"),5000);
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent=''");
     // An occupied draft must be preserved byte-for-byte; the queue stays
     // pending and cannot send merely because authenticated Signals is ready.
     await driver.executeScript("document.getElementById('prompt-textarea').textContent='Human draft remains here'");
