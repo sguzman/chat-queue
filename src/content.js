@@ -487,7 +487,10 @@
     const newKey=storageKey();
     // Duplicate navigation notices must not invalidate an in-flight
     // restore after its route key was assigned but before registration ends.
-    if (state.key===newKey)return;
+    // A -> B -> A can happen while B's async storage read is pending.
+    // Returning to the prior key must cancel the in-flight transition
+    // instead of leaving routing=true indefinitely.
+    if (state.key===newKey&&!state.routing)return;
     const generation=++routeGeneration;
     state.routing=true;
     state.clearArmed=false;state.historyClearArmed=false;state.pendingImport=null;state.pendingRecovery=null;
