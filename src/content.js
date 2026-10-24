@@ -632,6 +632,10 @@
         if (state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         if (uncertain())return {ok:false,error:'resolve-uncertain-message'};
         if (!pending() && !state.awaiting)return {ok:false,error:'queue-empty'};
+        // An unassigned ChatGPT home/new-chat pathname is not a durable
+        // conversation identity. More than one unsaved chat can share it.
+        if(routeKey()==='/'||/\/c\/?$/.test(routeKey()))
+          return {ok:false,error:'conversation-not-assigned'};
         if (!freshProvider())return {ok:false,error:'authenticated-chat-signals-required'};
         if (core.BLOCKED.has(state.signal))return {ok:false,error:`signal-${state.signal}`};
         state.running=true;statusNote('Waiting for safe control');
