@@ -39,3 +39,15 @@ test('queue executor does not use page-controlled status as dispatch authorizati
   assert.match(content,/item\.status='uncertain';\s*await save\(\);/);
   assert.match(content,/state\.key!==attemptKey\|\|storageKey\(\)!==attemptKey/);
 });
+
+test('only concrete conversation routes can anchor guarded dispatch',()=>{
+  const good=['/c/synthetic','/c/1','/c/ff82-abc_123',
+    '/g/g-project-123/c/ff82-abc_123'];
+  const bad=['/','/c','/c/','/c/id/extra','/c//','/new','/g/g-test',
+    '/g/g-test/c','/g/g-test/c/','/share/abc','/s/abc',
+    '/search','/tasks','/g/g-test/c/one/two',
+    '/c/id%2Fother','/c/id?other=1','//c/id'];
+  for(const route of good)assert.equal(signal.assignedConversationRoute(route),true,route);
+  for(const route of bad)assert.equal(signal.assignedConversationRoute(route),false,route);
+  assert.equal(signal.assignedConversationRoute(null),false);
+});
