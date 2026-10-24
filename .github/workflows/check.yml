@@ -8,8 +8,8 @@ jobs:
   static-and-unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - run: npm run check
@@ -25,7 +25,7 @@ jobs:
           cp manifest.json dist/extension/
           cp -R src options dist/extension/
           npm exec --yes --package=web-ext@10.8.0 -- web-ext lint --source-dir dist/extension --self-hosted --warnings-as-errors --boring
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: chat-queue-fde-qa-unsigned
           path: dist/chat-queue-fde-qa-unsigned.zip
@@ -37,12 +37,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - id: fde
-        uses: browser-actions/setup-firefox@v1
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1
         with:
           firefox-version: latest-devedition
       - uses: browser-actions/setup-geckodriver@5ef1526ed36211ab6cb531ec1cfb11f924ca2dee
@@ -61,7 +61,7 @@ jobs:
         run: node tests/fde-synthetic.cjs
       - name: Archive synthetic HUD screenshots for visual QA
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: chat-queue-fde-hud-synthetic
           path: ${{ runner.temp }}/chat-queue-hud-qa/*.png
@@ -76,7 +76,7 @@ jobs:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
         run: node tests/fde-theme-sync.cjs
       - name: Check out pinned real Chat Signals v0.3.13 for coexistence QA
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: sguzman/chat-signals
           ref: 102e3ea16a9e9535d377c1d4e8b564f5b0fdb721
