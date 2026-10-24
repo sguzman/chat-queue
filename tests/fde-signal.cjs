@@ -40,6 +40,15 @@ function prepareQueue(dir,source){
       "document.documentElement.dataset.qaQueueRuntime=String(!!api?.runtime?.sendMessage)+','+String(!!core)+','+String(!!contract);if (!api?.runtime?.sendMessage || !core || !contract) return;")
     .replace("state.destroyed=true;signalObserver.disconnect();",
       "document.documentElement.dataset.qaRegisterFailure=String(error?.message||'unknown');state.destroyed=true;signalObserver.disconnect();"));
+  // QA-only assertion at the exact composer handoff boundary: an on-disk
+  // uncertain journal must predate any programmatically inserted prompt.
+  const journalHandoff="      fillComposer(editor,item.text);";
+  assert.equal(fs.readFileSync(contentPath,'utf8').split(journalHandoff).length,2);
+  fs.writeFileSync(contentPath,fs.readFileSync(contentPath,'utf8').replace(journalHandoff,
+    "      const qaStored=await api.storage.local.get(state.key);"+
+    "if(qaStored[state.key]?.items?.find(x=>x.id===item.id)?.status!=='uncertain')"+
+    "throw new Error('QA: composer handoff preceded durable uncertain journal');\\n"+
+    journalHandoff));
   // Only QA origin allowlist changes; production background is otherwise intact.
   const bgPath=path.join(dir,'src/background.js');
   let bg=fs.readFileSync(bgPath,'utf8');
