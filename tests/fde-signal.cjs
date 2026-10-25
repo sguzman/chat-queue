@@ -126,12 +126,12 @@ function prepareQueue(dir,source){
       "if(routeKey()==='/c/active-generation-deadline'&&"+
       "document.documentElement.dataset.qaForceTimerRounding==='return-equality'){"+
       "document.documentElement.dataset.qaForceTimerRounding='done';return 1200;}")
-    .replace("    const duration=ruleDuration(signal);\\n    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,",
+    .replace("    const duration=ruleDuration(signal);\n    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,",
       "    let duration=ruleDuration(signal);"+
       "if(routeKey()==='/c/active-generation-deadline'&&"+
       "document.documentElement.dataset.qaForceTimerRounding==='armed'&&"+
       "document.documentElement.dataset.qaActiveDeadlineFired==='yes'){"+
-      "duration=1199;document.documentElement.dataset.qaForceTimerRounding='return-equality';}\\n"+
+      "duration=1199;document.documentElement.dataset.qaForceTimerRounding='return-equality';}\n"+
       "    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,")
     // QA-only instrumentation: prove the actual duration timer was armed
     // and distinguish a throttled timer from a lost policy/Signal event.
