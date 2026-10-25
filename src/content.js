@@ -379,7 +379,7 @@
     if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -741,7 +741,7 @@
     // future ChatGPT route in this tab. Navigation invalidates all offers.
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1180,7 +1180,7 @@
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       ruleReadId++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
-      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
     const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
@@ -1195,7 +1195,7 @@
       if(ruleLibraryGeneration!==libraryGeneration||ruleReadId!==loadId)
         throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
-      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
       state.rulesEnabled=true;
       statusNote('Conditional previews enabled; future authenticated events only');
     }catch(error){
