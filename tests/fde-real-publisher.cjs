@@ -70,6 +70,16 @@ function stageProvider(dir,root){
     "    }\n"+oldStored;
   bg=patch(bg,oldStored,seeded);
   fs.writeFileSync(bp,bg);
+  // QA-only browser-visible metadata; never included in the real provider.
+  const qaContentPath=path.join(dir,'src/content.js');
+  let qaContent=fs.readFileSync(qaContentPath,'utf8');
+  qaContent=patch(qaContent,
+    "    lastQueuePublished=-1; // the next reconcile republishes the current epoch",
+    "    document.documentElement.dataset.qaSyncReceived='yes';\\n"+
+    "    lastQueuePublished=-1; // the next reconcile republishes the current epoch");
+  qaContent=patch(qaContent,"        queueSequence++;lastQueuePublished=r.changed;",
+    "        queueSequence++;document.documentElement.dataset.qaPublishedSequence=String(queueSequence);lastQueuePublished=r.changed;");
+  fs.writeFileSync(qaContentPath,qaContent);
 }
 const page=`<!doctype html><html><head><title>Provider Fixture</title></head><body>
 <main><form><div id="prompt-textarea" role="textbox" contenteditable="true"></div>
@@ -129,6 +139,8 @@ async function main(){
       const diagnosis=await driver.executeScript(() => ({
         providerPhase:document.documentElement.dataset.chatSignalsState||null,
         providerReason:document.documentElement.dataset.chatSignalsReason||null,
+        providerSyncReceived:document.documentElement.dataset.qaSyncReceived||null,
+        publisherSequence:document.documentElement.dataset.qaPublishedSequence||null,
         queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
         queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
           ?.getElementById('status')?.textContent?.slice(0,180)||null
