@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Deliberate unlisted Mozilla signing only. No profile modification, browser
 // launch, automated publishing, or credential persistence. Disabled by the
-// acceptance ledger until every verified task has evidence.
+// acceptance ledger until all 95 pre-tag tasks have verified evidence.
+// Tagging is M7-12 and follows signing and artifact review.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

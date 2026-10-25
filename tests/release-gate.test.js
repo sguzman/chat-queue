@@ -33,7 +33,8 @@ test('synthetic 96-task all-verified evidence ledger passes only the ledger gate
     for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
   });
   assert.equal(result.status,0,result.stderr);
-  assert.match(result.stdout,/all 96 verified with evidence/);
+  assert.match(result.stdout,/95 pre-tag tasks verified with evidence/);
+  assert.match(result.stdout,/M7-12 is verified/);
   assert.match(result.stdout,/signing gates remain separate/);
 });
 test('missing acceptance evidence fails even if task status says verified',()=>{
@@ -58,4 +59,34 @@ test('missing task or changed Firefox add-on identity blocks release',()=>{
   });
   assert.notEqual(changed.status,0);
   assert.match(changed.stderr,/task inventory or manifest identity changed/);
+});
+test('95 verified gates permit the pre-tag phase without pretending M7-12 is complete',()=>{
+  const result=runGate(({tasks})=>{
+    for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
+    const tag=tasks.find(t=>t.id==='M7-12');
+    tag.status='planned';tag.evidence=[];
+  });
+  assert.equal(result.status,0,result.stderr);
+  assert.match(result.stdout,/95 pre-tag tasks verified with evidence/);
+  assert.match(result.stdout,/M7-12 is planned/);
+});
+test('the pre-tag exemption never covers another unverified task',()=>{
+  const result=runGate(({tasks})=>{
+    for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
+    tasks.find(t=>t.id==='M7-12').status='planned';
+    tasks.find(t=>t.id==='M4-06').status='planned';
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/M4-06/);
+});
+test('invalid or falsely verified M7-12 status cannot bypass the gate',()=>{
+  for(const status of ['skipped','verified']){
+    const result=runGate(({tasks})=>{
+      for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
+      const tag=tasks.find(t=>t.id==='M7-12');
+      tag.status=status;tag.evidence=[];
+    });
+    assert.notEqual(result.status,0);
+    assert.match(result.stderr,/M7-12/);
+  }
 });

@@ -18,7 +18,8 @@ function attemptSigning(verifyAll=false,credentials=false){
    const p=path.join(tmp,'progress.json');
    const ledger=JSON.parse(fs.readFileSync(p,'utf8'));
    for(const t of ledger.milestones.flatMap(m=>m.phases.flatMap(p=>p.features.flatMap(f=>f.tasks)))){
-    t.status='verified';t.evidence=['Synthetic release test; no real acceptance'];
+    t.status=t.id==='M7-12'?'planned':'verified';
+    t.evidence=t.id==='M7-12'?[]:['Synthetic release test; no real acceptance'];
    }
    fs.writeFileSync(p,JSON.stringify(ledger));
   }
@@ -41,7 +42,7 @@ test('incomplete real ledger stops signing even if fake credentials are supplied
  assert.equal(result.staged,false);
  assert.doesNotMatch(result.stdout+result.stderr,/FAKE_TEST_ONLY/);
 });
-test('synthetic complete ledger still refuses signing without Mozilla credentials',()=>{
+test('synthetic 95-task pre-tag ledger still refuses signing without Mozilla credentials',()=>{
  const result=attemptSigning(true,false);
  assert.notEqual(result.status,0);
  assert.match(result.stderr,/Mozilla API credentials are required/);

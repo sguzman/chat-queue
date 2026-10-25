@@ -34,18 +34,25 @@ for(const milestone of milestones){
   }
 }
 const ids=new Set(tasks.map(t=>t?.id));
-if(tasks.length!==96||ids.size!==96||ids.has(undefined)||
+if(tasks.length!==96||ids.size!==96||ids.has(undefined)||!ids.has('M7-12')||
    !/^\d+\.\d+\.\d+$/.test(manifest.version||'')||
    manifest.browser_specific_settings?.gecko?.id!=='chat-queue@sguzman.github'){
   process.stderr.write('Release blocked: task inventory or manifest identity changed\n');
   process.exit(1);
 }
-const unfinished=tasks.filter(t=>t.status!=='verified'||
-  !Array.isArray(t.evidence)||!t.evidence.length||
-  t.evidence.some(e=>typeof e!=='string'||!e.trim()));
+// The SemVer tag is the LAST task: signing and independent artifact review
+// must happen first. Only M7-12 can remain planned/implemented during signing.
+// Once marked verified, it too requires acceptance evidence.
+const tag=tasks.find(t=>t.id==='M7-12');
+const validEvidence=t=>Array.isArray(t.evidence)&&t.evidence.length>0&&
+  t.evidence.every(e=>typeof e==='string'&&e.trim());
+const unfinished=tasks.filter(t=>t.id==='M7-12'
+  ? !['planned','implemented','verified'].includes(t.status)||
+    (t.status==='verified'&&!validEvidence(t))
+  : t.status!=='verified'||!validEvidence(t));
 if(unfinished.length){
   const ids=unfinished.slice(0,8).map(t=>t.id).join(', ');
-  process.stderr.write(`Release blocked: ${unfinished.length}/${tasks.length} tasks missing verified acceptance evidence; first: ${ids}\n`);
+  process.stderr.write(`Release blocked: ${unfinished.length}/${tasks.length} tasks missing verified acceptance evidence or valid tag status; first: ${ids}\n`);
   process.exit(1);
 }
-process.stdout.write('Release ledger gate passed: all 96 verified with evidence. Manual source/security and signing gates remain separate.\n');
+process.stdout.write(`Release ledger gate passed: 95 pre-tag tasks verified with evidence; M7-12 is ${tag.status}. Manual source/security, signing and tagged-artifact verification remain separate.\n`);
