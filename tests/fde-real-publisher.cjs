@@ -456,6 +456,67 @@ async function main(){
         'Conditional review cannot send another prompt without separate Start');
       assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
     }
+    stage='real-provider-manual-failure-recovery';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/manual-rule-recovery');
+    await ready();
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9000);
+    for(const [index,text] of [
+      'Synthetic response deliberately failed',
+      'Synthetic pending after manually approved recovery'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0] &&
+          ${hud('draft')}.value==='' `,(index+1)+' queued'),10000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),11000);
+    await driver.executeScript(()=>{
+      const alert=document.createElement('div');
+      alert.id='qa-recovery-error';alert.setAttribute('role','alert');
+      alert.textContent='Error in input stream.';
+      document.querySelector('main').prepend(alert);
+    });
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden &&
+        ${hud('rules-note')}.textContent.includes('qa-real-failure')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Failure must not automatically retry an already-clicked message');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional pause approved')`),9000);
+    await driver.sleep(500);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    // Trusted user Stop, not a fabricated provider phase, reestablishes an
+    // observed idle phase. Removing the error first prevents a stale warning
+    // from repeatedly classifying the manually recovered conversation.
+    await driver.executeScript("document.getElementById('qa-recovery-error').remove()");
+    await (await driver.findElement(By.css('[data-testid="stop-button"]'))).click();
+    await driver.executeScript("document.querySelector('[data-testid=stop-button]')?.remove()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='idle'"),10000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Signal: idle')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Manual recovery alone cannot dispatch the next pending item');
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews disabled')`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===2'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2,
+      'Recovery can only advance to the next pending message on explicit Start');
     stage='scoped-project-route-isolation';
     // The preceding controlled-API and long-response scenarios navigate to
     // other chats. Set an explicit known starting route instead of inheriting
