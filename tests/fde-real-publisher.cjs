@@ -884,6 +884,51 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
 
+    // A script-triggered button.click() bypasses overlays. A covered editor
+    // or Send control must never become a valid queue dispatch target.
+    stage='real-provider-overlaid-composer-never-sends';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/overlaid-editor');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic overlaid editor';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    const cover=target=>driver.executeScript(selector=>{
+      const el=document.querySelector(selector),rect=el.getBoundingClientRect();
+      const overlay=document.createElement('div');
+      overlay.id='qa-pointer-interceptor';
+      Object.assign(overlay.style,{position:'fixed',left:rect.left+'px',
+        top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',
+        zIndex:'999999',pointerEvents:'auto'});
+      document.body.append(overlay);
+      return document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2)?.id;
+    },target);
+    assert.equal(await cover('#prompt-textarea'),'qa-pointer-interceptor');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
+    stage='real-provider-overlaid-send-never-clicks';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/overlaid-send');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic overlaid Send';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    assert.equal(await cover('[data-testid="send-button"]'),'qa-pointer-interceptor');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Send button missing, disabled or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Script clicks may not bypass an overlay covering Send');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript("document.getElementById('qa-pointer-interceptor').remove()");
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Uncovering Send cannot retry an uncertain attempt automatically');
+
     stage='real-provider-sixteen-tabs-hidden-retention';
     const sixteenStartTab=await driver.getWindowHandle();
     const loadTabs=[];

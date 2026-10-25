@@ -482,7 +482,14 @@
     if(bounds.width<=0||bounds.height<=0||bounds.right<=0||
        bounds.bottom<=0||bounds.left>=innerWidth||bounds.top>=innerHeight)
       return false;
-    return getComputedStyle(element).pointerEvents!=='none';
+    if(getComputedStyle(element).pointerEvents==='none')return false;
+    // A scripted HTMLElement.click() ignores overlays. Only permit controls
+    // that would receive a real pointer at the center of their visible area;
+    // an intercepted element is not safe for an irreversible Send.
+    const left=Math.max(0,bounds.left),right=Math.min(innerWidth,bounds.right);
+    const top=Math.max(0,bounds.top),bottom=Math.min(innerHeight,bounds.bottom);
+    const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);
+    return !!hit&&(hit===element||element.contains(hit));
   }
   function usableComposer(editor) {
     return actionableControl(editor)&&editor.getAttribute('contenteditable')!=='false';
