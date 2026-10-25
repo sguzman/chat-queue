@@ -650,7 +650,11 @@
     const future=state.ruleLibrary.filter(rule=>rule.enabled&&
       rule.when.phase==='generating'&&
       Number.isSafeInteger(rule.when.minDurationMs)&&
-      rule.when.minDurationMs>duration).map(rule=>rule.when.minDurationMs);
+      // Equality still needs one more tick: considerConditionalPreview
+      // may have evaluated at threshold-1 ms just before this second
+      // clock read rounded up to threshold. Skipping equality could leave
+      // a qualifying active rule dormant until another provider event.
+      rule.when.minDurationMs>=duration).map(rule=>rule.when.minDurationMs);
     if(!future.length)return;
     const remaining=Math.max(1,Math.min(...future)-duration);
     const mark={documentToken:signal.documentToken,route:signal.route,epoch:signal.epoch};
