@@ -372,10 +372,17 @@ test('silent Discover revocation blocks delayed listTabs and capabilities respon
       'approved@example.test':['append']}};
     resume();
     const result=await pending;
-    assert.equal(result.error,'authorization-changed',action);
     assert.equal(reads,2,action+' must re-read its durable grant');
     assert.equal(JSON.stringify(result).includes('private-discovery'),false);
-    assert.equal(Object.hasOwn(result,'scopes'),false);
+    if(action==='listTabs'){
+      assert.equal(result.error,'authorization-changed');
+      assert.equal(Object.hasOwn(result,'tabs'),false);
+    }else{
+      // Capabilities are still available to an Append-only peer, but may
+      // never echo the earlier, now revoked Discover/Read/Control scopes.
+      assert.equal(result.ok,true);
+      assert.deepEqual(Array.from(result.scopes),['append']);
+    }
   }
 });
 
