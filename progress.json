@@ -465,9 +465,9 @@
                   "id": "M3-02",
                   "emoji": "🛡️",
                   "title": "Define authenticated, versioned source-to-consumer signal protocol",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Candidate authenticated Firefox cross-extension consumer and versioned schema: src/signal.js, src/background.js, docs/SIGNAL-CONTRACT.md; provider emission and real FDE pending."
+                    "Firefox Developer Edition real two-addon source-to-consumer acceptance: Chat Signals publisher pinned at 978b4163d0dee5661afad86c0576852df1b9a8cb forwards browser-attested v1 phase/epoch/sequence metadata to Chat Queue, which serially dispatches exactly two harmless synthetic prompts and safely denies Send after source removal. Both full CI jobs pass: https://github.com/sguzman/chat-queue/actions/runs/40155539014. Receiver verifies actual sender.id, exact route, document and monotonic epoch; tests/ fde-real-publisher.cjs (synthetic localhost) and src/signal.js. This verifies the independent Firefox protocol, not authenticated ChatGPT production-site delivery."
                   ]
                 },
                 {

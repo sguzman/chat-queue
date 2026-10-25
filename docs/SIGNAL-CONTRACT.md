@@ -41,3 +41,7 @@ Before attempting Send, the queue records the item as `uncertain` in extension s
 ## Outstanding gates
 
 The provider has not implemented the external event stream. Pending integration work must prove actual Firefox extension-to-extension event delivery, provider event provenance and sequencing, mutation/race safety, connection recovery, rapid terminal events, provider absence, event-page suspension, and the authenticated ChatGPT composer path. No existing browser profile or other repository is changed by this candidate receiver. The provider-side implementation plan and integration QA phases are documented in [SIGNAL-PUBLISHER-HANDOFF.md](SIGNAL-PUBLISHER-HANDOFF.md); this document is a handoff, not authorization to edit the separate Chat Signals repository.
+
+## 🦊 Real publisher evidence — initial transport
+
+Actual Chat Signals independent source code now publishes the strict v1 envelope from its evidence tracker through its Firefox-attested background. A real two-addon disposable Firefox Developer Edition run at [40155539014](https://github.com/sguzman/chat-queue/actions/runs/40155539014) verifies initial idle, two sequential generation/completion response epochs, two exactly-once synthetic sends and denial after provider removal. This is genuine extension transport in a **synthetic site**, not proof of real authenticated ChatGPT React/ProseMirror behavior or live network recovery. The longer authenticated-site gates remain outstanding.

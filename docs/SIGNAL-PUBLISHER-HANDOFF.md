@@ -1,6 +1,6 @@
 # 📡 Chat Signals publisher handoff — independent-repository implementation plan
 
-**Status:** Prepared integration contract, **not an implementation in Chat Signals**. The consumer in this repository is present and synthetic Firefox-tested. As inspected on 2026-10-24, Chat Signals v0.3.13 (`102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`) still publishes its internal `chat-signals-state` and `chat-signals-event` messages and page-root `data-chat-signals-state`, **not** the authenticated `chat-queue-signal/v1` stream. No changes to that separate repository are made here.
+**Status (updated 2026-10-25):** Actual Chat Signals publisher implemented and native Firefox two-addon transport acceptance passed in [run 40155539014](https://github.com/sguzman/chat-queue/actions/runs/40155539014). This is synthetic-site transport evidence, **not** authenticated ChatGPT production-site delivery. The historical plan below remains a record of the integration gates. The consumer in this repository is present and synthetic Firefox-tested. As inspected on 2026-10-24, Chat Signals v0.3.13 (`102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`) still publishes its internal `chat-signals-state` and `chat-signals-event` messages and page-root `data-chat-signals-state`, **not** the authenticated `chat-queue-signal/v1` stream. No changes to that separate repository are made here.
 
 The original source of truth must remain Chat Signals' evidence-aware state machine. Chat Queue must not copy/rebuild its inference classifier and must not use page DOM state to authorize Send.
 
