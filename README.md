@@ -147,3 +147,5 @@ A possibly submitted item cannot be edited or deleted through ordinary controls 
 
 
 The authenticated rule-review HUD now supports declared **dependencies and skip conditions** using only a bounded, volatile list of explicitly approved rule IDs. Offered or dismissed proposals cannot satisfy dependencies. Changing conversation, modifying saved rules, or re-enabling proposals resets that history; no approval ever authorizes automatic Send. Firefox synthetic provider QA covers these cases, while the real Chat Signals publisher remains a separate acceptance requirement.
+
+Duration-filtered conditional previews can now use **bounded monotonic evidence from authenticated busy-to-terminal events**, rather than simulated caller-supplied durations alone. Unverified or restored events cannot supply timing proof, and no clock or timer ever initiates an action or Send. The real Chat Signals publisher remains a separate dependency.

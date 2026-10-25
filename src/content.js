@@ -17,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0 };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -379,7 +379,7 @@
     if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -470,13 +470,61 @@
     if (buttons.length !== 1) throw new Error('Send button missing, disabled or ambiguous');
     return buttons[0];
   }
+  // Authenticated duration evidence: monotonic time from the FIRST fresh,
+  // busy phase observed after consent through the first fresh terminal phase
+  // of the same provider document, route, and response epoch. Freeze the
+  // duration at terminal: later repeats cannot turn a timer filter true.
+  // Restoration, unknown or intervening idle invalidate all clock evidence.
+  function recordRuleClock(signal) {
+    if(!state.rulesEnabled||!state.initialized||state.routing)return;
+    if(signal.origin!=='fresh'||signal.confidence==='unknown'){
+      state.ruleClock=null;return;
+    }
+    const now=performance.now();
+    const clock=state.ruleClock;
+    const same=clock&&clock.documentToken===signal.documentToken&&
+      clock.route===signal.route&&clock.epoch===signal.epoch;
+    if(contract.ACTIVE.has(signal.phase)){
+      if(!same){
+        state.ruleClock={documentToken:signal.documentToken,route:signal.route,
+          epoch:signal.epoch,startedAt:now,terminalPhase:null,durationMs:null};
+      }else if(clock.terminalPhase){
+        // Re-entering busy after terminal is not continuous timing evidence.
+        state.ruleClock=null;
+      }
+      return;
+    }
+    if(!rulesEngine.PHASES.has(signal.phase)){
+      state.ruleClock=null;return;
+    }
+    if(!same){state.ruleClock=null;return;}
+    if(clock.terminalPhase!==null){
+      if(clock.terminalPhase!==signal.phase)state.ruleClock=null;
+      return;
+    }
+    const elapsed=now-clock.startedAt;
+    if(!Number.isFinite(elapsed)||elapsed<0||elapsed>rulesEngine.MAX_DURATION_MS){
+      state.ruleClock=null;return;
+    }
+    clock.terminalPhase=signal.phase;
+    clock.durationMs=Math.floor(elapsed);
+  }
+  function ruleDuration(signal){
+    const clock=state.ruleClock;
+    return clock&&clock.documentToken===signal.documentToken&&
+      clock.route===signal.route&&clock.epoch===signal.epoch&&
+      clock.terminalPhase===signal.phase&&Number.isSafeInteger(clock.durationMs)
+      ? clock.durationMs : undefined;
+  }
   // This is preview-only: authenticated provider events may offer an action,
   // but only the explicit local Approve control can enqueue or pause.
   function considerConditionalPreview(signal) {
     if(!state.rulesEnabled||!state.initialized||state.routing||
        state.ruleOffer||state.key!==storageKey())return;
+    const duration=ruleDuration(signal);
     const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,
-      {completedRuleIds:state.ruleCompleted});
+      {completedRuleIds:state.ruleCompleted,
+        ...(duration===undefined?{}:{stateDurationMs:duration})});
     if(!result?.ok||!result.decision)return;
     state.ruleSeen.push(result.decision.eventKey);
     if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
@@ -680,7 +728,7 @@
     // future ChatGPT route in this tab. Navigation invalidates all offers.
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1115,7 +1163,7 @@
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       ruleReadId++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
-      state.ruleCompleted=[];state.ruleConsentGeneration++;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
     const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
@@ -1130,7 +1178,7 @@
       if(ruleLibraryGeneration!==libraryGeneration||ruleReadId!==loadId)
         throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
-      state.ruleCompleted=[];state.ruleConsentGeneration++;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
       state.rulesEnabled=true;
       statusNote('Conditional previews enabled; future authenticated events only');
     }catch(error){
@@ -1138,7 +1186,7 @@
       // own opt-in, nor let a superseded library snapshot become active.
       if(!state.destroyed&&state.key===key&&routeGeneration===generation&&ruleReadId===loadId){
         state.rulesEnabled=false;state.ruleConsentGeneration++;
-        state.ruleCompleted=[];state.ruleSeen=[];
+        state.ruleCompleted=[];state.ruleSeen=[];state.ruleClock=null;
         state.ruleLibrary=[];state.ruleOffer=null;
         statusNote('Conditional previews unavailable: '+String(error?.message||error));
       }
@@ -1205,7 +1253,7 @@
       ruleLibraryGeneration++;state.ruleConsentGeneration++;ruleReadId++;
       state.rulesLoading=false;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
-      state.ruleCompleted=[];
+      state.ruleCompleted=[];state.ruleClock=null;
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
       relevant=true;
     }
@@ -1249,6 +1297,7 @@
       // still requires the composer to be empty and the matching context.
       if(proof&&proof.key===state.key&&contract.newBusy(next,proof.baseline)&&
          proof.editor.isConnected&&!proof.busy)proof.busy=next;
+      recordRuleClock(next);
       processSignal();
       considerConditionalPreview(next);
       return Promise.resolve({ok:true});

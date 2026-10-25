@@ -76,3 +76,7 @@ The reviewed dependency record is a maximum 32-rule, in-memory list of approved 
 ## Superseded opt-in storage reads
 
 Every asynchronous conditional-policy load owns a volatile request generation. Rule-library mutations, conversation transitions, provider registry loss and explicit opt-out cancel the previous generation and restore the ability to Enable previews. An earlier completion (success, failure or finally callback) cannot disable or overwrite a newer consent session. No rule load or history is persisted, and no superseded read can authorize Send.
+
+## Rule duration authority boundary
+
+For conditional preview only, the HUD now derives a bounded monotonic elapsed time between the first independently authenticated fresh busy event observed in the current enabled policy session and the first fresh terminal event for the same provider document, conversation route and epoch. A restoration, unknown confidence, idle phase, session reset, epoch mismatch or unbounded interval clears timing evidence. Later terminal repetitions cannot increase that frozen value. The value is not serialized, transmitted or used to authorize Send; rules requiring duration proof cannot match without this trusted lower-bound interval.

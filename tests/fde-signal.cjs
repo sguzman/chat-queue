@@ -62,6 +62,11 @@ function prepareQueue(dir,source){
         {version:1,id:'skip-until-approved',enabled:true,priority:80,
           when:{phase:'finished',skipIf:['first-approval']},
           then:{type:'pause'}}
+      ]:event.data.mode==='duration'?[
+        {version:1,id:'duration-observed',enabled:true,priority:90,
+          when:{phase:'finished',minDurationMs:250},then:{type:'pause'}},
+        {version:1,id:'duration-fallback',enabled:true,priority:40,
+          when:{phase:'finished'},then:{type:'pause'}}
       ]:[{version:1,id:'synthetic-changed',enabled:true,
         priority:10,when:{phase},then}];
       browser.storage.local.set({'chatqueue:conditional-rules:v1':{
@@ -922,7 +927,54 @@ async function main(){
     await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement');
+
+    qaStage='authenticated-monotonic-duration-preview';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-duration');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'duration'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    // Without an authenticated preceding busy phase, no duration value may
+    // be manufactured from the terminal event or wall clock.
+    await emit('finished',1,450,'observed','fresh','/c/rule-duration');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /duration-fallback/);
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await emit('generating',2,451,'observed','fresh','/c/rule-duration');
+    await driver.sleep(380);
+    await emit('finished',2,452,'observed','fresh','/c/rule-duration');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /duration-observed/,
+      'Only a fresh same-epoch busy-to-terminal interval may satisfy minDurationMs');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await emit('finished',2,453,'observed','fresh','/c/rule-duration');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Repeated terminal phase cannot initiate an additional timed proposal');
+    await emit('generating',3,454,'observed','fresh','/c/rule-duration');
+    await driver.sleep(380);
+    await emit('finished',3,455,'observed','restored','/c/rule-duration');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    await emit('finished',3,456,'observed','fresh','/c/rule-duration');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /duration-fallback/,
+      'A restored terminal invalidates prior duration evidence for its response epoch');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Authenticated timing evidence must never directly authorize Send');
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

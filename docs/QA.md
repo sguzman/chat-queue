@@ -300,3 +300,7 @@ A disposable Firefox Developer Edition two-extension fixture saves three linked 
 ## 🦊 Concurrent conditional opt-in invalidation
 
 A two-extension Firefox Developer Edition fixture deliberately delays the first rule-library read, mutates the stored policy, and immediately issues a second explicit Enable for the new policy while the first read is still pending. The original read's eventual rejection and finalization must not revoke the new opt-in or generate an obsolete proposal. A fresh authenticated phase matching the new policy may then show a manual proposal, which remains inert until dismissal or approval; no Send occurs. The fixture uses a disposable localhost browser and a QA-only storage mutation helper.
+
+## 🦊 Authenticated monotonic rule-duration regression
+
+A disposable two-extension Firefox Developer Edition test installs synthetic `finished` rules: a high-priority rule requiring at least 250 ms of observed busy activity, and an untimed fallback. A terminal event without prior fresh busy evidence must choose the fallback. A fresh same-document, same-epoch generating event followed by over 250 ms and a fresh finish may choose the timed rule. Repeating that finish cannot create a second proposal. A restored finish invalidates the busy clock; the next fresh finish in the same epoch must use the untimed fallback. All actions remain explicit review offers with zero Send clicks. This test is not proof of the real Chat Signals publisher.
