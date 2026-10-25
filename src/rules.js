@@ -98,7 +98,8 @@
     // Parse shape only; the Firefox sender principal is verified separately.
     const s=contract?.parse({type:contract.TYPE,signal:event});
     if(!s)return {ok:false,error:'invalid-event'};
-    if(s.origin!=='fresh'||s.epoch===0||s.confidence==='unknown'||!PHASES.has(s.phase))
+    if(s.origin!=='fresh'||s.epoch===0||s.confidence==='unknown'||!PHASES.has(s.phase)||
+       (s.phase==='generating'&&!valid.rules.some(r=>r.enabled&&r.when.phase==='generating')))
       return {ok:true,decision:null,reason:'not-actionable'};
     const key=eventKey(s);
     if(used.includes(key))return {ok:true,decision:null,reason:'already-considered'};
