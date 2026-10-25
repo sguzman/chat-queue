@@ -47,6 +47,12 @@ function stageQueue(dir,root){
     "  const grants = globalThis.ChatQueueGrants;\n"+
     "  void api.storage.local.set({[grants.KEY]:{version:2,grants:{"+
     JSON.stringify(cid)+":['control']}}});");
+  // QA-only saved library. No rules are enabled without an explicit
+  // per-conversation click on the real Queue preview opt-in control.
+  bg=patch(bg,"  const RULE_PREFIX='chatqueue:external-rules:v1:';",
+    "  void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
+    JSON.stringify({"version":1,"rules":[{"version":1,"id":"qa-real-complete","enabled":true,"priority":60,"when":{"phase":"finished"},"then":{"type":"propose","text":"Synthetic approved reply"}},{"version":1,"id":"qa-real-failure","enabled":true,"priority":50,"when":{"phase":"failed"},"then":{"type":"pause"}}]})+"});\\n"+
+    "  const RULE_PREFIX='chatqueue:external-rules:v1:';");
   fs.writeFileSync(bp,bg);
 }
 function stageProvider(dir,root){
@@ -352,6 +358,72 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),1);
     await driver.uninstallAddon(cid);
+    stage='real-provider-success-conditional-review';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/conditional-real-success');
+    await ready();
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9000);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    await driver.executeScript("document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),9000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /Synthetic approved reply/);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /offered · qa-real-complete · finished · propose/);
+    assert.equal(await driver.executeScript(
+      `return ${hud('rules-audit')}.textContent.includes('Synthetic approved reply')`),false,
+      'Conditional metadata audit must omit proposed prompt text');
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
+      'Provider completion alone cannot enqueue or Send proposed text');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+        ${hud('rules-approve')}.hidden`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Only explicit Approval may enqueue; it never clicks Send');
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews disabled')`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===2'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+
+    stage='real-provider-failure-conditional-review';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/conditional-real-failure');
+    await ready();
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9000);
+    await driver.executeScript("document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript(()=>{
+      const alert=document.createElement('div');
+      alert.setAttribute('role','alert');alert.textContent='Error in input stream.';
+      document.querySelector('main').prepend(alert);
+    });
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),9000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /qa-real-failure/);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /offered · qa-real-failure · failed · pause/);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional pause approved')`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
     stage='scoped-project-route-isolation';
     // The preceding controlled-API and long-response scenarios navigate to
     // other chats. Set an explicit known starting route instead of inheriting
