@@ -124,7 +124,13 @@ function prepareQueue(dir,source){
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
       "document.documentElement.dataset.qaQueueRuntime=String(!!api?.runtime?.sendMessage)+','+String(!!core)+','+String(!!contract);if (!api?.runtime?.sendMessage || !core || !contract) return;")
     .replace("state.destroyed=true;signalObserver.disconnect();",
-      "document.documentElement.dataset.qaRegisterFailure=String(error?.message||'unknown');state.destroyed=true;signalObserver.disconnect();"));
+      "document.documentElement.dataset.qaRegisterFailure=String(error?.message||'unknown');state.destroyed=true;signalObserver.disconnect();")
+    // Test-only acknowledgement of the Queue consumer's rule-library
+    // notification. The provider fixture's storage.set() promise can resolve
+    // before the Queue's async onChanged event is delivered.
+    .replace("    if(changes[ruleStore.KEY]){",
+      "    if(changes[ruleStore.KEY]){document.documentElement.dataset.qaObservedRuleIds="+
+      "String(changes[ruleStore.KEY].newValue?.rules?.map(rule=>rule.id).join(',')||'');"));
   // QA-only assertion at the exact composer handoff boundary: an on-disk
   // uncertain journal must predate any programmatically inserted prompt.
   const journalHandoff="      fillComposer(editor,item.text);";
@@ -1069,6 +1075,9 @@ async function main(){
       "window.postMessage({kind:'qa-change-rule-config',mode:'generation-only'},'*')");
     await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaObservedRuleIds==='bounded-generating-review'"),6500,
+      'Queue had not consumed the new rule-library storage notification');
     await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
     await waitNote('Conditional previews enabled');
     await emit('generating',1,210,'observed','fresh','/c/active-generation-deadline');
