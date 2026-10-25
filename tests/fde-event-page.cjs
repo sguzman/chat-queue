@@ -49,6 +49,13 @@ async function main(){
    const closed="attachShadow({mode:'closed'})";
    assert.equal(content.split(closed).length,2);
    content=content.replace(closed,"attachShadow({mode:'open'})");
+   // Observe only that a publisher resync was requested after real
+   // event-page recovery; there is deliberately no provider in this test.
+   const resyncMarker='  function requestVerifiedProvider(){';
+   assert.equal(content.split(resyncMarker).length,2);
+   content=content.replace(resyncMarker,resyncMarker+
+     "\n    document.documentElement.dataset.qaProviderSyncCount=String("+
+     "Number(document.documentElement.dataset.qaProviderSyncCount||0)+1);");
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
@@ -95,6 +102,9 @@ async function main(){
        'return window.__bootReplies.find(x=>x.nonce===arguments[0]).count',id);
    };
    stage='actual-event-page-idle';
+   const initialResync=await driver.executeScript(
+     "return Number(document.documentElement.dataset.qaProviderSyncCount||0)");
+   assert.ok(initialResync>=1,'Initial assigned-route provider sync must occur');
    const before=await readBoot();
    assert.ok(before>=1,'Background must have started');
    const restarted=await driver.wait(async()=>{
@@ -104,6 +114,9 @@ async function main(){
    assert.ok(restarted>before);
    await driver.wait(async()=>await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Signal registry restarted')"),9000);
+   await driver.wait(async()=>await driver.executeScript(
+     "return Number(document.documentElement.dataset.qaProviderSyncCount||0)>arguments[0]",
+     initialResync),6500,'Queue did not re-request verified publisher state after event-page recovery');
    assert.equal(await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent"),'1 queued');
    assert.equal(await driver.executeScript('return window.__sent'),0);

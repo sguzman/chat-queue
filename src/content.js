@@ -412,7 +412,13 @@
       if(state.key===key&&!state.destroyed)statusNote('Background registry unavailable; paused');
     }finally{
       state.registryRecovering=false;
-      if(restored&&!state.destroyed)publish();
+      if(restored&&!state.destroyed){
+        publish();
+        // Event-page suspension erased its authenticated provider registry.
+        // Request a fresh publisher snapshot so a deliberate later Start
+        // can recover; never reinstate volatile Run or reuse old authority.
+        requestVerifiedProvider();
+      }
     }
   }
   function publish() {
