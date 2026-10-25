@@ -753,7 +753,31 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'Policy mutation while reading must not produce a stale rule offer');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
-
+    qaStage='obsolete-policy-read-must-not-cancel-new-opt-in';
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('rules-toggle')}.textContent==='Loading rules'`),4000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',phase:'limit'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),5000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('rules-toggle')}.textContent==='Enable previews'`),4000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('rules-toggle')}.textContent==='Disable previews'`),4500);
+    // The now-obsolete first read must not revoke this new consent while
+    // its delayed callback catches up.
+    await driver.sleep(1500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-toggle')}.textContent`),
+      'Disable previews','Superseded rule-store reads cannot disable a later explicit opt-in');
+    await emit('limit',2,111,'observed','fresh','/c/rule-config-race');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),/synthetic-changed/);
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');

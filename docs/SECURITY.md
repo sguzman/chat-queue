@@ -72,3 +72,7 @@ Only validated rule IDs, enumerated phase/action labels and fixed outcomes enter
 ## Scope of approved-rule dependency state
 
 The reviewed dependency record is a maximum 32-rule, in-memory list of approved IDs, scoped to one conversation and one explicit preview enablement. It resets on route, rule-library change, opt-out/re-opt-in and provider registry loss. A dismissed proposal, failed queue storage write, restored provider event or stale asynchronous approval cannot satisfy a prerequisite. The list is not written to local storage or exposed to the web page, other tabs or the cross-extension API. An approved prerequisite controls only which future proposal is displayed, not whether or when Queue may Send.
+
+## Superseded opt-in storage reads
+
+Every asynchronous conditional-policy load owns a volatile request generation. Rule-library mutations, conversation transitions, provider registry loss and explicit opt-out cancel the previous generation and restore the ability to Enable previews. An earlier completion (success, failure or finally callback) cannot disable or overwrite a newer consent session. No rule load or history is persisted, and no superseded read can authorize Send.

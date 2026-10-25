@@ -88,6 +88,7 @@
   // Rule-store changes revoke pending asynchronous opt-in reads as well as
   // existing offers. Never reinstate a policy from an obsolete snapshot.
   let ruleLibraryGeneration=0;
+  let ruleReadId=0; // Cancel obsolete async opt-ins on route or library changes.
   function rememberDraft(key) {
     if(!key)return;
     const value=els.draft.value;
@@ -377,6 +378,7 @@
     // authenticated provider epoch; never inherit authority from this tab.
     if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
+    state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
@@ -677,6 +679,7 @@
     // Explicit preview consent belongs to this exact conversation, not every
     // future ChatGPT route in this tab. Navigation invalidates all offers.
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
+    state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
@@ -1110,11 +1113,13 @@
     if(state.rulesLoading||!state.initialized||state.routing)return;
     if(state.rulesEnabled){
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
+      ruleReadId++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleCompleted=[];state.ruleConsentGeneration++;
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
     const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
+    const loadId=++ruleReadId;
     state.rulesLoading=true;render();
     try{
       const data=await api.storage.local.get(ruleStore.KEY);
@@ -1122,7 +1127,8 @@
       if(!decoded.ok)throw new Error(decoded.error);
       if(state.destroyed||state.key!==key||routeGeneration!==generation||
          storageKey()!==key)throw new Error('conversation-changed');
-      if(ruleLibraryGeneration!==libraryGeneration)throw new Error('rule-library-changed');
+      if(ruleLibraryGeneration!==libraryGeneration||ruleReadId!==loadId)
+        throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
       state.ruleCompleted=[];state.ruleConsentGeneration++;
       state.rulesEnabled=true;
@@ -1130,13 +1136,15 @@
     }catch(error){
       // An earlier route's pending read must not overwrite this route's
       // own opt-in, nor let a superseded library snapshot become active.
-      if(!state.destroyed&&state.key===key&&routeGeneration===generation){
+      if(!state.destroyed&&state.key===key&&routeGeneration===generation&&ruleReadId===loadId){
         state.rulesEnabled=false;state.ruleConsentGeneration++;
         state.ruleCompleted=[];state.ruleSeen=[];
         state.ruleLibrary=[];state.ruleOffer=null;
         statusNote('Conditional previews unavailable: '+String(error?.message||error));
       }
-    }finally{state.rulesLoading=false;if(!state.destroyed)render();}
+    }finally{
+      if(ruleReadId===loadId){state.rulesLoading=false;if(!state.destroyed)render();}
+    }
   });
   els['rules-dismiss'].addEventListener('click',()=>{
     if(state.ruleOffer)auditOffer('dismissed',state.ruleOffer);
@@ -1194,7 +1202,8 @@
     let relevant=false;
     if(changes[ruleStore.KEY]){
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
-      ruleLibraryGeneration++;state.ruleConsentGeneration++;
+      ruleLibraryGeneration++;state.ruleConsentGeneration++;ruleReadId++;
+      state.rulesLoading=false;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
       state.ruleCompleted=[];
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
