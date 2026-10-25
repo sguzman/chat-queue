@@ -48,7 +48,7 @@ const validEvidence=t=>Array.isArray(t.evidence)&&t.evidence.length>0&&
   t.evidence.every(e=>typeof e==='string'&&e.trim());
 const unfinished=tasks.filter(t=>t.id==='M7-12'
   ? !['planned','implemented','verified'].includes(t.status)||
-    (t.status==='verified'&&!validEvidence(t))
+    (t.status!=='planned'&&!validEvidence(t))
   : t.status!=='verified'||!validEvidence(t));
 if(unfinished.length){
   const ids=unfinished.slice(0,8).map(t=>t.id).join(', ');

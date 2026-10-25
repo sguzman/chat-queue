@@ -35,7 +35,7 @@ test('synthetic 96-task all-verified evidence ledger passes only the ledger gate
   assert.equal(result.status,0,result.stderr);
   assert.match(result.stdout,/95 pre-tag tasks verified with evidence/);
   assert.match(result.stdout,/M7-12 is verified/);
-  assert.match(result.stdout,/signing gates remain separate/);
+  assert.match(result.stdout,/signing and tagged-artifact verification remain separate/);
 });
 test('missing acceptance evidence fails even if task status says verified',()=>{
   const result=runGate(({tasks})=>{
@@ -80,7 +80,7 @@ test('the pre-tag exemption never covers another unverified task',()=>{
   assert.match(result.stderr,/M4-06/);
 });
 test('invalid or falsely verified M7-12 status cannot bypass the gate',()=>{
-  for(const status of ['skipped','verified']){
+  for(const status of ['skipped','implemented','verified']){
     const result=runGate(({tasks})=>{
       for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
       const tag=tasks.find(t=>t.id==='M7-12');
@@ -89,4 +89,12 @@ test('invalid or falsely verified M7-12 status cannot bypass the gate',()=>{
     assert.notEqual(result.status,0);
     assert.match(result.stderr,/M7-12/);
   }
+});
+test('implemented tag task with evidence can pass once the 95 other gates pass',()=>{
+  const result=runGate(({tasks})=>{
+    for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
+    tasks.find(t=>t.id==='M7-12').status='implemented';
+  });
+  assert.equal(result.status,0,result.stderr);
+  assert.match(result.stdout,/M7-12 is implemented/);
 });
