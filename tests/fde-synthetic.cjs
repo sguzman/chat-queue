@@ -42,7 +42,7 @@ async function main(){
     const persistence="api.storage.local.set({[key]:data})";
     assert.equal(content.split(persistence).length,2);
     content=content.replace(persistence,
-      "(document.documentElement.dataset.qaRejectQueueSave==='yes' ? Promise.reject(new Error('qa-storage-rejected')) : document.documentElement.dataset.qaRejectQueueSave==='delay' ? new Promise(resolve=>setTimeout(resolve,2500)).then(()=>api.storage.local.set({[key]:data})) : api.storage.local.set({[key]:data}))");
+      "(document.documentElement.dataset.qaRejectQueueSave==='yes' ? Promise.reject(new Error('qa-storage-rejected')) : document.documentElement.dataset.qaRejectQueueSave==='delay-reject' ? new Promise((_,reject)=>setTimeout(()=>reject(new Error('qa-storage-rejected')),1500)) : document.documentElement.dataset.qaRejectQueueSave==='delay' ? new Promise(resolve=>setTimeout(resolve,2500)).then(()=>api.storage.local.set({[key]:data})) : api.storage.local.set({[key]:data}))");
     const defaultHeartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
     assert.equal(content.split(defaultHeartbeat).length,2);
     content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
@@ -98,13 +98,13 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
               const record=msg.route==='/c/future-record'
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
-                : msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'
+                : msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'
                   ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
                   : msg.route==='/c/metadata-corrupt'
                     ? {version:1,items:[{id:'metadata01',text:'Retain historical metadata',status:'pending'}],
@@ -1286,6 +1286,45 @@ async function main(){
       [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item .preview')]
         .map(x=>x.textContent)),
       ['First durable synthetic item','Second durable synthetic item']);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='history-clear-overlapping-failed-add';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/history-concurrent-fail');
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root')?.shadowRoot;
+      return sh?.querySelectorAll('#history .historyitem').length===1;
+    }),10000);
+    await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      sh.getElementById('draft').value='Rejected concurrent synthetic Add';
+      document.documentElement.dataset.qaRejectQueueSave='delay-reject';
+      sh.getElementById('add').click();
+      // Guard inside the click handler must reject both premature clicks.
+      sh.getElementById('history-clear').click();
+      sh.getElementById('history-clear').click();
+    });
+    assert.equal(await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('history-clear').textContent),'Forget history',
+      'Pending Add must not arm or execute a history deletion');
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      return sh.getElementById('status').textContent.includes('queue-save-failed');
+    }),6500);
+    assert.equal(await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent),'0 queued',
+      'Rejected Add must be fully rolled back');
+    assert.equal(await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('#history .historyitem').length),1,
+      'History stays intact when overlapping deletion is refused');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root')?.shadowRoot;
+      return sh?.getElementById('count')?.textContent==='0 queued' &&
+        sh?.querySelectorAll('#history .historyitem').length===1;
+    }),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
     qaStage='teardown';
