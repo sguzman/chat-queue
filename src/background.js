@@ -104,6 +104,18 @@
         REGISTRATIONS.set(tab.id,++nextRegistration);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
+        // Optional one-shot sync repairs startup ordering when Chat Signals
+        // first published before this Queue content script registered.
+        // No privilege or Send authority is accepted from this request:
+        // actual provider events still arrive through onMessageExternal and
+        // pass sender.id, route, sequence and tab checks.
+        if(typeof api.runtime.sendMessage==='function'){
+          try{
+            const response=api.runtime.sendMessage(signalContract.PROVIDER_ID,{
+              type:'chat-queue-signal-sync/v1',tabId:tab.id,route:message.route});
+            if(response&&typeof response.catch==='function')void response.catch(()=>{});
+          }catch{/* provider absent: remain safely paused */}
+        }
         return {ok:true,tabId:tab.id};
       });
     }
