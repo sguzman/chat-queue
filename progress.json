@@ -974,12 +974,13 @@
                   "id": "M6-09",
                   "emoji": "🔐",
                   "title": "Require explicit user policy for sensitive retries and sends",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js",
                     "Native disposable FDE verifies per-conversation opt-in, page-DOM spoof rejection, local approval, automatic next-Send preemption while review is pending, and no auto-resume; pause/approval policy remains unaccepted against real authenticated ChatGPT (Actions 40139342546).",
                     "Pending opt-in conditional proposals block even explicit Start and manual approval never Sends; policy library changes revoke previews and superseding provider response expires an old approval: Actions 40140595102, 40140727193, 40140873933. Authenticated real publisher acceptance remains open.",
-                    "Per-session opt-in cancellation now rejects obsolete asynchronous library reads without revoking later consent (Actions 40146486501). Synthetic browser-stamped approvals populate prerequisite history only on durable success (Actions 40146208533, 40146988123), never granting automatic Send."
+                    "Per-session opt-in cancellation now rejects obsolete asynchronous library reads without revoking later consent (Actions 40146486501). Synthetic browser-stamped approvals populate prerequisite history only on durable success (Actions 40146208533, 40146988123), never granting automatic Send.",
+                    "Real two-addon Firefox production-source-publisher synthetic-site acceptance: finished response proposes bounded text only after explicit opt-in; local Approve alone enqueues without Send, and a separate deliberate Start dispatches once (both CI jobs https://github.com/sguzman/chat-queue/actions/runs/40201835724). Real publisher failed, interrupted and limit-phase pause proposals require an independent local approval; none retries or sends autonomously (both jobs https://github.com/sguzman/chat-queue/actions/runs/40202380281). A separately granted control-scoped third add-on can Start explicitly while an ungranted caller cannot (https://github.com/sguzman/chat-queue/actions/runs/40201495776). No hidden automatic retry policy exists. Production authenticated ChatGPT remains a distinct release gate."
                   ]
                 },
                 {
