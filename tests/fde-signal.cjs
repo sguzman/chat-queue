@@ -73,7 +73,13 @@ function prepareQueue(dir,source){
          priority:100,when:{phase:'failed'},then:{type:'pause'}},
        {version:1,id:'epoch-finished',enabled:true,priority:80,
          when:{phase:'finished'},then:{type:'propose',text:'Synthetic second action'}}]
-       :event.data.mode==='generation-only'?[{
+       :event.data.mode==='generation-unmatched'?[
+         {version:1,id:'not-approved',enabled:false,priority:100,
+           when:{phase:'failed'},then:{type:'pause'}},
+         {version:1,id:'bounded-no-prerequisite',enabled:true,priority:90,
+           when:{phase:'generating',minDurationMs:1200,dependsOn:['not-approved']},
+           then:{type:'pause'}}
+       ]:event.data.mode==='generation-only'?[{
          version:1,id:'bounded-generating-review',enabled:true,priority:100,
          when:{phase:'generating',minDurationMs:1200},then:{type:'pause'}}]
        :event.data.mode==='deadline-only'?[{
@@ -138,6 +144,9 @@ function prepareQueue(dir,source){
     // and distinguish a throttled timer from a lost policy/Signal event.
     .replace("    activeRuleDeadlineTimer=setTimeout(()=>{",
       "    document.documentElement.dataset.qaActiveDeadlineArmed=String(performance.now());"+
+      "if(routeKey()==='/c/active-generation-unmatched')"+
+      "document.documentElement.dataset.qaActiveDeadlineCount="+
+      "String(Number(document.documentElement.dataset.qaActiveDeadlineCount||0)+1);"+
       "activeRuleDeadlineTimer=setTimeout(()=>{"+
       "document.documentElement.dataset.qaActiveDeadlineFired='yes';")
     .replace("      const current=state.trusted;\n      if(!state.rulesEnabled||state.ruleOffer||!state.initialized||",
