@@ -37,7 +37,7 @@ function stageQueue(dir,root){
     "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.",
     "  if(location.pathname==='/c/real-rule-deadline') {"+
     "void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
-    JSON.stringify({version:1,rules:[seedRule]})+
+    JSON.stringify({version:1,rules:[{version:1,id:'qa-real-timed-deadline',enabled:true,priority:90,when:{phase:'finished',minDurationMs:250,approvalDeadlineMs:3500},then:{type:'propose',text:'Synthetic real-provider deadline reply'}}]})+
     "}).then(()=>document.documentElement.dataset.qaDeadlineSeeded='yes');"+
     "}\n"+
     "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
