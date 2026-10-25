@@ -285,6 +285,50 @@ test('revoking read scope during an in-flight status request withholds private p
     {id:'approved@example.test'})).error,'forbidden-scope');
 });
 
+test('private status rechecks stored read grant even before revocation event arrives',async()=>{
+  const {listeners,state,context}=create();
+  const url='https://chatgpt.com/c/quiet-revocation';
+  const page={tab:{id:84,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/quiet-revocation'},page)).ok,true);
+  let release;
+  context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+  const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:84},
+    {id:'approved@example.test'});
+  for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof release,'function');
+  // The durable storage policy changes, but Firefox's onChanged notification
+  // has deliberately NOT arrived. A volatile revision-only check would leak.
+  state['chatqueue:api-grants:v2']={version:2,grants:{
+    'approved@example.test':['discover','append']}};
+  release({ok:true,items:[{id:'synthetic',text:'synthetic private fixture'}]});
+  const answer=await pending;
+  assert.equal(answer.error,'authorization-changed');
+  assert.equal(JSON.stringify(answer).includes('synthetic private fixture'),false);
+});
+
+test('private status fails closed when final authorization storage read fails',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/recheck-error';
+  const page={tab:{id:85,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/recheck-error'},page)).ok,true);
+  const original=context.browser.storage.local.get;
+  let reads=0;
+  context.browser.storage.local.get=async (...args)=>{
+    reads++;
+    if(reads===2)throw new Error('synthetic permission storage failure');
+    return original(...args);
+  };
+  context.browser.tabs.sendMessage=async()=>({
+    ok:true,items:[{id:'synthetic',text:'synthetic hidden status'}]});
+  const answer=await listeners.external({type:'chat-queue/v1',action:'status',tabId:85},
+    {id:'approved@example.test'});
+  assert.equal(reads,2);
+  assert.equal(answer.error,'authorization-changed');
+  assert.equal(JSON.stringify(answer).includes('synthetic hidden status'),false);
+});
+
 test('revoking discover while a port authorization read is pending fails closed',async()=>{
   const {listeners,state,context}=create();
   const realGet=context.browser.storage.local.get;
