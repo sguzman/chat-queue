@@ -124,8 +124,9 @@ function prepareQueue(dir,source){
       "activeRuleDeadlineTimer=setTimeout(()=>{"+
       "document.documentElement.dataset.qaActiveDeadlineFired='yes';")
     .replace('api.storage.local.set({[key]:data})',
+      "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectResolutionWrite==='yes'&&data.items.length===0)?Promise.reject(new Error('qa-rejected-resolution-write')):"+
       "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.text==='Synthetic accepted write must stay uncertain'&&h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
-      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))))")
+      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data})))))")
     // Inject an older unfinished history entry to prove a later ambiguous
     // submission cannot falsely finish or interrupt that unrelated message.
     .replace("      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);",
@@ -1494,6 +1495,32 @@ async function main(){
       'Rejected bounded history append must restore all 20 previous entries');
     assert.equal((await historicalStatus()).some(s=>s.includes('Synthetic older history 19')),true,
       'A failed speculative append must not permanently truncate the oldest history entry');
+    // Attempt a deliberate discard while storage rejects the resolution.
+    // Neither the uncertain payload nor its active response lease may vanish.
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectResolutionWrite='yes';"+
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain button[aria-label=\"Discard uncertain submission after review\"]').click()");
+    await waitNote('queue-save-failed');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+        Boolean(document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain'))`),true,
+      'A failed manual discard must restore the uncertain payload');
+    const ownerWindowAfterRejectedDiscard=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic retry competitor after rejected discard';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,561,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Rejected uncertain resolution cannot free another tab to Send');
+    await driver.switchTo().window(ownerWindowAfterRejectedDiscard);
+    await driver.executeScript("document.documentElement.dataset.qaRejectResolutionWrite='no'");
     await emit('finished',1,552,'observed','fresh','/c/accepted-journal-fail');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Response finished; control returned')`),9000);
