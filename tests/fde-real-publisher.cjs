@@ -338,6 +338,37 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),2,
       'An explicit second Start resumes once; it never duplicates either Send');
+    stage='trusted-user-stop-keeps-queue-paused';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/cancel-response-123');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic user-cancelled response','Synthetic item held after Stop'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,
+        (index+1)+' queued'),9000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),9500);
+    // Real WebDriver user interaction, not a fabricated provider message:
+    // the Stop control triggers Chat Signals' cancellation observer.
+    await (await driver.findElement(By.css('[data-testid="stop-button"]'))).click();
+    await driver.executeScript("document.querySelector('[data-testid=stop-button]')?.remove()");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Response cancelled; press Start to continue')`),10000);
+    await driver.sleep(900);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'A trusted Stop action cannot resume or retry subsequent queued messages');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && ${hud('count')}.textContent==='1 queued'`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Reload after manual cancellation must not revive a pending Send');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
     stage='provider-removed-no-replay';
