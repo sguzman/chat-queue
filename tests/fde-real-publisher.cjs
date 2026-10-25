@@ -127,6 +127,34 @@ async function main(){
     await ready();
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'A missed initial provider event must recover through a one-shot sync, not Send');
+    stage='restored-terminal-does-not-authorize-send';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/restored-history-123');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='finished'"),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}?.textContent.includes('Signal: finished')`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic restored-epoch queued message';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('authenticated-chat-signals-required')`),8000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A historically restored terminal epoch cannot authorize a Queue Send');
+    // A genuinely new user-response epoch is evidence of a fresh session.
+    await driver.executeScript("document.getElementById('prompt-textarea').textContent='Synthetic manual send';document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='finished'"),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===2'),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     stage='browser-attested-initial-phase';
     try{await ready();}
