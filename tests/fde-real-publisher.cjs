@@ -32,8 +32,8 @@ function stageQueue(dir,root){
   // Deliberately allow the real publisher to emit its initial idle event
   // before Queue has a tab registration. Its one-shot sync must recover
   // that race without polling or granting a page-origin phase authority.
-  bg=patch(bg,"      return currentRoute(sender).then(live=>{\\n        if(live!==message.route)",
-    "      return currentRoute(sender).then(async live=>{\\n        if(message.route==='/c/sync-late')await new Promise(resolve=>setTimeout(resolve,1900));\\n        if(live!==message.route)");
+  bg=patch(bg,"      return currentRoute(sender).then(live=>{\n        if(live!==message.route)",
+    "      return currentRoute(sender).then(async live=>{\n        if(message.route==='/c/sync-late')await new Promise(resolve=>setTimeout(resolve,1900));\n        if(live!==message.route)");
   fs.writeFileSync(bp,bg);
 }
 function stageProvider(dir,root){
