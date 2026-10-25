@@ -124,9 +124,12 @@ function prepareQueue(dir,source){
     // submission cannot falsely finish or interrupt that unrelated message.
     .replace("      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);",
       "      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);"+
-      "if(routeKey()==='/c/accepted-journal-fail'&&!state.history.some(h=>h.id==='qa-old-submitted'))"+
+      "if(routeKey()==='/c/accepted-journal-fail'&&!state.history.some(h=>h.id==='qa-old-submitted')){"+
       "state.history.unshift({id:'qa-old-submitted',text:'Synthetic previous abandoned submission',"+
-      "at:1730000000000,status:'submitted'});")
+      "at:1730000000000,status:'submitted'});"+
+      "while(state.history.length<20){const index=state.history.length;"+
+      "state.history.push({id:'qa-old-history-'+index,text:'Synthetic older history '+index,"+
+      "at:1730000000000-index,status:'finished'});}}")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -1458,6 +1461,10 @@ async function main(){
       "return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.historyitem')].map(x=>x.textContent)");
     assert.equal((await historicalStatus())[0]?.startsWith('submitted: Synthetic previous abandoned submission'),true,
       'Before current response terminal, old unconfirmed history stays submitted');
+    assert.equal((await historicalStatus()).length,20,
+      'Rejected bounded history append must restore all 20 previous entries');
+    assert.equal((await historicalStatus()).some(s=>s.includes('Synthetic older history 19')),true,
+      'A failed speculative append must not permanently truncate the oldest history entry');
     await emit('finished',1,552,'observed','fresh','/c/accepted-journal-fail');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Response finished; control returned')`),9000);
@@ -1477,6 +1484,9 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}?.textContent==='0 queued'`),12000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.equal((await historicalStatus()).length,20,
+      'Rollback must retain every unrelated history entry after persistence and reload');
+    assert.equal((await historicalStatus()).some(s=>s.includes('Synthetic older history 19')),true);
 
     qaStage='malformed-nontext-composer-does-not-send';
     await driver.switchTo().newWindow('tab');

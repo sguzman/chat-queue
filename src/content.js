@@ -705,6 +705,7 @@
     // In that case preserve the cross-tab response lease while permitting
     // explicit uncertain-item review; never claim history was persisted.
     let acceptedHistoryWritePending=false;
+    let acceptedHistoryBefore=null;
     let editor,send,proof,composerForm;
     let humanTouched=false;
     const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
@@ -788,6 +789,9 @@
       if(state.key!==attemptKey||storageKey()!==attemptKey)throw new Error('Conversation changed during submission');
       if (!accepted) throw new Error('Submission not confirmed; manual review required');
       // Persist removal first; do not consider another item until storage commits.
+      // Snapshot BEFORE the bounded 20-entry insert: a rejected write must
+      // not silently discard the oldest unrelated history entry.
+      acceptedHistoryBefore=state.history.map(entry=>({...entry}));
       state.items=state.items.filter(x=>x.id!==item.id);
       state.history.unshift({id:item.id,text:item.text,at:Date.now(),status:'submitted'});
       state.history=state.history.slice(0,20);
@@ -806,7 +810,7 @@
           // owner lease until its attributable terminal or an explicit review
           // action, but allow Retry/Discard without reloading this tab.
           state.awaitingUncertain=true;
-          state.history=state.history.filter(entry=>entry.id!==item.id);
+          state.history=acceptedHistoryBefore;
         }
         // Pre-click journal is also uncertain if preparation was interrupted;
         // conservative manual resolution is required in either case.
