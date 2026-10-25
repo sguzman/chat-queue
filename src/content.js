@@ -187,7 +187,7 @@
     els['recovery-confirm'].hidden=!state.pendingRecovery;
     els['recovery-confirm'].textContent=state.pendingRecovery?'Recover '+state.pendingRecovery.items.length+' for review':'Recover for review';
     els['recovery-find'].disabled=state.blockedRecord||state.running||state.awaiting||Boolean(state.attempting)||state.routing||state.importing;
-    els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting)||state.importing;
+    els['history-clear'].disabled=!state.history.length||state.running||state.awaiting||Boolean(state.attempting)||state.importing||state.routing||state.blockedRecord||state.pendingSaves>0||state.storageFault;
     els['backup-export'].disabled=state.importing||state.storageFault||state.pendingSaves>0;
     els['backup-choose'].disabled=state.importing;
     els['recovery-confirm'].disabled=state.importing;
@@ -1089,7 +1089,11 @@
     }
   });
   els['history-clear'].addEventListener('click',async()=>{
-    if(state.running||state.awaiting||state.attempting||state.importing||!state.history.length)return;
+    // History writes must not overlap an Add or other durable queue write.
+    // Otherwise a failed first write can leave a phantom prompt in the
+    // second snapshot and prevent the rejected Add from rolling back.
+    if(state.running||state.awaiting||state.attempting||state.importing||state.routing||
+       state.blockedRecord||state.pendingSaves>0||state.storageFault||!state.history.length)return;
     if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
     state.historyClearArmed=false;
     const oldHistory=state.history.slice();state.history=[];
