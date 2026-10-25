@@ -46,6 +46,7 @@ async function main(){
   await driver.findElement(By.id('rule-action')).sendKeys('Pause');
   await driver.findElement(By.id('rule-min-duration')).sendKeys('5000');
   await driver.findElement(By.id('rule-max-duration')).sendKeys('8000');
+  await driver.findElement(By.id('rule-approval-deadline')).sendKeys('3100');
   await driver.findElement(By.id('rule-add')).click();
   await driver.wait(async()=>/1 saved preview rule/.test(await driver.findElement(By.id('rule-message')).getText()),7000);
   assert.equal(await driver.findElement(By.css('#rule-list li')).getText().then(x=>x.includes('synthetic-rule')),true);
@@ -86,6 +87,8 @@ async function main(){
   assert.equal((await driver.findElements(By.css('#rule-list li'))).length,1,'Saved rule definitions should persist across reload');
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/synthetic-rule/);
   assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/5000 ms/);
+  assert.match(await driver.findElement(By.css('#rule-list li')).getText(),/approve within 3100 ms/,
+    'Firefox Options must persist approval deadline without enabling execution');
   // No rules evaluate by themselves after refresh, even with saved proposals.
   assert.match(await driver.findElement(By.id('preview-output')).getText(),/no queue action/i);
   assert.match(await driver.executeScript('return document.getElementById("preview-audit").textContent'),/No previews recorded/,
@@ -93,6 +96,7 @@ async function main(){
   // Change a saved rule after reload and verify its durable action changes.
   await driver.findElement(By.css('#rule-list li button[aria-label^="Edit"]')).click();
   assert.equal(await driver.findElement(By.id('rule-min-duration')).getAttribute('value'),'5000');
+  assert.equal(await driver.findElement(By.id('rule-approval-deadline')).getAttribute('value'),'3100');
   await driver.findElement(By.id('rule-action')).sendKeys('Pause');
   await driver.findElement(By.id('rule-add')).click();
   await driver.wait(async()=>/Saved synthetic-rule/.test(await driver.findElement(By.id('rule-message')).getText()),5000);
@@ -124,6 +128,7 @@ async function main(){
       document.getElementById('rule-skip').value=data.skip;
       document.getElementById('rule-min-duration').value='';
       document.getElementById('rule-max-duration').value='';
+      document.getElementById('rule-approval-deadline').value='';
       document.getElementById('rule-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
     },{id,priority,depends,skip});
     await driver.wait(async()=>new RegExp('Saved '+id).test(
