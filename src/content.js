@@ -1573,18 +1573,28 @@
   },1000);
   window.addEventListener('popstate',()=>void handleRouteChange());
   window.addEventListener('hashchange',()=>void handleRouteChange());
-  window.addEventListener('pageshow',()=>void handleRouteChange());
+  window.addEventListener('pageshow',event=>{
+    // A page script can forge pageshow, but only the browser can restore an
+    // actual bfcache document. A prior trusted pagehide tore down listeners;
+    // force a new paused extension registration instead of reviving a dead HUD.
+    if(!event.isTrusted)return;
+    if(event.persisted&&state.destroyed){location.reload();return;}
+    void handleRouteChange();
+  });
   document.addEventListener('click',event=>{
     if(!event.target?.closest?.('a[href]'))return;
     for(const ms of [0,150,650]) setTimeout(()=>{
       if(state.initialized && routeKey()!==state.keyRoute) {state.keyRoute=routeKey();void handleRouteChange();}
     },ms);
   },{passive:true});
-  window.addEventListener('pagehide',()=>{
+  window.addEventListener('pagehide',event=>{
+    // Never let page-origin JavaScript forge a lifecycle teardown. Do not use
+    // {once:true}: an untrusted event would consume a one-shot listener.
+    if(!event.isTrusted||state.destroyed)return;
     state.running=false;state.destroyed=true;
     signalObserver.disconnect();clearInterval(routeWatch);
     if(state.scheduler)clearTimeout(state.scheduler);
-  },{once:true});
+  });
   (async()=>{
     try {
       // Capture the route *before* asynchronous registration and storage. A

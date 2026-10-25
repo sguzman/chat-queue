@@ -1403,6 +1403,34 @@ async function main(){
     }),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
+    qaStage='untrusted-browser-lifecycle-events';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/pagehide-spoof');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${jsEl('draft')})`),10000);
+    // A hostile page must not deactivate Queue by forging lifecycle events.
+    await driver.executeScript(() => {
+      window.dispatchEvent(new Event('pagehide'));
+      window.dispatchEvent(new Event('pageshow'));
+    });
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Still active after untrusted event';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}?.textContent==='1 queued'`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/pagehide-away');
+    await driver.navigate().back();
+    // Firefox may instantiate a new document or resume a bfcache document.
+    // Both paths must restore the persisted message but never an old Run.
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}?.textContent==='1 queued'`),15000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(`const d=${jsEl('draft')};d.value='Editable after back navigation';`);
+    await driver.executeScript(`return ${jsEl('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='2 queued'`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Back-navigation cannot resurrect a prior Send grant');
+
     qaStage='teardown';
     await driver.uninstallAddon(id);
     console.log('FDE synthetic: HUD, layout geometry/contrast, placement persistence, reorder, themes and fail-closed behavior pass');
