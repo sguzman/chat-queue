@@ -186,7 +186,11 @@
           revision: Number.isSafeInteger(message.revision) ? message.revision : 0
         };
         TABS.set(tab.id,next);
-        if(!next.running&&!next.awaiting)releaseOwner(tab.id);
+        // Public tab metadata deliberately omits the private leasePending
+        // bit. A paused in-flight or unconfirmed click still owns the route;
+        // otherwise another tab could send before its manual review.
+        if(!next.running&&!next.awaiting&&message.leasePending!==true)
+          releaseOwner(tab.id);
         if(JSON.stringify(prev)!==JSON.stringify(next)) notify(tab.id,next);
         return {ok:true};
       });

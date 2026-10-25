@@ -508,6 +508,23 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The single attempted Send requires manual uncertainty resolution');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    // Busy evidence never confirmed this already-clicked message. The
+    // conversation lease must remain occupied, even after Run became paused.
+    const unconfirmedClickOwner=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/post-click-user');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic competing prompt during unconfirmed click';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,583,'observed','fresh','/c/post-click-user');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Unconfirmed human-interrupted click retains cross-tab Send ownership');
+    await driver.switchTo().window(unconfirmedClickOwner);
     await driver.switchTo().window(priorTrustedRaceTab);
 
     qaStage='file-attachment-after-send-click';

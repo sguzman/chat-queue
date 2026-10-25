@@ -15,7 +15,7 @@
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false, awaitingUncertain: false,
-    busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
+    busySeen: false, attempting: null, unconfirmedClickLease: false, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
@@ -439,7 +439,10 @@
   function publish() {
     if (state.tabId == null || state.destroyed || state.registryRecovering) return;
     const key=state.key,route=routeKey(),generation=routeGeneration;
-    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,revision:state.revision,sequence:++statePublishSequence})
+    // Private background-only lease bit; never include it in public TABS,
+    // status API or subscription metadata. An unresolved or unconfirmed
+    // click must not lose cross-tab ownership merely because Run was paused.
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,leasePending:Boolean(state.attempting||state.unconfirmedClickLease),revision:state.revision,sequence:++statePublishSequence})
       .then(reply=>{
         // A delayed rejection for an earlier SPA route is not evidence that
         // the newly selected conversation lost its background registration.
@@ -826,6 +829,11 @@
     } catch(error) {
       if(sameAttempt()) {
         state.running=false;
+        // A script click can have submitted a real prompt even when trusted
+        // busy evidence never arrived. Hold this conversation's volatile
+        // cross-tab lease until deliberate uncertain-item resolution; a
+        // disconnected/late provider cannot certify that the click failed.
+        if(clicked&&!state.awaiting)state.unconfirmedClickLease=true;
         if(acceptedHistoryWritePending){
           // The remote response may still be generating. Hold the existing
           // owner lease until its attributable terminal or an explicit review
@@ -850,7 +858,7 @@
       if(send)send.removeEventListener('click',onHumanInput,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
-      render();
+      render();publish();
     }
   }
   // A rejected terminal/history status write cannot turn an unsaved
@@ -977,7 +985,7 @@
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
-    state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.busySeen=false;
+    state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.unconfirmedClickLease=false;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
@@ -1176,6 +1184,10 @@
           else state.items=state.items.filter(i=>i.id!==item.id);
         });
         if(result.ok){
+          // Deliberately persisted review releases the conservative
+          // no-busy-evidence click lease as well as an accepted-write lease.
+          // An unsuccessful save must retain both forms of ownership.
+          state.unconfirmedClickLease=false;
           // The deliberate decision is the only non-provider event allowed to
           // release a lease held for a failed post-click history write. A
           // rejected resolution write must keep the lease and review item.
