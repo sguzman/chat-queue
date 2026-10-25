@@ -9,6 +9,7 @@ const http=require('node:http');
 const {Builder,By}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 const qid='chat-queue@sguzman.github',sid='chat-signals@sguzman.github';
+const cid='qa-queue-control@sguzman.github';
 const origin=String.raw`if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;`;
 const localOrigin=String.raw`if (!/^http:\/\/127\.0\.0\.1:\d+\//.test(sender.url || tab.url || '')) return;`;
 function patch(src,old,next){
@@ -34,6 +35,12 @@ function stageQueue(dir,root){
   // that race without polling or granting a page-origin phase authority.
   bg=patch(bg,"      return currentRoute(sender).then(live=>{\n        if(live!==message.route)",
     "      return currentRoute(sender).then(async live=>{\n        if(message.route==='/c/sync-late')await new Promise(resolve=>setTimeout(resolve,1900));\n        if(live!==message.route)");
+  // TEST-ONLY fixture seed. Production Queue still obtains all external
+  // control grants from its explicit, durable user Options permission policy.
+  bg=patch(bg,"  const grants = globalThis.ChatQueueGrants;",
+    "  const grants = globalThis.ChatQueueGrants;\\n"+
+    "  void api.storage.local.set({[grants.KEY]:{version:2,grants:{"+
+    JSON.stringify(cid)+":['control']}}});");
   fs.writeFileSync(bp,bg);
 }
 function stageProvider(dir,root){
@@ -67,6 +74,34 @@ function stageProvider(dir,root){
   qaContent=patch(qaContent,"        queueSequence++;lastQueuePublished=r.changed;",
     "        queueSequence++;document.documentElement.dataset.qaPublishedSequence=String(queueSequence);lastQueuePublished=r.changed;");
   fs.writeFileSync(qaContentPath,qaContent);
+}
+// A third, disposable Firefox extension holds the positive control grant.
+// Its page bridge exists only in this localhost fixture; Queue does not
+// accept page-origin commands, and the native API verifies sender.id.
+function stageAuthorizedClient(dir){
+  const manifest={
+    manifest_version:2,name:'Chat Queue CI authorized-control principal',
+    version:'0.0.1',browser_specific_settings:{gecko:{id:cid}},
+    background:{scripts:['background.js']},
+    content_scripts:[{matches:['http://127.0.0.1/*'],js:['content.js']}]
+  };
+  fs.writeFileSync(path.join(dir,'manifest.json'),JSON.stringify(manifest));
+  fs.writeFileSync(path.join(dir,'background.js'),
+    "browser.runtime.onMessage.addListener((request,sender)=>{"+
+    "if(request?.type!=='qa-authorized-start'||!Number.isInteger(sender.tab?.id))"+
+    "return {ok:false,error:'invalid-fixture-origin'};"+
+    "return browser.runtime.sendMessage("+JSON.stringify(qid)+
+    ",{type:'chat-queue/v1',action:'start',tabId:sender.tab.id});"+
+    "});");
+  fs.writeFileSync(path.join(dir,'content.js'),
+    "window.addEventListener('message',event=>{"+
+    "if(event.source!==window||event.data?.kind!=='qa-authorized-start')return;"+
+    "browser.runtime.sendMessage({type:'qa-authorized-start'})"+
+    ".then(result=>window.postMessage({kind:'qa-authorized-result',"+
+    "nonce:event.data.nonce,result},'*'))"+
+    ".catch(()=>window.postMessage({kind:'qa-authorized-result',"+
+    "nonce:event.data.nonce,result:{ok:false,error:'fixture-ipc-failed'}},'*'));"+
+    "});");
 }
 const page=`<!doctype html><html><head><title>Provider Fixture</title></head><body>
 <main><form><div id="prompt-textarea" role="textbox" contenteditable="true"></div>
@@ -102,10 +137,12 @@ async function main(){
   if(!provider||!path.isAbsolute(provider)||!fs.existsSync(path.join(provider,'manifest.json')))
     throw Error('CHAT_SIGNALS_PROVIDER_SOURCE must be a checked-out pinned Chat Signals commit');
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'chatqueue-real-provider-'));
-  const qdir=path.join(temp,'queue'),sdir=path.join(temp,'provider');
-  fs.mkdirSync(qdir);fs.mkdirSync(sdir);
+  const qdir=path.join(temp,'queue'),sdir=path.join(temp,'provider'),
+    cdir=path.join(temp,'authorized-client');
+  fs.mkdirSync(qdir);fs.mkdirSync(sdir);fs.mkdirSync(cdir);
   stageQueue(qdir,path.resolve(__dirname,'..'));
   stageProvider(sdir,provider);
+  stageAuthorizedClient(cdir);
   const server=http.createServer((req,res)=>{
     res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);
   });
@@ -116,6 +153,7 @@ async function main(){
       .setFirefoxOptions(new firefox.Options().setBinary(binary).addArguments('-headless')).build();
     assert.equal(await driver.installAddon(qdir,true),qid);
     assert.equal(await driver.installAddon(sdir,true),sid);
+    assert.equal(await driver.installAddon(cdir,true),cid);
     const ready=async()=>driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Signal: idle') &&
         !${hud('status')}.textContent.includes('(unverified)')`),15000);
@@ -242,6 +280,37 @@ async function main(){
       `return ${hud('status')}?.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),3,
       'Three guarded Send clicks require three distinct terminal epochs');
+    stage='authorized-third-party-control-start';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/authorized-api-123');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic authorized control API prompt';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A queued item cannot start before a human or authorized client acts');
+    await driver.executeScript(() => {
+      window.__qaControlResults=[];
+      window.addEventListener('message',e=>{
+        if(e.data?.kind==='qa-authorized-result')window.__qaControlResults.push(e.data);
+      });
+      window.postMessage({kind:'qa-authorized-start',nonce:1},'*');
+    });
+    await driver.wait(async()=>await driver.executeScript(
+      "return window.__qaControlResults.some(x=>x.nonce===1)"),10000);
+    const authorized=await driver.executeScript(
+      "return window.__qaControlResults.find(x=>x.nonce===1).result");
+    assert.equal(authorized?.ok,true,
+      'Granted control principal must be able to explicitly Start');
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.uninstallAddon(cid);
     stage='scoped-project-route-isolation';
     // An unsubmitted prompt from the prior chat must remain local when
     // navigating to a project conversation with an independently attested
