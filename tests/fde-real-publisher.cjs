@@ -29,6 +29,11 @@ function stageQueue(dir,root){
   let bg=patch(fs.readFileSync(bp,'utf8'),origin,localOrigin);
   bg=patch(bg,"!change.url.startsWith('https://chatgpt.com/')",
     "!change.url.startsWith('http://127.0.0.1:')");
+  // Deliberately allow the real publisher to emit its initial idle event
+  // before Queue has a tab registration. Its one-shot sync must recover
+  // that race without polling or granting a page-origin phase authority.
+  bg=patch(bg,"      return currentRoute(sender).then(live=>{\\n        if(live!==message.route)",
+    "      return currentRoute(sender).then(async live=>{\\n        if(message.route==='/c/sync-late')await new Promise(resolve=>setTimeout(resolve,1900));\\n        if(live!==message.route)");
   fs.writeFileSync(bp,bg);
 }
 function stageProvider(dir,root){
@@ -101,10 +106,15 @@ async function main(){
       .setFirefoxOptions(new firefox.Options().setBinary(binary).addArguments('-headless')).build();
     assert.equal(await driver.installAddon(qdir,true),qid);
     assert.equal(await driver.installAddon(sdir,true),sid);
-    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     const ready=async()=>driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Signal: idle') &&
         !${hud('status')}.textContent.includes('(unverified)')`),15000);
+    stage='provider-published-before-queue-registration';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/sync-late');
+    await ready();
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A missed initial provider event must recover through a one-shot sync, not Send');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     stage='browser-attested-initial-phase';
     try{await ready();}
     catch(error){
