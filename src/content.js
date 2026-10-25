@@ -1349,9 +1349,18 @@
       // Capture the route *before* asynchronous registration and storage. A
       // pushState during initial load must not paint the old conversation's
       // private queue on the newly selected route, even for one frame.
-      const initialRoute=routeKey();
-      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute});
-      if(!response?.ok)throw new Error('Registration unavailable');
+      let initialRoute,response;
+      // A History API transition can race Firefox's asynchronous tab URL
+      // validation. Retry only when the page *actually* changed routes;
+      // genuine registration failures remain failures. Bounded retries avoid
+      // an unbounded registration loop during pathological navigation.
+      for(let attempt=0;attempt<4;attempt++){
+        initialRoute=routeKey();
+        response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute});
+        if(response?.ok)break;
+        if(routeKey()===initialRoute)throw new Error('Registration unavailable');
+      }
+      if(!response?.ok)throw new Error('Registration unavailable after route changes');
       state.tabId=response.tabId;
       state.key=`chatqueue:v1:tab:${state.tabId}:${initialRoute}`;
       state.keyRoute=initialRoute;
