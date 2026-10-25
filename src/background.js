@@ -309,7 +309,12 @@
             id:rule.id,version:rule.version,enabled:rule.enabled,priority:rule.priority,
             when:{...rule.when},then:{...rule.then}
           }));
+          // A persisted ACL revocation may precede storage.onChanged. A
+          // delayed write cannot rely only on an event-page revision counter.
           if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+          const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
+          if(grantRevision!==authorizedAt||!grants.has(current,requester,'rules'))
+            return {ok:false,error:'authorization-changed'};
           await api.storage.local.set({[ruleKey(requester)]:{version:1,revision,rules}});
           notifyPeerRules(requester,revision);
           return {ok:true,revision};
