@@ -117,6 +117,12 @@ function prepareQueue(dir,source){
     // invalidation arrives before a previously initiated read settles.
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
+    // QA-only instrumentation: prove the actual duration timer was armed
+    // and distinguish a throttled timer from a lost policy/Signal event.
+    .replace("    activeRuleDeadlineTimer=setTimeout(()=>{",
+      "    document.documentElement.dataset.qaActiveDeadlineArmed=String(performance.now());"+
+      "activeRuleDeadlineTimer=setTimeout(()=>{"+
+      "document.documentElement.dataset.qaActiveDeadlineFired='yes';")
     .replace('api.storage.local.set({[key]:data})',
       "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.text==='Synthetic accepted write must stay uncertain'&&h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
       "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))))")
@@ -1092,11 +1098,32 @@ async function main(){
     await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
     await waitNote('Conditional previews enabled');
     await emit('generating',1,210,'observed','fresh','/c/active-generation-deadline');
+    await driver.wait(async()=>await driver.executeScript(
+      "return Number.isFinite(Number(document.documentElement.dataset.qaActiveDeadlineArmed)) &&"+
+      " !!document.documentElement.dataset.qaActiveDeadlineArmed"),6500,
+      'Authenticated generation must arm the bounded local review timer');
     await driver.sleep(340);
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'An observed generating epoch alone cannot satisfy a bounded duration threshold');
-    await driver.wait(async()=>await driver.executeScript(
-      `return !${hud('rules-approve')}.hidden`),7000);
+    try {
+      await driver.wait(async()=>await driver.executeScript(
+        `return !${hud('rules-approve')}.hidden`),16000,
+        'Bounded generation offer did not appear after the timer was armed');
+    }catch(error){
+      const diagnostic=await driver.executeScript(() => ({
+        visibility:document.visibilityState,
+        armed:document.documentElement.dataset.qaActiveDeadlineArmed||null,
+        fired:document.documentElement.dataset.qaActiveDeadlineFired||null,
+        status:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent||null,
+        note:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('rules-note')?.textContent||null,
+        approvalHidden:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('rules-approve')?.hidden??null
+      }));
+      throw new Error('Active generation timer diagnostic: '+
+        JSON.stringify(diagnostic)+'; '+error.message);
+    }
     assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
       /bounded-generating-review/);
     assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
