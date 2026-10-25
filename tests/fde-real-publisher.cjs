@@ -41,6 +41,15 @@ function stageQueue(dir,root){
     "}).then(()=>document.documentElement.dataset.qaDeadlineSeeded='yes');"+
     "}\n"+
     "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
+  qaQueueContent=patch(qaQueueContent,
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.",
+    "  if(location.pathname==='/c/real-active-deadline') {"+
+    "void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
+    JSON.stringify({version:1,rules:[{version:1,id:'qa-real-generation-wait',enabled:true,priority:90,
+      when:{phase:'generating',minDurationMs:1200},then:{type:'pause'}}]})+
+    "}).then(()=>document.documentElement.dataset.qaActiveDeadlineSeeded='yes');"+
+    "}\\n"+
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
   fs.writeFileSync(cp,qaQueueContent);
   const bp=path.join(dir,'src/background.js');
   let bg=patch(fs.readFileSync(bp,'utf8'),origin,localOrigin);
@@ -792,6 +801,33 @@ async function main(){
       'Expiring a real provider timed offer never Sends a proposed prompt');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
       'Expiring a real provider offer never enqueues text');
+    stage='real-provider-active-generation-duration-review';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-active-deadline');
+    await ready();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaActiveDeadlineSeeded==='yes'"),10000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9500);
+    await driver.executeScript("document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),10000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8500);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /qa-real-generation-wait/);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /offered · qa-real-generation-wait · generating · pause/);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Observed generation timeout may only offer review, never click Send');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional pause approved')`),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.sleep(550);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Terminal response cannot resume a manually approved timeout pause');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
     stage='provider-removed-no-replay';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
