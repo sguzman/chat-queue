@@ -106,7 +106,19 @@ async function main(){
       `return ${hud('status')}?.textContent.includes('Signal: idle') &&
         !${hud('status')}.textContent.includes('(unverified)')`),15000);
     stage='browser-attested-initial-phase';
-    await ready();
+    try{await ready();}
+    catch(error){
+      // Fixed-schema metadata only. Never include queue prompts or page text
+      // in public CI diagnostics if source registration fails.
+      const diagnostic=await driver.executeScript(() => ({
+        providerPhase:document.documentElement.dataset.chatSignalsState||null,
+        providerConfidence:document.documentElement.dataset.chatSignalsConfidence||null,
+        queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
+        queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent?.replace(/\\s+/g,' ').slice(0,180)||null
+      }));
+      throw new Error('Verified source idle missing: '+JSON.stringify(diagnostic)+'; '+error.message);
+    }
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     stage='two-message-serial-send';
     for(const [i,text] of ['Synthetic first message','Synthetic second message'].entries()){
