@@ -308,3 +308,7 @@ A disposable two-extension Firefox Developer Edition test installs synthetic `fi
 ## 🦊 Durable prerequisite failure and exact retry
 
 A disposable Firefox Developer Edition two-extension fixture uses a QA-only one-shot rejection of the actual local queue write while approving a synthetic `propose` prerequisite. The failed write must leave zero queued items and must **not** mark the rule ID approved. A later authenticated finish must still offer the rule that skips only after successful approval, not the dependent rule. After removing the QA rejection and explicitly approving a fresh prerequisite offer, only a successful saved append enables the dependent rule. The independent user Start remains absent throughout, and there are zero Send clicks. This is synthetic publisher evidence, not real ChatGPT execution.
+
+## 🦊 Terminal duration freezes on first completion
+
+A native Firefox synthetic publisher regression installs a single conditional finished-phase rule requiring at least 3 seconds of observed busy time. It publishes a fresh busy and an immediate fresh finish; there must be no proposal. After more than 3 seconds have elapsed since that finish, a repeated fresh finish in the same provider document/epoch must **still** have no proposal, because the duration was frozen at the first terminal event. It must create no audit outcome and click no Send. This prevents a delayed/repeated provider notification from retroactively creating timed actions.

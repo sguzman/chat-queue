@@ -69,6 +69,9 @@ function prepareQueue(dir,source){
           when:{phase:'finished',dependsOn:['durable-first']},then:{type:'pause'}},
         {version:1,id:'durable-fallback',enabled:true,priority:80,
           when:{phase:'finished',skipIf:['durable-first']},then:{type:'pause'}}
+      ]:event.data.mode==='duration-only'?[
+        {version:1,id:'duration-frozen',enabled:true,priority:100,
+          when:{phase:'finished',minDurationMs:3000},then:{type:'pause'}}
       ]:event.data.mode==='duration'?[
         {version:1,id:'duration-observed',enabled:true,priority:90,
           when:{phase:'finished',minDurationMs:250},then:{type:'pause'}},
@@ -1026,7 +1029,31 @@ async function main(){
     await driver.executeScript(`return ${hud('rules-approve')}.click()`);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback');
+
+    qaStage='duration-freeze-on-first-terminal';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-duration-freeze');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'duration-only'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('generating',1,490,'observed','fresh','/c/rule-duration-freeze');
+    await emit('finished',1,491,'observed','fresh','/c/rule-duration-freeze');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'A prompt completion faster than the minimum duration cannot trigger the rule');
+    await driver.sleep(3250);
+    await emit('finished',1,492,'observed','fresh','/c/rule-duration-freeze');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'The frozen first terminal duration cannot grow while already finished');
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){
