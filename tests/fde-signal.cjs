@@ -1249,6 +1249,34 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
+    qaStage='unmatched-duration-rule-does-not-spin';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/active-generation-unmatched');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&
+       document.documentElement.dataset.qaRuleMutationReady==='yes'&&
+       document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'generation-unmatched'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'&&"+
+      "document.documentElement.dataset.qaObservedRuleIds==='not-approved,bounded-no-prerequisite'"),8000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('generating',1,250,'observed','fresh','/c/active-generation-unmatched');
+    await driver.wait(async()=>await driver.executeScript(
+      "return Number(document.documentElement.dataset.qaActiveDeadlineCount||0)>0"),7000);
+    await driver.sleep(2500);
+    const wakeups=await driver.executeScript(
+      "return Number(document.documentElement.dataset.qaActiveDeadlineCount||0)");
+    assert.ok(wakeups>=1&&wakeups<=2,
+      'An unsatisfied prerequisite must not cause recurring 1ms timers after its duration threshold: '+wakeups);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Unmet rule dependencies must not produce manual proposals');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A timer-only conditional preview must never Send');
+
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-terminal-errors');
