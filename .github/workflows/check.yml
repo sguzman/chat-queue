@@ -93,7 +93,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: sguzman/chat-signals
-          ref: 978b4163d0dee5661afad86c0576852df1b9a8cb
+          ref: fcc885359eabb49c4fb29150aeac96fde8ecdec8
           path: chat-signals-provider
           persist-credentials: false
       - name: Native FDE actual Chat Signals publisher and Queue two-addon integration
