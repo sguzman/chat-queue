@@ -181,6 +181,8 @@ function prepareQueue(dir,source){
   assert.equal(bg.split(delayedAuth).length,2);
   bg=bg.replace(delayedAuth,
     "      return currentRoute(sender).then(async live=>{\n"+
+    "        if(message.route==='/c/enqueue-inflight')"+
+    "await new Promise(resolve=>setTimeout(resolve,2300));\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
     "if(globalThis.__qaLateChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
@@ -1536,6 +1538,34 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'An arbitrary input with a matching editor ID cannot receive a queued prompt');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    qaStage='enqueue-refused-during-dispatch-authorization';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/enqueue-inflight');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic original journal owner';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,580,'observed','fresh','/c/enqueue-inflight');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Preparing next message');
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic conflicting simultaneous append';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await waitNote('dispatch-in-progress');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued',
+      'An Add during a pending dispatch authorization must never race the journal');
+    assert.equal(await driver.executeScript(`return ${hud('draft')}.value`),
+      'Synthetic conflicting simultaneous append','Rejected Add must preserve the draft for deliberate retry');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'No new Send is authorized during the attempted simultaneous write');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Manually paused');
+    await driver.sleep(2550);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Delayed dispatch authorization after Pause cannot trigger Send');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';

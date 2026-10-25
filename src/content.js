@@ -1040,6 +1040,10 @@
           payload && Object.hasOwn(payload,'ifMatch') && payload.ifMatch!==state.etag)
         return {ok:false,error:'revision-conflict',revision:state.revision};
       if (action==='enqueueSequenced') {
+        // A Send attempt owns the uncertainty journal until it exits.
+        // Even a distinct peer/client prompt cannot write that record while
+        // the one-click handoff is in progress.
+        if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
         // No competing durable queue write may be pending when capturing the
         // rollback snapshot of the client's replay watermark and prompt.
         if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
@@ -1083,6 +1087,7 @@
         return {ok:true,id:item.id,etag:state.etag};
       }
       if (action==='enqueue') {
+        if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
         const text=payload?.text;
         if(state.pendingSaves>0)return {ok:false,error:'queue-save-pending'};
         if (state.items.length>=core.MAX_ITEMS) return {ok:false,error:'queue-full'};
