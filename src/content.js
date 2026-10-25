@@ -577,7 +577,7 @@
         state.ruleClock={documentToken:signal.documentToken,route:signal.route,
           epoch:signal.epoch,startedAt:now,
           generatingAt:signal.phase==='generating'?now:null,
-          terminalPhase:null,durationMs:null};
+          terminalPhase:null,durationMs:null,lastEvaluatedDuration:null};
       }else if(clock.terminalPhase){
         // Re-entering busy after terminal is not continuous timing evidence.
         state.ruleClock=null;
@@ -650,11 +650,12 @@
     const future=state.ruleLibrary.filter(rule=>rule.enabled&&
       rule.when.phase==='generating'&&
       Number.isSafeInteger(rule.when.minDurationMs)&&
-      // Equality still needs one more tick: considerConditionalPreview
-      // may have evaluated at threshold-1 ms just before this second
-      // clock read rounded up to threshold. Skipping equality could leave
-      // a qualifying active rule dormant until another provider event.
-      rule.when.minDurationMs>=duration).map(rule=>rule.when.minDurationMs);
+      // Only retry thresholds not yet EVALUATED in this authenticated
+      // epoch. The scheduler's second clock read can cross the minimum
+      // after the preview saw threshold-1ms, but an ineligible rule must
+      // not spin a 1ms timer forever after its threshold was checked.
+      rule.when.minDurationMs>(state.ruleClock.lastEvaluatedDuration??-1))
+      .map(rule=>rule.when.minDurationMs);
     if(!future.length)return;
     const remaining=Math.max(1,Math.min(...future)-duration);
     const mark={documentToken:signal.documentToken,route:signal.route,epoch:signal.epoch};
@@ -677,6 +678,11 @@
     if(!state.rulesEnabled||!state.initialized||state.routing||
        state.ruleOffer||state.key!==storageKey())return;
     const duration=ruleDuration(signal);
+    if(signal.phase==='generating'&&Number.isSafeInteger(duration)&&
+       sameRuleEpoch(state.ruleClock,signal)){
+      state.ruleClock.lastEvaluatedDuration=Math.max(
+        state.ruleClock.lastEvaluatedDuration??-1,duration);
+    }
     const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,
       {completedRuleIds:state.ruleCompleted,
         ...(duration===undefined?{}:{stateDurationMs:duration})});
