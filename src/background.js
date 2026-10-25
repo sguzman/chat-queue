@@ -347,8 +347,11 @@
   });
 
   function invalidate(tabId,keepConversationId=null){
-    if(!ROUTES.has(tabId))return;
+    // A route-alias update may have already cleared the tab registry while
+    // preserving its unresolved owner. Tab close or origin exit must still
+    // relinquish that orphan even without another content registration.
     releaseOwner(tabId,keepConversationId);
+    if(!ROUTES.has(tabId))return;
     ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
   }
