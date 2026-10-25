@@ -407,6 +407,7 @@ async function main(){
     // human input that restores the exact original text. Equality alone would
     // miss the user interaction; a trusted-input marker must stop the click.
     qaStage='trusted-edit-after-send-click';
+    const priorTrustedRaceTab=await driver.getWindowHandle();
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/post-click-user');
     await driver.wait(async()=>await driver.executeScript(
@@ -436,6 +437,7 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The single attempted Send requires manual uncertainty resolution');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    await driver.switchTo().window(priorTrustedRaceTab);
 
     qaStage='trusted-user-edit-race';
     const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
