@@ -80,3 +80,9 @@ Every asynchronous conditional-policy load owns a volatile request generation. R
 ## Rule duration authority boundary
 
 For conditional preview only, the HUD now derives a bounded monotonic elapsed time between the first independently authenticated fresh busy event observed in the current enabled policy session and the first fresh terminal event for the same provider document, conversation route and epoch. A restoration, unknown confidence, idle phase, session reset, epoch mismatch or unbounded interval clears timing evidence. Later terminal repetitions cannot increase that frozen value. The value is not serialized, transmitted or used to authorize Send; rules requiring duration proof cannot match without this trusted lower-bound interval.
+
+## Authenticated confirmation and persistence-race boundaries
+
+A queued message is not accepted merely because the editor became empty and a fresh provider busy epoch appeared. The confirmation interval also observes browser-trusted human interaction on the composer; if detected after the Queue's single Send click, the attempt remains uncertain, and no following queued message is dispatched automatically. The pre-click and post-click human-edit regressions run under disposable Firefox with a synthetic browser-authenticated provider. This does not prove authenticated ChatGPT acceptance.
+
+History is captured as a fixed-schema snapshot before asynchronous storage writes. A failed optimistic import, recovery or history deletion restores the prior local state **and rotates the revision token** so external clients cannot reuse a speculative compare token. The complete Firefox runs [40153216969](https://github.com/sguzman/chat-queue/actions/runs/40153216969), [40153465854](https://github.com/sguzman/chat-queue/actions/runs/40153465854), and [40153888908](https://github.com/sguzman/chat-queue/actions/runs/40153888908) passed their applicable tests.

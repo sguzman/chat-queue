@@ -380,7 +380,8 @@
                   "status": "verified",
                   "evidence": [
                     "Native synthetic Firefox Developer Edition fault injection: rejection blocks Start with storage-unavailable; subsequent successful save requires manual Start; delayed write blocks Start with queue-save-pending; reload persists correct items, with no Send. https://github.com/sguzman/chat-queue/actions/runs/40046386978. Full crash/quota and live browser acceptance remain separate gates.",
-                    "Real disposable Firefox Developer Edition tests a delayed rejected Add against simultaneous Forget history clicks; pending queue save blocks a competing history snapshot, failed Add rolls back to zero items, previous history survives reload, and Send remains untouched. https://github.com/sguzman/chat-queue/actions/runs/40149040013. This is synthetic local-storage fault acceptance, not authenticated send evidence."
+                    "Real disposable Firefox Developer Edition tests a delayed rejected Add against simultaneous Forget history clicks; pending queue save blocks a competing history snapshot, failed Add rolls back to zero items, previous history survives reload, and Send remains untouched. https://github.com/sguzman/chat-queue/actions/runs/40149040013. This is synthetic local-storage fault acceptance, not authenticated send evidence.",
+                    "Fixed-schema history records now snapshot nested entries ahead of queued writes, and rejected backup import / tab recovery / history deletion roll back with rotated mutation tokens. Pure unit and actual disposable FDE fault tests passed: https://github.com/sguzman/chat-queue/actions/runs/40153216969 and https://github.com/sguzman/chat-queue/actions/runs/40153465854. No live ChatGPT delivery proven."
                   ]
                 },
                 {
@@ -569,7 +570,8 @@
                   "title": "Test old completion, missed signals, rerenders and long responses",
                   "status": "implemented",
                   "evidence": [
-                    "Unit negative cases for restored completion, old epoch, wrong route/document and forged sender: tests/signal.test.js and tests/background.test.js; long-response/FDE cases pending."
+                    "Unit negative cases for restored completion, old epoch, wrong route/document and forged sender: tests/signal.test.js and tests/background.test.js; long-response/FDE cases pending.",
+                    "Native FDE synthetic provider regression with a shortened freshness horizon and delayed dispatch timer verifies stale ready authority pauses instead of later resuming on a fresh terminal without a new Start: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Genuine long-response and live provider acceptance remain open."
                   ]
                 }
               ]
@@ -687,7 +689,8 @@
                   "title": "Prevent clashes with live user edits and simultaneous API writes",
                   "status": "implemented",
                   "evidence": [
-                    "Composer text is durably journaled uncertain before injection; final pre-Send guard checks trusted human beforeinput/input/click, attachment additions, editor identity, same enabled Send and exact input. Real synthetic Firefox Developer Edition test delays second authorization and simulates trusted user editing then restoring identical text; no automatic Send occurs: https://github.com/sguzman/chat-queue/actions/runs/40047326561. Optimistic edit tokens cover stale API edits; concurrent live user/API races and authenticated ChatGPT acceptance remain unverified."
+                    "Composer text is durably journaled uncertain before injection; final pre-Send guard checks trusted human beforeinput/input/click, attachment additions, editor identity, same enabled Send and exact input. Real synthetic Firefox Developer Edition test delays second authorization and simulates trusted user editing then restoring identical text; no automatic Send occurs: https://github.com/sguzman/chat-queue/actions/runs/40047326561. Optimistic edit tokens cover stale API edits; concurrent live user/API races and authenticated ChatGPT acceptance remain unverified.",
+                    "Actual Firefox trusted-keyboard changes after the Queue's single Send click invalidate new-busy/empty-editor confirmation and require manual uncertainty resolution, without dispatching the next queued item. Synthetic-provider CI: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Authenticated React site races remain open."
                   ]
                 },
                 {
@@ -807,7 +810,8 @@
                   "title": "Add bounded API request sizes, replay guard, mutation revisions",
                   "status": "verified",
                   "evidence": [
-                    "32 KiB external frame bound and fail-closed malformed-object handling; optional CAS edit revision prevents stale mutation; opt-in `enqueueSequenced` now durably stores monotonic per-Firefox-sender sequence alongside appended queue item. Native independent Firefox Developer Edition add-on verifies first append succeeds, stale/replayed sequence rejected before and after a tab reload, malformed sequence denied and newer sequence accepted, with no Send: https://github.com/sguzman/chat-queue/actions/runs/40057681597. Existing v1 legacy `enqueue` deliberately remains unsequenced for compatibility; only sequenced callers gain replay protection. Authenticated ChatGPT sending remains a distinct gate."
+                    "32 KiB external frame bound and fail-closed malformed-object handling; optional CAS edit revision prevents stale mutation; opt-in `enqueueSequenced` now durably stores monotonic per-Firefox-sender sequence alongside appended queue item. Native independent Firefox Developer Edition add-on verifies first append succeeds, stale/replayed sequence rejected before and after a tab reload, malformed sequence denied and newer sequence accepted, with no Send: https://github.com/sguzman/chat-queue/actions/runs/40057681597. Existing v1 legacy `enqueue` deliberately remains unsequenced for compatibility; only sequenced callers gain replay protection. Authenticated ChatGPT sending remains a distinct gate.",
+                    "Rejected local backup import, previous-tab recovery and Forget-history writes invalidate speculative optimistic revision tokens in real Firefox fault-injection UI tests: https://github.com/sguzman/chat-queue/actions/runs/40153465854. Browser-local test only."
                   ]
                 },
                 {
