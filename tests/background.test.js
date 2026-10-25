@@ -682,6 +682,38 @@ test('superseded async register cannot overwrite a newer same-route registration
     'late old register must not erase newer authenticated provider');
 });
 
+test('matching SPA tab URL update keeps the newer pending registration but revokes old provider',async()=>{
+  const {listeners,context}=create();
+  const oldUrl='https://chatgpt.com/c/old-route';
+  const nextUrl='https://chatgpt.com/c/new-route';
+  const old={tab:{id:902,url:oldUrl},url:oldUrl};
+  const changed={tab:{id:902,url:oldUrl},url:oldUrl};
+  assert.equal((await listeners.internal({
+    type:'chat-queue-internal/v1',action:'register',route:'/c/old-route'
+  },old)).ok,true);
+  const originalGet=context.browser.tabs.get;
+  let resolveGet;
+  context.browser.tabs.get=()=>new Promise(resolve=>{resolveGet=resolve;});
+  const newest=listeners.internal({
+    type:'chat-queue-internal/v1',action:'register',route:'/c/new-route'
+  },changed);
+  assert.equal(typeof resolveGet,'function');
+  listeners.updated(902,{url:nextUrl});
+  const listed=await listeners.external({type:'chat-queue/v1',
+    action:'listTabs'},{id:'approved@example.test'});
+  assert.equal(listed.tabs.length,0,'old route must be revoked immediately');
+  context.browser.tabs.get=originalGet;
+  resolveGet({id:902,url:nextUrl});
+  assert.equal((await newest).ok,true,
+    'tab notification for the new route must not cancel the matching new registration');
+  const provider={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external({
+    type:'chat-queue-signal/v1',tabId:902,
+    signal:{version:1,route:'/c/new-route',documentToken:'e'.repeat(32),
+      sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'}
+  },provider)).ok,true);
+});
+
 test('tab navigation or closure cancels an in-flight registration before it can revive',async()=>{
   for(const close of [false,true]){
     const {listeners,context}=create();
