@@ -188,6 +188,23 @@ async function main(){
     const ready=async()=>driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Signal: idle') &&
         !${hud('status')}.textContent.includes('(unverified)')`),15000);
+    // Firefox may activate a temporary add-on slightly after WebDriver
+    // installAddon resolves. Preflight on an UNUSED route and retry boundedly
+    // rather than mistaking a missing content script for a sync-protocol bug.
+    // The real delayed-registration test still uses a fresh subsequent route.
+    stage='temporary-addons-activation-preflight';
+    let activated=false;
+    for(let attempt=0;attempt<3&&!activated;attempt++){
+      await driver.get('http://127.0.0.1:'+server.address().port+
+        '/c/activation-preflight-'+attempt);
+      try{
+        await driver.wait(async()=>await driver.executeScript(() =>
+          Boolean(document.querySelector('#chat-queue-extension-root')) &&
+          Boolean(document.documentElement.dataset.chatSignalsState)),6500);
+        activated=true;
+      }catch{/* retry fresh synthetic route; do not Send */}
+    }
+    if(!activated)throw Error('Disposable Firefox add-ons did not both activate');
     stage='provider-published-before-queue-registration';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/sync-late');
     try{await ready();}
