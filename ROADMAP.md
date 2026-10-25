@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 65/96 verified (67%) · ██████░░░░ · 28 implemented awaiting acceptance.**
+**Overall: 67/96 verified (69%) · ███████░░░ · 26 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -103,7 +103,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [x] `M3-01` 📡 Read current Chat Signals state without copied classification
 - [x] `M3-02` 🛡️ Define authenticated, versioned source-to-consumer signal protocol
-- [~] `M3-03` 🔢 Attribute phase and completion to exact response epoch _(implemented; acceptance pending)_
+- [x] `M3-03` 🔢 Attribute phase and completion to exact response epoch
 - [x] `M3-04` 🪪 Bind signal identity to currently selected conversation
 - [x] `M3-05` ⏳ Distinguish historical restoration from fresh terminal event
 - [x] `M3-06` 🔌 Handle absent, outdated or disconnected Chat Signals explicitly
@@ -116,10 +116,10 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M3-08` ⏭️ Advance only after attributable confirmed response completion
 - [x] `M3-09` 🔎 Block dispatch in submitted, generating and verifying states
 - [~] `M3-10` 🔌 Pause on interruption, failed, limit or unknown state _(implemented; acceptance pending)_
-- [~] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart _(implemented; acceptance pending)_
+- [x] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart
 - [~] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses _(implemented; acceptance pending)_
 
-**M3 acceptance:** 7/12 verified (58%) · █████░░░░░ · 5 implemented but not accepted.
+**M3 acceptance:** 9/12 verified (75%) · ████████░░ · 3 implemented but not accepted.
 
 ### 📮 M4 — Safe message delivery
 

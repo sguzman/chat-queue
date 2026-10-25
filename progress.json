@@ -474,9 +474,10 @@
                   "id": "M3-03",
                   "emoji": "🔢",
                   "title": "Attribute phase and completion to exact response epoch",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Candidate epoch/sequence gating for a new busy event and a matching later terminal: src/signal.js, src/content.js, tests/signal.test.js; producer and live acceptance pending."
+                    "Candidate epoch/sequence gating for a new busy event and a matching later terminal: src/signal.js, src/content.js, tests/signal.test.js; producer and live acceptance pending.",
+                    "Real Chat Signals provider and Queue in disposable Firefox Developer Edition produce three distinct response epochs. Earlier terminal Copy controls remain visible but never complete later epochs: each of exactly three queued Sends waits for its own authenticated busy-to-finished sequence. Both CI jobs passed https://github.com/sguzman/chat-queue/actions/runs/40198224114; exact document/route/epoch/sequence rejection tests in tests/signal.test.js and src/signal.js. Live authenticated ChatGPT remains unverified."
                   ]
                 },
                 {
@@ -562,9 +563,10 @@
                   "id": "M3-11",
                   "emoji": "🛑",
                   "title": "Honor user cancellation and manual pause without auto restart",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Pause and idle logic; browser QA pending"
+                    "Pause and idle logic; browser QA pending",
+                    "Native Firefox real-provider tests: Pause during confirmed awaiting response holds the next queued item until a second explicit Start (both CI jobs https://github.com/sguzman/chat-queue/actions/runs/40198735817). Trusted user Stop while a response is awaited causes a same-epoch authenticated cancellation, marks the old submission interrupted, closes awaiting state, pauses without retry, permits a separately approved next Start, and does not replay after reload (both CI jobs https://github.com/sguzman/chat-queue/actions/runs/40199823775). No real account modified."
                   ]
                 },
                 {
