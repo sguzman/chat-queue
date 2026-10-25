@@ -51,7 +51,7 @@ function stageQueue(dir,root){
   // per-conversation click on the real Queue preview opt-in control.
   bg=patch(bg,"  const RULE_PREFIX='chatqueue:external-rules:v1:';",
     "  void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
-    JSON.stringify({"version":1,"rules":[{"version":1,"id":"qa-real-complete","enabled":true,"priority":60,"when":{"phase":"finished"},"then":{"type":"propose","text":"Synthetic approved reply"}},{"version":1,"id":"qa-real-failure","enabled":true,"priority":50,"when":{"phase":"failed"},"then":{"type":"pause"}}]})+"});\\n"+
+    JSON.stringify({"version":1,"rules":[{"version":1,"id":"qa-real-complete","enabled":true,"priority":60,"when":{"phase":"finished"},"then":{"type":"propose","text":"Synthetic approved reply"}},{"version":1,"id":"qa-real-failure","enabled":true,"priority":50,"when":{"phase":"failed"},"then":{"type":"pause"}}]})+"});\n"+
     "  const RULE_PREFIX='chatqueue:external-rules:v1:';");
   fs.writeFileSync(bp,bg);
 }
