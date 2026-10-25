@@ -1346,9 +1346,15 @@
   },{once:true});
   (async()=>{
     try {
-      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});
+      // Capture the route *before* asynchronous registration and storage. A
+      // pushState during initial load must not paint the old conversation's
+      // private queue on the newly selected route, even for one frame.
+      const initialRoute=routeKey();
+      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute});
       if(!response?.ok)throw new Error('Registration unavailable');
-      state.tabId=response.tabId;state.key=storageKey();state.keyRoute=routeKey();
+      state.tabId=response.tabId;
+      state.key=`chatqueue:v1:tab:${state.tabId}:${initialRoute}`;
+      state.keyRoute=initialRoute;
       const stored=await api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY]);
       const pref=stored['chatqueue:settings:v1']?.theme;
       state.theme=['system','light','dark'].includes(pref)?pref:'system';
@@ -1360,9 +1366,22 @@
       state.recoveredSources=state.blockedRecord?[]:readRecoverySources(stored[state.key]);
       state.requestHighWatermarks=state.blockedRecord?Object.create(null):core.readRequestHighWatermarks(stored[state.key]);
       state.observedSignal=signalFromPage();state.signal='unknown';state.initialized=true;
+      const initialRouteChanged=state.key!==storageKey();
+      if(initialRouteChanged){
+        // Discard the stale in-memory snapshot before mounting the HUD. The
+        // route transition will load the selected conversation independently;
+        // no previous conversation's prompt or history may enter its DOM.
+        state.items=[];state.history=[];state.recoveredSources=[];
+        state.requestHighWatermarks=Object.create(null);state.editing=null;
+        state.blockedRecord=false;
+        host.style.setProperty('visibility','hidden');
+      }
       (document.body||document.documentElement).append(host);
-      state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';render();publish();
-      if(state.key!==storageKey())void handleRouteChange();
+      if(initialRouteChanged)void handleRouteChange();
+      else{
+        state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';
+        render();publish();
+      }
     } catch(error) {
       state.destroyed=true;signalObserver.disconnect();clearInterval(routeWatch);
       // Do not inject a broken HUD or a partial queue.
