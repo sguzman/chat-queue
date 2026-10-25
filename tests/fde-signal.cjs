@@ -101,6 +101,11 @@ function prepareQueue(dir,source){
       "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:['/c/post-click-user','/c/post-click-file'].includes(routeKey())?850:ms));")
     // QA-only short freshness horizon and delayed queue timer. This simulates
     // timer throttling in an inactive Firefox tab without 15+ seconds of wait.
+    // QA-only: simulate Firefox background-tab timer throttling. The real
+    // Approve click must reject an elapsed deadline BEFORE this timer fires.
+    .replace("ruleApprovalTimer=setTimeout(()=>expireConditionalOffer(offer),deadlineMs);",
+      "ruleApprovalTimer=setTimeout(()=>expireConditionalOffer(offer),"+
+      "(routeKey()==='/c/rule-deadline-throttle'?deadlineMs+2500:deadlineMs));")
     .replace("performance.now()-state.trustedAt<15000",
       "performance.now()-state.trustedAt<(routeKey()==='/c/provider-stale'?2000:15000)")
     .replace("    },350);",
@@ -1019,6 +1024,35 @@ async function main(){
       'Even within a deadline, manual approval can enqueue but cannot Send');
     assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
       /approved · deadline-manual · finished · propose/);
+
+    qaStage='throttled-deadline-rejected-before-expiry-timer';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-deadline-throttle');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')}) &&
+        document.documentElement.dataset.qaRuleMutationReady==='yes' &&
+        document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'deadline-only',deadlineMs:1200},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',1,198,'observed','fresh','/c/rule-deadline-throttle');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),6000);
+    await driver.sleep(1650);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),false,
+      'Fixture intentionally keeps the throttled expiry timer pending');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional proposal deadline expired')`),6500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /expired · deadline-manual · finished · propose/);
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');
