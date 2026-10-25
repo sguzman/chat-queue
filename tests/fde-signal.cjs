@@ -62,6 +62,13 @@ function prepareQueue(dir,source){
         {version:1,id:'skip-until-approved',enabled:true,priority:80,
           when:{phase:'finished',skipIf:['first-approval']},
           then:{type:'pause'}}
+      ]:event.data.mode==='persisted-dependency'?[
+        {version:1,id:'durable-first',enabled:true,priority:100,
+          when:{phase:'failed'},then:{type:'propose',text:'Synthetic durable prerequisite'}},
+        {version:1,id:'durable-next',enabled:true,priority:90,
+          when:{phase:'finished',dependsOn:['durable-first']},then:{type:'pause'}},
+        {version:1,id:'durable-fallback',enabled:true,priority:80,
+          when:{phase:'finished',skipIf:['durable-first']},then:{type:'pause'}}
       ]:event.data.mode==='duration'?[
         {version:1,id:'duration-observed',enabled:true,priority:90,
           when:{phase:'finished',minDurationMs:250},then:{type:'pause'}},
@@ -86,7 +93,7 @@ function prepareQueue(dir,source){
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
     .replace('api.storage.local.set({[key]:data})',
-      "((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))")
+      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data})))")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -974,7 +981,52 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Authenticated timing evidence must never directly authorize Send');
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence');
+
+    qaStage='conditional-durable-prerequisite';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-dependency-persistence');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'persisted-dependency'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('failed',1,470,'observed','fresh','/c/rule-dependency-persistence');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),/durable-first/);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectRuleAppend='yes';"+
+      `${hud('rules-approve')}.click();`);
+    await waitNote('Conditional proposal was not queued: queue-save-failed');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    await emit('finished',2,471,'observed','fresh','/c/rule-dependency-persistence');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /durable-fallback/,
+      'A failed durable append must NOT satisfy a dependent rule or skip another');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await driver.executeScript("document.documentElement.dataset.qaRejectRuleAppend='no'");
+    await emit('failed',3,472,'observed','fresh','/c/rule-dependency-persistence');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),10000);
+    await emit('finished',4,473,'observed','fresh','/c/rule-dependency-persistence');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /durable-next/,
+      'Only a successfully saved prerequisite may unlock downstream proposals');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){

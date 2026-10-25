@@ -304,3 +304,7 @@ A two-extension Firefox Developer Edition fixture deliberately delays the first 
 ## 🦊 Authenticated monotonic rule-duration regression
 
 A disposable two-extension Firefox Developer Edition test installs synthetic `finished` rules: a high-priority rule requiring at least 250 ms of observed busy activity, and an untimed fallback. A terminal event without prior fresh busy evidence must choose the fallback. A fresh same-document, same-epoch generating event followed by over 250 ms and a fresh finish may choose the timed rule. Repeating that finish cannot create a second proposal. A restored finish invalidates the busy clock; the next fresh finish in the same epoch must use the untimed fallback. All actions remain explicit review offers with zero Send clicks. This test is not proof of the real Chat Signals publisher.
+
+## 🦊 Durable prerequisite failure and exact retry
+
+A disposable Firefox Developer Edition two-extension fixture uses a QA-only one-shot rejection of the actual local queue write while approving a synthetic `propose` prerequisite. The failed write must leave zero queued items and must **not** mark the rule ID approved. A later authenticated finish must still offer the rule that skips only after successful approval, not the dependent rule. After removing the QA rejection and explicitly approving a fresh prerequisite offer, only a successful saved append enables the dependent rule. The independent user Start remains absent throughout, and there are zero Send clicks. This is synthetic publisher evidence, not real ChatGPT execution.
