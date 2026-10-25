@@ -117,6 +117,22 @@ function prepareQueue(dir,source){
     // invalidation arrives before a previously initiated read settles.
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
+    // Deterministic threshold-boundary regression: force the first timer
+    // evaluation one millisecond short, then make the scheduling clock read
+    // exactly equal to the rule minimum. Old strict-greater-than logic
+    // dropped the timer forever in this case; the next tick must recover.
+    .replace("  function ruleDuration(signal){",
+      "  function ruleDuration(signal){"+
+      "if(routeKey()==='/c/active-generation-deadline'&&"+
+      "document.documentElement.dataset.qaForceTimerRounding==='return-equality'){"+
+      "document.documentElement.dataset.qaForceTimerRounding='done';return 1200;}")
+    .replace("    const duration=ruleDuration(signal);\\n    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,",
+      "    let duration=ruleDuration(signal);"+
+      "if(routeKey()==='/c/active-generation-deadline'&&"+
+      "document.documentElement.dataset.qaForceTimerRounding==='armed'&&"+
+      "document.documentElement.dataset.qaActiveDeadlineFired==='yes'){"+
+      "duration=1199;document.documentElement.dataset.qaForceTimerRounding='return-equality';}\\n"+
+      "    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,")
     // QA-only instrumentation: prove the actual duration timer was armed
     // and distinguish a throttled timer from a lost policy/Signal event.
     .replace("    activeRuleDeadlineTimer=setTimeout(()=>{",
@@ -1175,6 +1191,7 @@ async function main(){
       " !!document.documentElement.dataset.qaActiveDeadlineArmed"),6500,
       'Authenticated generation must arm the bounded local review timer');
     await driver.sleep(340);
+    await driver.executeScript("document.documentElement.dataset.qaForceTimerRounding='armed'");
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'An observed generating epoch alone cannot satisfy a bounded duration threshold');
     try {
@@ -1198,6 +1215,9 @@ async function main(){
       throw new Error('Active generation timer diagnostic: '+
         JSON.stringify(diagnostic)+'; '+error.message);
     }
+    assert.equal(await driver.executeScript(
+      "return document.documentElement.dataset.qaForceTimerRounding"),'done',
+      'Timer equality boundary must receive a fresh evaluation');
     assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
       /bounded-generating-review/);
     assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
