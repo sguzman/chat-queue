@@ -63,9 +63,15 @@
     // the separate rules capability has been revoked. Revalidate the current
     // durable ACL at publication time, including in-flight write completions.
     const revisionAtRead=grantRevision;
-    void api.storage.local.get(grants.KEY).then(config=>{
+    void api.storage.local.get(grants.KEY).then(async config=>{
       if(revisionAtRead!==grantRevision||
          !grants.has(config[grants.KEY],id,'rules'))return;
+      // The first grant snapshot may resolve after a silent durable revoke,
+      // before Firefox delivers storage.onChanged. Verify current storage.
+      const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
+      if(revisionAtRead!==grantRevision||
+         !grants.has(current,id,'rules')||
+         !grants.has(current,id,'discover'))return;
       // Only fixed-schema metadata; no rule IDs, prompt text or event keys.
       for(const [port,owner] of PORTS){
         if(owner!==id)continue;
