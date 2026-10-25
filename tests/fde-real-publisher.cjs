@@ -56,19 +56,6 @@ function stageProvider(dir,root){
     String.raw`!/^http:\/\/127\.0\.0\.1:\d+\//.test(sender.url||sender.tab.url||'')`);
   bg=patch(bg,"url.protocol==='https:'&&url.hostname==='chatgpt.com'?",
     "url.protocol==='http:'&&url.hostname==='127.0.0.1'?");
-  // Seed a synthetic historical response in the real provider's own local
-  // ledger during registration. QA-only: not part of the source extension.
-  const historicalKey=require(path.join(root,'src/color.js')).hash('chat:restored-history-123');
-  const oldStored="    const stored=(await getStateLedger())[String(tabId)];";
-  const seeded="    if(key==="+JSON.stringify(historicalKey)+"){\n"+
-    "      const ledger=await getStateLedger();\n"+
-    "      if(!ledger[String(tabId)]){\n"+
-    "        ledger[String(tabId)]={key,at:Date.now(),"+
-      "state:{phase:'finished',read:'viewed',epoch:4}};\n"+
-    "        await putStateLedger(ledger);\n"+
-    "      }\n"+
-    "    }\n"+oldStored;
-  bg=patch(bg,oldStored,seeded);
   fs.writeFileSync(bp,bg);
   // QA-only browser-visible metadata; never included in the real provider.
   const qaContentPath=path.join(dir,'src/content.js');
@@ -151,6 +138,19 @@ async function main(){
       'A missed initial provider event must recover through a one-shot sync, not Send');
     stage='restored-terminal-does-not-authorize-send';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/restored-history-123');
+    await ready();
+    // A genuine prior response populates the provider's own persisted state
+    // ledger; a reload of the SAME tab must restore its historical terminal
+    // epoch. No patched persistence code, synthetic records or fake events.
+    await driver.executeScript(
+      "document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='finished'"),10000);
+    await driver.sleep(500);
+    await driver.navigate().refresh();
     try{await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.chatSignalsState==='finished'"),12000);}
     catch(error){
