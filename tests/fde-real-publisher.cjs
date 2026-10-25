@@ -24,8 +24,14 @@ function stageQueue(dir,root){
   fs.cpSync(path.join(root,'src'),path.join(dir,'src'),{recursive:true});
   fs.cpSync(path.join(root,'options'),path.join(dir,'options'),{recursive:true});
   const cp=path.join(dir,'src/content.js');
-  fs.writeFileSync(cp,patch(fs.readFileSync(cp,'utf8'),
-    "attachShadow({mode:'closed'})","attachShadow({mode:'open'})"));
+  let qaQueueContent=patch(fs.readFileSync(cp,'utf8'),
+    "attachShadow({mode:'closed'})","attachShadow({mode:'open'})");
+  // QA-only: distinguish optimistic HUD count from completed storage write.
+  qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
+    "    void write.then(()=>{"+
+    "document.documentElement.dataset.qaSavedRoute=key;"+
+    "document.documentElement.dataset.qaSavedItems=String(data.items.length);");
+  fs.writeFileSync(cp,qaQueueContent);
   const bp=path.join(dir,'src/background.js');
   let bg=patch(fs.readFileSync(bp,'utf8'),origin,localOrigin);
   bg=patch(bg,"!change.url.startsWith('https://chatgpt.com/')",
@@ -318,7 +324,9 @@ async function main(){
     await driver.executeScript(`const d=${hud('draft')};d.value='Pending in previous synthetic chat';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('count')}.textContent==='1 queued'`),9000);
+      `return ${hud('count')}.textContent==='1 queued' &&
+        document.documentElement.dataset.qaSavedRoute.endsWith('/c/provider-test-123') &&
+        document.documentElement.dataset.qaSavedItems==='1'`),9000);
     const projectRoute='/g/g-p-synthetic123/c/project-chat-123';
     const priorSendClicks=await driver.executeScript('return window.__sendCount');
     // Model a React/History API route transition inside the SAME document.
@@ -348,7 +356,9 @@ async function main(){
     await driver.executeScript(`const d=${hud('draft')};d.value='Single scoped project prompt';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('count')}.textContent==='1 queued'`),9000);
+      `return ${hud('count')}.textContent==='1 queued' &&
+        document.documentElement.dataset.qaSavedRoute.endsWith('/c/project-chat-123') &&
+        document.documentElement.dataset.qaSavedItems==='1'`),9000);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       'return window.__sendCount===arguments[0]',priorSendClicks+1),12000);
