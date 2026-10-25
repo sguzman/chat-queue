@@ -1655,6 +1655,25 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Response finished; control returned')`),9000);
     assert.equal((await historicalStatus())[0]?.startsWith('submitted: Synthetic previous abandoned submission'),true,
       'A terminal for an unjournaled new response must not finish older history');
+    // Even an attributable finished epoch cannot retroactively make the
+    // rejected accepted-history write durable. Another tab must remain
+    // blocked until the user explicitly resolves the uncertain item.
+    const finishedUncertainOwnerWindow=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      `const d=${hud('draft')};d.value='Synthetic competitor after uncertain completion';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,563,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Attributable completion cannot free a rejected-history uncertain Send');
+    await driver.switchTo().window(finishedUncertainOwnerWindow);
     await driver.executeScript(
       "document.documentElement.dataset.qaRejectAcceptedWrite='no'");
     // Signal completion repaints the shadow rows. Resolve against the
