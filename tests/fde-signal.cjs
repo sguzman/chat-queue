@@ -1053,6 +1053,29 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
+    // A provider that resumes busy AFTER the first terminal using the SAME
+    // response epoch must never manufacture fresh elapsed-time authority.
+    // Previously this re-entry reset the clock, allowing a later same-epoch
+    // terminal to satisfy minDurationMs despite the response already ending.
+    await emit('generating',1,493,'observed','fresh','/c/rule-duration-freeze');
+    await driver.sleep(3250);
+    await emit('finished',1,494,'observed','fresh','/c/rule-duration-freeze');
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Reopened busy in an already terminal epoch cannot create timed action');
+    assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0',
+      'Closed-epoch busy re-entry must not offer a review outcome');
+    // A genuinely NEW response epoch may still establish its own interval.
+    await emit('generating',2,495,'observed','fresh','/c/rule-duration-freeze');
+    await driver.sleep(3250);
+    await emit('finished',2,496,'observed','fresh','/c/rule-duration-freeze');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /duration-frozen/,
+      'Next response epoch may independently qualify by elapsed duration');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
