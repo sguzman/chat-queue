@@ -38,7 +38,7 @@ function stageQueue(dir,root){
   // TEST-ONLY fixture seed. Production Queue still obtains all external
   // control grants from its explicit, durable user Options permission policy.
   bg=patch(bg,"  const grants = globalThis.ChatQueueGrants;",
-    "  const grants = globalThis.ChatQueueGrants;\\n"+
+    "  const grants = globalThis.ChatQueueGrants;\n"+
     "  void api.storage.local.set({[grants.KEY]:{version:2,grants:{"+
     JSON.stringify(cid)+":['control']}}});");
   fs.writeFileSync(bp,bg);
