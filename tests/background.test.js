@@ -9,6 +9,7 @@ const rules=fs.readFileSync(require.resolve('../src/rules.js'),'utf8');
 function create() {
   const listeners={};
   const forwards=[];
+  const syncRequests=[];
   const liveUrls=new Map();
   const state={'chatqueue:api-grants:v2':{version:2,grants:{
     'approved@example.test':['discover','read','append','edit','control'],
@@ -16,7 +17,8 @@ function create() {
     'poster@example.test':['append'],
     'sandbox@example.test':['rules']}}};
   const browser={
-    runtime:{onMessage:{addListener:fn=>listeners.internal=(message,sender)=>{
+    runtime:{sendMessage:(recipient,message)=>{syncRequests.push({recipient,message});return Promise.resolve({queued:true});},
+      onMessage:{addListener:fn=>listeners.internal=(message,sender)=>{
       if(sender?.tab&&!liveUrls.has(sender.tab.id))liveUrls.set(sender.tab.id,sender.tab.url);
       return fn(message,sender);
     }},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
@@ -34,7 +36,7 @@ function create() {
   vm.runInContext(grants,context);
   vm.runInContext(rules,context);
   vm.runInContext(src,context);
-  return {listeners,forwards,state,context};
+  return {listeners,forwards,syncRequests,state,context};
 }
 test('cross-extension API is denied by default unless allowlisted',async()=>{
   const {listeners}=create();
@@ -570,4 +572,27 @@ test('different assigned route shapes sharing an ID cannot simultaneously own Se
     phase:'finished',size:1,running:false,awaiting:false,sequence:2},senders[0]);
   assert.equal((await check(1)).ok,true);
   assert.equal((await check(0)).error,'conversation-owned-by-another-tab');
+});
+
+test('Queue requests exactly one browser-principal Signal resample for assigned registration',async()=>{
+  const {listeners,syncRequests}=create();
+  const sender={tab:{id:351,url:'https://chatgpt.com/c/synthetic-one'},
+    url:'https://chatgpt.com/c/synthetic-one'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/synthetic-one'},sender)).ok,true);
+  assert.equal(syncRequests.length,1);
+  assert.equal(syncRequests[0].recipient,'chat-signals@sguzman.github');
+  assert.deepEqual(JSON.parse(JSON.stringify(syncRequests[0].message)),{
+    type:'chat-queue-signal-sync/v1',tabId:351,route:'/c/synthetic-one'
+  });
+  const home={tab:{id:352,url:'https://chatgpt.com/'},url:'https://chatgpt.com/'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/'},home)).ok,true);
+  assert.equal(syncRequests.length,1,
+    'home/unassigned routes are not permitted a provider resample');
+  const wrong={tab:{id:353,url:'https://chatgpt.com/c/other'},
+    url:'https://chatgpt.com/c/other'};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/not-live'},wrong)).ok,false);
+  assert.equal(syncRequests.length,1,'route-mismatched registration never syncs');
 });

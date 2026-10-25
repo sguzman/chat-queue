@@ -109,7 +109,8 @@
         // No privilege or Send authority is accepted from this request:
         // actual provider events still arrive through onMessageExternal and
         // pass sender.id, route, sequence and tab checks.
-        if(typeof api.runtime.sendMessage==='function'){
+        if(signalContract.assignedConversationRoute(message.route)&&
+           typeof api.runtime.sendMessage==='function'){
           try{
             const response=api.runtime.sendMessage(signalContract.PROVIDER_ID,{
               type:'chat-queue-signal-sync/v1',tabId:tab.id,route:message.route});
