@@ -1076,12 +1076,13 @@
                   "id": "M7-05",
                   "emoji": "🧭",
                   "title": "Test navigation, restarts, 16-tab workloads and hidden tabs",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Disposable Firefox Developer Edition verifies 16 distinct conversation-route tabs, isolated queues, hidden-tab retention, shared theme and no Send: https://github.com/sguzman/chat-queue/actions/runs/40046956628. Authenticated live workload acceptance remains open.",
                     "Actual Firefox Developer Edition event-page suspension/restart retained the paused queue, invalidated old Signal authority, and refused Send: https://github.com/sguzman/chat-queue/actions/runs/40058326692.",
                     "Actual Firefox Developer Edition complete process shutdown and relaunch with the same disposable profile retained a paused queue. A new tab required explicit previous-tab recovery; copied messages became uncertain, survived reload, left their source unchanged and never sent: https://github.com/sguzman/chat-queue/actions/runs/40129991817. Authenticated ChatGPT restart, unexpected process crash and prolonged real-site idle acceptance remain open.",
-                    "Disposable Firefox initial registration race recovery: background rejects stale old-route registration after pushState; content retries current route within a bounded attempt count, mounts a paused HUD and never Sends. https://github.com/sguzman/chat-queue/actions/runs/40148637766. Real authenticated route-change acceptance still pending."
+                    "Disposable Firefox initial registration race recovery: background rejects stale old-route registration after pushState; content retries current route within a bounded attempt count, mounts a paused HUD and never Sends. https://github.com/sguzman/chat-queue/actions/runs/40148637766. Real authenticated route-change acceptance still pending.",
+                    "Native disposable Firefox Developer Edition verifies 16 distinct conversation tabs, isolated durable queues, no automatic Send and hidden-tab retention (full CI https://github.com/sguzman/chat-queue/actions/runs/40046956628). Real browser event-page suspension/restart revoked Signal authority and retained paused queued items (https://github.com/sguzman/chat-queue/actions/runs/40058326692). Complete browser shutdown/relaunch with the same disposable profile retained queue data; explicit previous-tab recovery downgraded uncertain attempted messages without replay (https://github.com/sguzman/chat-queue/actions/runs/40129991817). Delayed History API navigation during registration recovered only the current route (https://github.com/sguzman/chat-queue/actions/runs/40148637766). The actual independently installed pinned Chat Signals publisher plus Chat Queue passed 16 concurrently mounted browser tabs, hidden-tab retention, project-route SPA isolation and no unattended Send in full CI https://github.com/sguzman/chat-queue/actions/runs/40204342766. This accepts disposable native Firefox navigation/load/restart QA, NOT authenticated production ChatGPT compatibility (separate M7-04)."
                   ]
                 },
                 {
@@ -1145,9 +1146,10 @@
                   "id": "M7-11",
                   "emoji": "🪪",
                   "title": "Establish Mozilla unlisted signing path without profile changes",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "scripts/release-gate.mjs refuses any release before all 96 tasks have nonempty verified evidence; tests exercise both denial and synthetic all-complete fixture. scripts/sign-unlisted.mjs stages fixed production files, uses pinned web-ext@10.8.0, unlisted channel, official AMO API v5 and environment-isolated credentials with no browser-profile changes. Fake local npm tests verify subprocess order/no-network and credential isolation. https://github.com/sguzman/chat-queue/actions/runs/40054407230 (static-and-unit success, 75 tests). Mozilla signing, signed XPI QA and deployment deliberately not attempted."
+                    "scripts/release-gate.mjs refuses any release before all 96 tasks have nonempty verified evidence; tests exercise both denial and synthetic all-complete fixture. scripts/sign-unlisted.mjs stages fixed production files, uses pinned web-ext@10.8.0, unlisted channel, official AMO API v5 and environment-isolated credentials with no browser-profile changes. Fake local npm tests verify subprocess order/no-network and credential isolation. https://github.com/sguzman/chat-queue/actions/runs/40054407230 (static-and-unit success, 75 tests). Mozilla signing, signed XPI QA and deployment deliberately not attempted.",
+                    "Opt-in unlisted Mozilla signing path established and guarded by reproducible scripts/release-gate.mjs and scripts/sign-unlisted.mjs: all 96 tasks must have verified evidence before any credential/tool staging; early exit neither uses AMO credentials nor changes Firefox profiles. Fake local npm tests cover credential isolation, unlisted channel/AMO v5 destination, fixed source staging, pinned web-ext@10.8.0 and denial order. Complete static and browser CI https://github.com/sguzman/chat-queue/actions/runs/40054407230 and https://github.com/sguzman/chat-queue/actions/runs/40204684779. This verifies the signing PATH only: no Mozilla credentials, real AMO submission, signed XPI, profile installation, SemVer tag or public release; independent M7-12 release remains blocked."
                   ]
                 },
                 {
