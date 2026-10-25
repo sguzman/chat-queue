@@ -853,6 +853,26 @@
       render();
     }
   }
+  // A rejected terminal/history status write cannot turn an unsaved
+  // 'finished' or 'interrupted' label into apparent durable evidence.
+  // Compare exact route generation and revision before restoring, so a
+  // delayed rejection cannot undo a newer route or genuine user edit.
+  function persistResponseHistoryStatus(nextStatus) {
+    const entry=state.history[0];
+    if(!entry||!['submitted','interrupted'].includes(entry.status))return;
+    const previous=entry.status,key=state.key,generation=routeGeneration,
+      revision=state.revision,id=entry.id;
+    entry.status=nextStatus;
+    void save().catch(()=>{
+      if(state.key===key&&routeGeneration===generation&&
+         state.revision===revision+1&&state.history[0]?.id===id&&
+         state.history[0].status===nextStatus){
+        state.history[0].status=previous;
+        state.revision++;state.etag=uid();
+        render();publish();
+      }
+    });
+  }
   // Close a confirmed submission's response wait without putting its
   // already-clicked text back into the retry queue. A new local Start must
   // separately authorize the *next* pending item after cancellation.
@@ -862,10 +882,8 @@
     state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
     // A failed accepted-history write left NO current history entry. Do not
     // accidentally mark an older unrelated submitted response interrupted.
-    if(!uncertainHistory&&state.history[0]?.status==='submitted'){
-      state.history[0].status=status;
-      void save().catch(()=>{});
-    }
+    if(!uncertainHistory&&state.history[0]?.status==='submitted')
+      persistResponseHistoryStatus(status);
   }
   function processSignal() {
     if (state.key && state.key!==storageKey()) {void handleRouteChange();return;}
@@ -890,9 +908,8 @@
       state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
       // Only a durably journaled current response can close a history row.
       // The first row may belong to an older, abandoned submission.
-      if(!uncertainHistory&&(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted')) {
-        state.history[0].status='finished';void save();
-      }
+      if(!uncertainHistory)
+        persistResponseHistoryStatus('finished');
       statusNote('Response finished; control returned');
       if(state.running)planNext();
     } else if (state.running && !state.awaiting && !state.attempting &&

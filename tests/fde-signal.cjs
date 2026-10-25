@@ -124,9 +124,10 @@ function prepareQueue(dir,source){
       "activeRuleDeadlineTimer=setTimeout(()=>{"+
       "document.documentElement.dataset.qaActiveDeadlineFired='yes';")
     .replace('api.storage.local.set({[key]:data})',
+      "((routeKey()==='/c/terminal-history-fail'&&document.documentElement.dataset.qaRejectTerminalWrite==='yes'&&data.history.some(h=>h.text==='Synthetic terminal record must rollback'&&h.status==='finished'))?Promise.reject(new Error('qa-rejected-terminal-write')):"+
       "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectResolutionWrite==='yes'&&data.items.length===0)?Promise.reject(new Error('qa-rejected-resolution-write')):"+
       "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.text==='Synthetic accepted write must stay uncertain'&&h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
-      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data})))))")
+      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))))))")
     // Inject an older unfinished history entry to prove a later ambiguous
     // submission cannot falsely finish or interrupt that unrelated message.
     .replace("      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);",
@@ -1575,6 +1576,37 @@ async function main(){
     assert.equal((await historicalStatus()).length,20,
       'Rollback must retain every unrelated history entry after persistence and reload');
     assert.equal((await historicalStatus()).some(s=>s.includes('Synthetic older history 19')),true);
+
+    qaStage='terminal-history-persistence-rolls-back';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/terminal-history-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic terminal record must rollback';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,590,'observed','fresh','/c/terminal-history-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,591,'observed','fresh','/c/terminal-history-fail');
+    await waitNote('Waiting for confirmed response completion');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.historytext')?.textContent.includes('submitted: Synthetic terminal record must rollback')"),9000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectTerminalWrite='yes'");
+    await emit('finished',1,592,'observed','fresh','/c/terminal-history-fail');
+    await waitNote('Could not save queue; paused');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.historytext')?.textContent"),
+      'submitted: Synthetic terminal record must rollback',
+      'Rejected terminal storage write cannot claim a durable finished history');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root')?.shadowRoot?.querySelector('.historytext')?.textContent.includes('submitted: Synthetic terminal record must rollback')"),14000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Reload after unsaved terminal evidence must not replay a queued Send');
 
     qaStage='malformed-nontext-composer-does-not-send';
     await driver.switchTo().newWindow('tab');
