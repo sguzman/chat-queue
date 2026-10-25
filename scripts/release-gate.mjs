@@ -33,8 +33,13 @@ for(const milestone of milestones){
     }
   }
 }
+// Reject substitution of an inconvenient acceptance task with an invented ID.
+// Every milestone has exactly Mx-01 through Mx-12 in the canonical roadmap.
 const ids=new Set(tasks.map(t=>t?.id));
-if(tasks.length!==96||ids.size!==96||ids.has(undefined)||!ids.has('M7-12')||
+const expectedIds=new Set(Array.from({length:8},(_,m)=>
+  Array.from({length:12},(_,n)=>`M${m}-${String(n+1).padStart(2,'0')}`)).flat());
+if(tasks.length!==96||ids.size!==96||
+   [...expectedIds].some(id=>!ids.has(id))||
    !/^\d+\.\d+\.\d+$/.test(manifest.version||'')||
    manifest.browser_specific_settings?.gecko?.id!=='chat-queue@sguzman.github'){
   process.stderr.write('Release blocked: task inventory or manifest identity changed\n');

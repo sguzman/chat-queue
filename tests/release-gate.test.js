@@ -98,3 +98,11 @@ test('implemented tag task with evidence can pass once the 95 other gates pass',
   assert.equal(result.status,0,result.stderr);
   assert.match(result.stdout,/M7-12 is implemented/);
 });
+test('invented task ID cannot silently replace a required acceptance gate',()=>{
+  const result=runGate(({tasks})=>{
+    for(const t of tasks){t.status='verified';t.evidence=['Synthetic fixture only'];}
+    tasks.find(t=>t.id==='M4-06').id='M4-99';
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/task inventory or manifest identity changed/);
+});
