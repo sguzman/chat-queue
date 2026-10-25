@@ -554,6 +554,32 @@ async function main(){
     assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
 
+    qaStage='authenticated-unknown-phase-pauses-ongoing-response';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/unknown-interrupt');
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('draft')})`),12000);
+    for(const [index,text] of ['Synthetic initially sent','Synthetic must stay queued'].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,(index+1)+' queued'),10000);
+    }
+    await emit('idle',0,620,'observed','fresh','/c/unknown-interrupt');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,621,'observed','fresh','/c/unknown-interrupt');
+    await waitNote('Waiting for confirmed response completion');
+    await emit('unknown',1,622,'unknown','fresh','/c/unknown-interrupt');
+    await waitNote('Paused on unknown');
+    await driver.sleep(800);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await emit('finished',1,623,'inferred','fresh','/c/unknown-interrupt');
+    await driver.sleep(800);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Unknown provider state must not resume on later terminal evidence');
+    assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),/Paused/);
+
     qaStage='unknown-confidence-safety';
     // Authenticated but unknown-confidence phase events are not proof of
     // accepted Send or completed response; they can only pause/withhold progress.
