@@ -56,6 +56,19 @@ function stageProvider(dir,root){
     String.raw`!/^http:\/\/127\.0\.0\.1:\d+\//.test(sender.url||sender.tab.url||'')`);
   bg=patch(bg,"url.protocol==='https:'&&url.hostname==='chatgpt.com'?",
     "url.protocol==='http:'&&url.hostname==='127.0.0.1'?");
+  // Seed a synthetic historical response in the real provider's own local
+  // ledger during registration. QA-only: not part of the source extension.
+  const historicalKey=require(path.join(root,'src/color.js')).hash('chat:restored-history-123');
+  const oldStored="    const stored=(await getStateLedger())[String(tabId)];";
+  const seeded="    if(key==="+JSON.stringify(historicalKey)+"){\n"+
+    "      const ledger=await getStateLedger();\n"+
+    "      if(!ledger[String(tabId)]){\n"+
+    "        ledger[String(tabId)]={key,at:Date.now(),"+
+      "state:{phase:'finished',read:'viewed',epoch:4}};\n"+
+    "        await putStateLedger(ledger);\n"+
+    "      }\n"+
+    "    }\n"+oldStored;
+  bg=patch(bg,oldStored,seeded);
   fs.writeFileSync(bp,bg);
 }
 const page=`<!doctype html><html><head><title>Provider Fixture</title></head><body>
