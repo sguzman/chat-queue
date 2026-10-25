@@ -277,7 +277,18 @@
     catch { return {ok:false,error:'invalid-request'}; }
     if(typeof serialized!=='string')return {ok:false,error:'invalid-request'};
     if(exceedsUtf8Bytes(serialized))return {ok:false,error:'request-too-large'};
-    if(message.action==='capabilities')return {ok:true,version:2,protocolVersion:PROTOCOL_VERSION,grantVersion:2,scopes:authorized};
+    if(message.action==='capabilities'){
+      // The first ACL snapshot may be stale before storage.onChanged fires.
+      // Never disclose a formerly granted scope after durable revocation.
+      if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+      let current;
+      try{current=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+      catch{return {ok:false,error:'authorization-changed'};}
+      if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+      const live=grants.scopes(current,requester);
+      if(!live.length)return {ok:false,error:'authorization-changed'};
+      return {ok:true,version:2,protocolVersion:PROTOCOL_VERSION,grantVersion:2,scopes:live};
+    }
     if(!Object.hasOwn(grants.ACTION_SCOPE,message.action))return {ok:false,error:'invalid-request'};
     if(!authorized.includes(grants.ACTION_SCOPE[message.action]))
       return {ok:false,error:'forbidden-scope'};
@@ -346,6 +357,12 @@
       return {...response,audit:rulesEngine.auditPreview(response,p.signal)};
     }
     if (message.action === 'listTabs') {
+      if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+      let current;
+      try{current=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+      catch{return {ok:false,error:'authorization-changed'};}
+      if(grantRevision!==authorizedAt||!grants.has(current,requester,'discover'))
+        return {ok:false,error:'authorization-changed'};
       return { ok: true, tabs: Array.from(TABS, ([tabId, status]) => ({ tabId, ...status })) };
     }
     if (!Number.isInteger(message.tabId) || message.tabId < 0) {
