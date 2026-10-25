@@ -124,7 +124,17 @@ async function main(){
         !${hud('status')}.textContent.includes('(unverified)')`),15000);
     stage='provider-published-before-queue-registration';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/sync-late');
-    await ready();
+    try{await ready();}
+    catch(error){
+      const diagnosis=await driver.executeScript(() => ({
+        providerPhase:document.documentElement.dataset.chatSignalsState||null,
+        providerReason:document.documentElement.dataset.chatSignalsReason||null,
+        queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
+        queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent?.slice(0,180)||null
+      }));
+      throw new Error('One-shot sync unverified: '+JSON.stringify(diagnosis)+'; '+error.message);
+    }
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'A missed initial provider event must recover through a one-shot sync, not Send');
     stage='restored-terminal-does-not-authorize-send';
