@@ -268,6 +268,11 @@
       try{
         const record=(await api.storage.local.get(ruleKey(requester)))[ruleKey(requester)];
         if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+        // The change event may lag the persisted grant revocation. Do not
+        // disclose private caller-owned rule text from a stale in-flight read.
+        const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
+        if(grantRevision!==authorizedAt||!grants.has(current,requester,'rules'))
+          return {ok:false,error:'authorization-changed'};
         return decodePeerRules(record);
       }catch{return {ok:false,error:'rule-storage-unavailable'};}
     }
