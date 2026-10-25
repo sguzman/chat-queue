@@ -106,7 +106,11 @@
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
       return currentRoute(sender).then(live=>{
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
-        releaseOwner(tab.id);
+        // A same-route re-registration must not clear an unresolved Send
+        // lease. Rebinding invalidates the old provider epoch, but another
+        // tab must not acquire this conversation during the handoff. Only
+        // leaving the route (or an explicit clear state) releases ownership.
+        if(ROUTES.get(tab.id)!==message.route)releaseOwner(tab.id);
         ROUTES.set(tab.id,message.route);
         STATE_SEQUENCES.set(tab.id,0);
         REGISTRATIONS.set(tab.id,++nextRegistration);
