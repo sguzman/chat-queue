@@ -46,11 +46,16 @@ async function main(){
     const defaultHeartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
     assert.equal(content.split(defaultHeartbeat).length,2);
     content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
+    // QA-only delayed initial storage tests SPA route changes before HUD mount.
+    const bootstrapLoad="api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY])";
+    assert.equal(content.split(bootstrapLoad).length,2);
+    content=content.replace(bootstrapLoad,
+      "(state.key.endsWith('/c/bootstrap-old') ? (document.documentElement.dataset.qaBootstrapLoadPending='yes', new Promise(resolve=>setTimeout(resolve,1700)).then(()=>api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY]))) : api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY]))");
     // QA-only slow async read reproduces A -> B -> A while B is still loading.
     const navigationLoad='api.storage.local.get(newKey)';
     assert.equal(content.split(navigationLoad).length,2);
     content=content.replace(navigationLoad,
-      "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : newKey.endsWith('/c/load-fail') ? Promise.reject(new Error('qa-read-failure')) : api.storage.local.get(newKey))");
+      "(newKey.endsWith('/c/route-delay') ? new Promise(resolve=>setTimeout(resolve,5000)).then(()=>api.storage.local.get(newKey)) : newKey.endsWith('/c/bootstrap-new') ? new Promise(resolve=>setTimeout(resolve,2500)).then(()=>api.storage.local.get(newKey)) : newKey.endsWith('/c/load-fail') ? Promise.reject(new Error('qa-read-failure')) : api.storage.local.get(newKey))");
     // Test-only source tampering between Find and Confirm; the installed
     // production script contains only the read/revalidation guard.
     const recoveryRead='latest=await api.storage.local.get(draft.sourceKey);';
@@ -66,6 +71,15 @@ async function main(){
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
+          if(msg.route==='/c/bootstrap-old'){
+            const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
+            return browser.storage.local.get(key).then(saved=>{
+              if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
+              return browser.storage.local.set({[key]:{version:1,items:[
+                {id:'bootstrap-old-item',text:'Private old bootstrap prompt',status:'pending'}]}})
+                .then(()=>({ok:true,tabId:sender.tab.id}));
+            });
+          }
           if(msg.route==='/c/recovery-record'||msg.route==='/c/recovery-mutate'||msg.route==='/c/recovery-save-fail'){
             const oldKey='chatqueue:v1:tab:987654321:'+msg.route;
             return browser.storage.local.get(oldKey).then(saved=>{
@@ -974,6 +988,36 @@ async function main(){
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='initial-load-route-privacy';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/bootstrap-old');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaBootstrapLoadPending==='yes'"),7000);
+    await driver.executeScript("history.pushState({},'', '/c/bootstrap-new')");
+    await driver.sleep(2000);
+    const bootstrapProbe=await driver.executeScript(() => {
+      const host=document.querySelector('#chat-queue-extension-root');
+      return {mounted:Boolean(host),privateRowPresent:Boolean(
+        host?.shadowRoot?.textContent.includes('Private old bootstrap prompt')),
+        hidden:host?getComputedStyle(host).visibility==='hidden':null};
+    });
+    assert.equal(bootstrapProbe.mounted,true,'Old read finishes before the new route read');
+    assert.equal(bootstrapProbe.privateRowPresent,false,
+      'A previous conversation must never enter the new route HUD DOM');
+    assert.equal(bootstrapProbe.hidden,true,
+      'The new route must remain hidden until its own storage is loaded');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}?.textContent==='0 queued' &&
+        getComputedStyle(document.getElementById('chat-queue-extension-root')).visibility==='visible'`),8500);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript("history.pushState({},'', '/c/bootstrap-old')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}?.textContent==='1 queued'`),8000);
+    assert.deepEqual(await driver.executeScript(() =>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')]
+        .map(x=>x.textContent)),['Private old bootstrap prompt'],
+      'Original route retains its saved queue after return');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
     qaStage='inflight-add-draft-preservation';
