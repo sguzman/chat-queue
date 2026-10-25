@@ -1406,7 +1406,10 @@ async function main(){
     qaStage='untrusted-browser-lifecycle-events';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/pagehide-spoof');
     await driver.wait(async()=>await driver.executeScript(
-      `return Boolean(${jsEl('draft')})`),10000);
+      `return Boolean(${jsEl('draft')}) && window.__sendCount===0`),10000);
+    // Temporary Firefox add-on content scripts can mount the HUD before the
+    // localhost test page's inline counter is ready. This guard avoids
+    // interpreting an uninitialized QA variable as a failed no-Send check.
     // A hostile page must not deactivate Queue by forging lifecycle events.
     await driver.executeScript(() => {
       window.dispatchEvent(new Event('pagehide'));
