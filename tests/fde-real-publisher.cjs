@@ -786,9 +786,11 @@ async function main(){
     // already-clicked item in submitted history. A new provider registration
     // may report idle, but it must not reactivate the second queued Send.
     await driver.navigate().refresh();
-    await ready();
+    // A generating response can restore as historical/uncertain, not fresh
+    // idle. Only require the HUD and durable pending queue to reappear;
+    // no provider phase can reinstate the previous volatile Start grant.
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('count')}?.textContent==='1 queued'`),13000);
+      `return Boolean(${hud('status')}) && ${hud('count')}?.textContent==='1 queued'`),13000);
     assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.sleep(900);
