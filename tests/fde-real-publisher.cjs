@@ -763,6 +763,37 @@ async function main(){
       assert.equal(await driver.executeScript('return window.__sendCount'),0,
         phase+' must remain paused and not retry on reload');
     }
+    stage='real-provider-inflight-reload-does-not-resume';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/inflight-reload-123');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic first response interrupted by page reload',
+      'Synthetic next prompt must not start automatically'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,
+        (index+1)+' queued'),9000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),12000);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    // A real page reload discards the volatile run grant while retaining the
+    // already-clicked item in submitted history. A new provider registration
+    // may report idle, but it must not reactivate the second queued Send.
+    await driver.navigate().refresh();
+    await ready();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),13000);
+    assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.sleep(900);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Reload during an attributable response cannot auto-send the remaining prompt');
     stage='real-provider-sixteen-tabs-hidden-retention';
     const sixteenStartTab=await driver.getWindowHandle();
     const loadTabs=[];
