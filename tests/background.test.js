@@ -349,6 +349,39 @@ test('revoking discover while a port authorization read is pending fails closed'
   assert.equal(posts,0);
 });
 
+test('silent durable Discover revocation denies delayed event-port ready metadata',async()=>{
+  const {listeners,state,context}=create();
+  const url='https://chatgpt.com/c/private-port';
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/private-port'},
+    {tab:{id:88,url},url})).ok,true);
+  const original=context.browser.storage.local.get;
+  const oldPolicy=state['chatqueue:api-grants:v2'];
+  let resume;let reads=0;
+  context.browser.storage.local.get=key=>{
+    if(key==='chatqueue:api-grants:v2'&&++reads===1)
+      return new Promise(resolve=>{resume=()=>resolve({'chatqueue:api-grants:v2':oldPolicy});});
+    return original(key);
+  };
+  const seen=[];let disconnected=0;
+  const port={name:'chat-queue/v1',sender:{id:'observer@example.test'},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:message=>seen.push(message),
+    disconnect:()=>disconnected++};
+  listeners.connect(port);
+  assert.equal(typeof resume,'function');
+  // The first read's result was valid at its own snapshot, but the policy
+  // changed durably before its promise resolved. No onChanged event fired.
+  state['chatqueue:api-grants:v2']={version:2,grants:{
+    'approved@example.test':['discover']}};
+  resume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,2);
+  assert.equal(disconnected,1);
+  assert.deepEqual(seen,[],
+    'a revoked peer cannot see even registered tab metadata via ready');
+});
+
 test('one exact conversation route has at most one live dispatch owner',async()=>{
   const {listeners}=create();
   const senders=[17,18].map(id=>({tab:{id,url:'https://chatgpt.com/c/shared'},url:'https://chatgpt.com/c/shared'}));
