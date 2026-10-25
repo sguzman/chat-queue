@@ -1673,6 +1673,53 @@ async function main(){
       'Rollback must retain every unrelated history entry after persistence and reload');
     assert.equal((await historicalStatus()).some(s=>s.includes('Synthetic older history 19')),true);
 
+    qaStage='unknown-provider-after-uncertain-accepted-history-write';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectAcceptedWrite='yes';"+
+      "const d=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');"+
+      "d.value='Synthetic accepted write must stay uncertain';");
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,620,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,621,'observed','fresh','/c/accepted-journal-fail');
+    await waitNote('Submission record could not be saved; review uncertain message');
+    await emit('unknown',1,622,'unknown','fresh','/c/accepted-journal-fail');
+    await waitNote('Paused on unknown');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    const lostProviderOwner=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "const d=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');"+
+      "d.value='Synthetic competitor while provider status unknown';");
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,623,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Unknown provider cannot free the previous uncertain Send lease');
+    await driver.switchTo().window(lostProviderOwner);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectAcceptedWrite='no';"+
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector("+
+      "'.item.uncertain button[aria-label=\\\"Discard uncertain submission after review\\\"]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='0 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Explicit resolution does not replay a possibly accepted Send');
+
     qaStage='terminal-history-persistence-rolls-back';
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/terminal-history-fail');
