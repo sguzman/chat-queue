@@ -673,7 +673,8 @@
                   "evidence": [
                     "Durable uncertain marker is saved before send click: src/content.js; crash and authenticated browser acceptance pending.",
                     "A native Firefox synthetic dispatch opens an editor before authority loss, then verifies uncertain status closes the editor, preserves the original payload and disallows ordinary edits: Actions 40143672392. Real ChatGPT and publisher acceptance remain open.",
-                    "Native Firefox synthetic provider fault injection rejects the accepted-history write AFTER one Send click. The attempt remains uncertain and manually resolvable, a competing tab cannot Send during its response lease, and a later terminal cannot relabel an unrelated earlier submitted history item. Full green CI: https://github.com/sguzman/chat-queue/actions/runs/40223661321. Real account/network crash acceptance remains pending."
+                    "Native Firefox synthetic provider fault injection rejects the accepted-history write AFTER one Send click. The attempt remains uncertain and manually resolvable, a competing tab cannot Send during its response lease, and a later terminal cannot relabel an unrelated earlier submitted history item. Full green CI: https://github.com/sguzman/chat-queue/actions/runs/40223661321. Real account/network crash acceptance remains pending.",
+                    "Disposable Firefox Developer Edition with synthetic provider and fault-injected extension local storage: with a full 20-entry history, a real post-Send accepted-history write rejection restores all 20 older entries rather than losing the oldest, keeps the clicked prompt uncertain and never duplicates Send. Tests verify both rollback and post-reload persistence. Both CI jobs passed: https://github.com/sguzman/chat-queue/actions/runs/40225537741. Authenticated site, real network and crash acceptance remain open."
                   ]
                 },
                 {
@@ -1099,7 +1100,8 @@
                   "title": "Test System/Light/Dark HUD, keyboard and accessibility in FDE",
                   "status": "implemented",
                   "evidence": [
-                    "Native Firefox synthetic tests cover System/Light/Dark, keyboard controls, contrast, zoom and reduced motion; real assistive-technology and authenticated-site acceptance remain pending."
+                    "Native Firefox synthetic tests cover System/Light/Dark, keyboard controls, contrast, zoom and reduced motion; real assistive-technology and authenticated-site acceptance remain pending.",
+                    "Native Firefox keyboard-only reorder now preserves DOM focus on the exact moved queue item after its controls are rebuilt, automatically selecting its opposite enabled arrow at the list edge rather than dropping keyboard focus. Tested alongside System/Light/Dark, pointer reorder, private HUD, restart and real pinned Chat Signals integration; both jobs passed: https://github.com/sguzman/chat-queue/actions/runs/40225986129. Screen-reader and authenticated-site acceptance remain open."
                   ]
                 }
               ]

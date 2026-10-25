@@ -400,3 +400,11 @@ In [full Firefox run 40201495776](https://github.com/sguzman/chat-queue/actions/
 ## 🔄 Untrusted lifecycle events and back-navigation
 
 [Full native Firefox CI 40223661321](https://github.com/sguzman/chat-queue/actions/runs/40223661321) dispatches fake page-origin `pagehide`/`pageshow` events and confirms they cannot tear down the Queue HUD. Real browser back-navigation restores a usable local queue, permits a new local Add, and performs zero automatic Send clicks. Production code additionally reloads a genuinely restored, previously torn-down back-forward-cache document rather than reviving stale execution authority. The test does **not** assert that Firefox necessarily chose bfcache instead of a normal reload on that particular run. Authenticated ChatGPT navigation remains a separate release gate.
+
+## 🧾 Full 20-entry history rollback after a rejected Send record
+
+[Complete Firefox CI 40225537741](https://github.com/sguzman/chat-queue/actions/runs/40225537741) creates a 20-entry synthetic queue history and rejects the first post-Send accepted-history write after exactly one synthetic Send click. The previously journaled prompt remains uncertain, the owner lease stays fail-closed, and **all 20 original history entries** are preserved in the HUD and after reload. The test checks the oldest entry specifically: the rejected bounded prepend is undone from a full snapshot, not by merely removing the failed row from an already-truncated array. This is disposable-browser storage acceptance, **not** live ChatGPT or real crash/network acceptance.
+
+## ⌨️ Keyboard focus after moving a queue item
+
+[Complete Firefox CI 40225986129](https://github.com/sguzman/chat-queue/actions/runs/40225986129) tests actual `Enter` activation of a queue item's Down control. A move recreates the row buttons; the HUD now restores focus to a usable arrow on the **same item**, falling back to the opposite arrow when the original direction becomes disabled at the list boundary. No focus is stolen from the ChatGPT page or another queue item. Existing pointer reorder, private Shadow DOM, themes, browser restart and real two-addon Chat Signals tests also pass. This is keyboard acceptance in disposable Firefox, **not** a complete screen-reader audit or authenticated ChatGPT HUD review.
