@@ -1186,13 +1186,13 @@ async function main(){
       'Queue had not consumed the new rule-library storage notification');
     await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
     await waitNote('Conditional previews enabled');
+    await driver.executeScript("document.documentElement.dataset.qaForceTimerRounding='armed'");
     await emit('generating',1,210,'observed','fresh','/c/active-generation-deadline');
     await driver.wait(async()=>await driver.executeScript(
       "return Number.isFinite(Number(document.documentElement.dataset.qaActiveDeadlineArmed)) &&"+
       " !!document.documentElement.dataset.qaActiveDeadlineArmed"),6500,
       'Authenticated generation must arm the bounded local review timer');
     await driver.sleep(340);
-    await driver.executeScript("document.documentElement.dataset.qaForceTimerRounding='armed'");
     assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
       'An observed generating epoch alone cannot satisfy a bounded duration threshold');
     try {
