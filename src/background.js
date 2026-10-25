@@ -213,8 +213,17 @@
     if(port.name !== PREFIX || !grants.validId(port.sender?.id)) { port.disconnect();return; }
     const id=port.sender.id;
     const authorizedAt=grantRevision;
-    void api.storage.local.get(grants.KEY).then(config=>{
-      if(authorizedAt!==grantRevision||!grants.has(config[grants.KEY],id,'discover')) {port.disconnect();return;}
+    void api.storage.local.get(grants.KEY).then(async config=>{
+      if(authorizedAt!==grantRevision||!grants.has(config[grants.KEY],id,'discover')){
+        port.disconnect();return;
+      }
+      // A durable revocation can precede its storage.onChanged event. The
+      // initial read may have been queued with an older policy; never reveal
+      // registered-tab metadata to a newly unauthorized port.
+      const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
+      if(authorizedAt!==grantRevision||!grants.has(current,id,'discover')){
+        port.disconnect();return;
+      }
       PORTS.set(port,id);
       port.onDisconnect.addListener(()=>PORTS.delete(port));
       port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,event:'ready',tabs:Array.from(TABS,([tabId,state])=>({tabId,...state}))});
