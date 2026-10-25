@@ -247,6 +247,13 @@
       state.history,state.history.length,state.editing,state.attempting,
       state.importing,state.running,state.awaiting,state.awaitingUncertain,state.blockedRecord];
     if(paintedRows&&paintedRows.every((v,i)=>v===rowsState[i]))return;
+    // Reordering replaces DOM controls. Preserve keyboard focus on the
+    // moved item; if the current direction becomes disabled at the boundary,
+    // focus its other enabled arrow. Never focus an unrelated item.
+    const focusedControl=shadow.activeElement;
+    const focusedMoveLabel=focusedControl?.getAttribute?.('aria-label');
+    const focusedMoveItem=['Move earlier','Move later'].includes(focusedMoveLabel)
+      ? focusedControl.closest('.item')?.dataset.itemId:null;
     const oldRow=state.editing?[...els.items.children].find(row=>
       row.dataset.itemId===state.editing):null;
     const oldEditor=oldRow?.querySelector('textarea');
@@ -379,6 +386,14 @@
         nextEditor.focus({preventScroll:true});
         nextEditor.setSelectionRange(...selection);
       }
+    }else if(focusedMoveItem){
+      const movedRow=[...els.items.children].find(row=>row.dataset.itemId===focusedMoveItem);
+      const buttons=[...(movedRow?.querySelectorAll('.controls button')||[])];
+      const target=buttons.find(button=>!button.disabled&&
+        button.getAttribute('aria-label')===focusedMoveLabel)||
+        buttons.find(button=>!button.disabled&&
+          ['Move earlier','Move later'].includes(button.getAttribute('aria-label')));
+      target?.focus({preventScroll:true});
     }
     paintedRows=rowsState;
   }

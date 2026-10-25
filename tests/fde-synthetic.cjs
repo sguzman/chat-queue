@@ -237,6 +237,15 @@ async function main(){
     await down.sendKeys(Key.ENTER);
     order=await driver.executeScript("return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.preview')].map(x=>x.textContent)");
     assert.deepEqual(order,['Synthetic first message','Synthetic second message']);
+    const focusedAfterKeyboardMove=await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const focused=sh.activeElement;
+      return {item:focused?.closest('.item')?.querySelector('.preview')?.textContent,
+        action:focused?.getAttribute('aria-label'),disabled:focused?.disabled};
+    });
+    assert.deepEqual(focusedAfterKeyboardMove,
+      {item:'Synthetic second message',action:'Move earlier',disabled:false},
+      'Keyboard reorder must retain focus on the moved message at boundaries');
     qaStage='native-pointer-before';
     // Exercise native Firefox pointer drag, not synthetic JS drag/drop.
     await driver.executeScript(`window.__qaDragEvents=[];
