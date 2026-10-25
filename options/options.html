@@ -29,6 +29,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <label for="rule-confidence">Required confidence</label><select id="rule-confidence"><option value="any">Any known confidence</option><option value="observed">Observed</option><option value="inferred">Inferred</option></select>
 <label for="rule-min-duration">Minimum simulated state duration (ms, optional)</label><input id="rule-min-duration" type="number" min="0" max="3600000" step="1" placeholder="No minimum">
 <label for="rule-max-duration">Maximum simulated state duration (ms, optional)</label><input id="rule-max-duration" type="number" min="0" max="3600000" step="1" placeholder="No maximum">
+<label for="rule-approval-deadline">Time to approve after an offer appears (ms, optional; 1000–3600000)</label><input id="rule-approval-deadline" type="number" min="1000" max="3600000" step="1" placeholder="No deadline">
 <label for="rule-depends">Require completed rule IDs (comma-separated, optional)</label><input id="rule-depends" spellcheck="false" placeholder="prior-rule-id" maxlength="560">
 <label for="rule-skip">Skip if completed rule IDs (comma-separated, optional)</label><input id="rule-skip" spellcheck="false" placeholder="already-handled" maxlength="560">
 <label for="rule-action">Then propose</label><select id="rule-action"><option value="propose">Text for manual review</option><option value="pause">Pause (preview only)</option></select>

@@ -32,7 +32,7 @@
     const list=field('rule-list');list.replaceChildren();
     for(const rule of rules){
       const li=document.createElement('li'),label=document.createElement('span');
-      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}${rule.when.minDurationMs===undefined?'':` · from ${rule.when.minDurationMs} ms`}${rule.when.maxDurationMs===undefined?'':` · until ${rule.when.maxDurationMs} ms`}${rule.when.dependsOn?.length?` · needs ${rule.when.dependsOn.join(', ')}`:''}${rule.when.skipIf?.length?` · skip after ${rule.when.skipIf.join(', ')}`:''}`;
+      label.textContent=`${rule.id} · ${rule.enabled?'enabled':'disabled'} · ${rule.when.phase} · priority ${rule.priority} · ${rule.then.type}${rule.when.minDurationMs===undefined?'':` · from ${rule.when.minDurationMs} ms`}${rule.when.maxDurationMs===undefined?'':` · until ${rule.when.maxDurationMs} ms`}${rule.when.approvalDeadlineMs===undefined?'':` · approve within ${rule.when.approvalDeadlineMs} ms`}${rule.when.dependsOn?.length?` · needs ${rule.when.dependsOn.join(', ')}`:''}${rule.when.skipIf?.length?` · skip after ${rule.when.skipIf.join(', ')}`:''}`;
       const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';
       edit.setAttribute('aria-label',`Edit ${rule.id}`);
       edit.addEventListener('click',()=>{
@@ -42,6 +42,7 @@
         field('rule-confidence').value=rule.when.confidence;
         field('rule-min-duration').value=rule.when.minDurationMs??'';
         field('rule-max-duration').value=rule.when.maxDurationMs??'';
+        field('rule-approval-deadline').value=rule.when.approvalDeadlineMs??'';
         field('rule-depends').value=(rule.when.dependsOn||[]).join(', ');
         field('rule-skip').value=(rule.when.skipIf||[]).join(', ');
         field('rule-action').value=rule.then.type;
@@ -96,9 +97,12 @@
     const minInput=field('rule-min-duration').value.trim(),maxInput=field('rule-max-duration').value.trim();
     const min=minInput===''?{}:{minDurationMs:Number(minInput)};
     const max=maxInput===''?{}:{maxDurationMs:Number(maxInput)};
+    const deadlineInput=field('rule-approval-deadline').value.trim();
+    const deadline=deadlineInput===''?{}:{approvalDeadlineMs:Number(deadlineInput)};
     const candidate={version:1,id:field('rule-id').value.trim(),enabled:field('rule-enabled').checked,
       priority:Number(field('rule-priority').value),
-      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value,...min,...max,
+      when:{phase:field('rule-phase').value,confidence:field('rule-confidence').value,
+        ...min,...max,...deadline,
         ...(parseIds('rule-depends')===undefined?{}:{dependsOn:parseIds('rule-depends')}),
         ...(parseIds('rule-skip')===undefined?{}:{skipIf:parseIds('rule-skip')})},
       then:field('rule-action').value==='pause'?{type:'pause'}:

@@ -24,12 +24,14 @@
          item.version!==VERSION||typeof item.id!=='string'||!ID.test(item.id)||
          ids.has(item.id)||typeof item.enabled!=='boolean'||
          !Number.isSafeInteger(item.priority)||item.priority<0||item.priority>1000||
-         !plain(item.when)||!keys(item.when,['phase','confidence','minDurationMs','maxDurationMs','dependsOn','skipIf'])||
+         !plain(item.when)||!keys(item.when,['phase','confidence','minDurationMs','maxDurationMs','approvalDeadlineMs','dependsOn','skipIf'])||
          !PHASES.has(item.when.phase)||!validLinks(item.when.dependsOn)||!validLinks(item.when.skipIf)||
          (item.when.confidence!==undefined&&!CONFIDENCES.has(item.when.confidence))||
          (item.when.minDurationMs!==undefined&&(!Number.isSafeInteger(item.when.minDurationMs)||item.when.minDurationMs<0||item.when.minDurationMs>MAX_DURATION_MS))||
          (item.when.maxDurationMs!==undefined&&(!Number.isSafeInteger(item.when.maxDurationMs)||item.when.maxDurationMs<0||item.when.maxDurationMs>MAX_DURATION_MS))||
          (item.when.minDurationMs!==undefined&&item.when.maxDurationMs!==undefined&&item.when.minDurationMs>item.when.maxDurationMs)||
+         (item.when.approvalDeadlineMs!==undefined&&(!Number.isSafeInteger(item.when.approvalDeadlineMs)||
+           item.when.approvalDeadlineMs<1000||item.when.approvalDeadlineMs>MAX_DURATION_MS))||
          !plain(item.then)||!keys(item.then,['type','text'])||
          !ACTIONS.has(item.then.type))return {ok:false,error:'invalid-rule'};
       if(item.then.type==='propose' && (typeof item.then.text!=='string'||
@@ -43,6 +45,7 @@
           confidence:item.when.confidence||'any',
           ...(item.when.minDurationMs===undefined?{}:{minDurationMs:item.when.minDurationMs}),
           ...(item.when.maxDurationMs===undefined?{}:{maxDurationMs:item.when.maxDurationMs}),
+          ...(item.when.approvalDeadlineMs===undefined?{}:{approvalDeadlineMs:item.when.approvalDeadlineMs}),
           ...(item.when.dependsOn===undefined?{}:{dependsOn:Object.freeze([...item.when.dependsOn])}),
           ...(item.when.skipIf===undefined?{}:{skipIf:Object.freeze([...item.when.skipIf])})}),then:Object.freeze(item.then.type==='pause'
             ? {type:'pause'} : {type:'propose',text:item.then.text})}));
@@ -105,7 +108,8 @@
       (r.when.maxDurationMs===undefined||(context?.stateDurationMs!==undefined&&context.stateDurationMs<=r.when.maxDurationMs)));
     if(!match)return {ok:true,decision:null,reason:'no-match'};
     return {ok:true,decision:Object.freeze({ruleId:match.id,eventKey:key,
-      action:match.then,approvalRequired:true}),reason:'preview-only'};
+      action:match.then,approvalRequired:true,
+      ...(match.when.approvalDeadlineMs===undefined?{}:{approvalDeadlineMs:match.when.approvalDeadlineMs})}),reason:'preview-only'};
   }
   // Local dry-run audit summary: deliberately exclude route, document
   // token, event key and proposed prompt text. Never persisted or sent.

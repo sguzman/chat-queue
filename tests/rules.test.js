@@ -194,3 +194,24 @@ test('prohibit any autonomous retry, dispatch, recursion or unbounded rule budge
   assert.equal(decision.decision.action.type,'propose');
   assert.equal(decision.decision.approvalRequired,true);
 });
+
+test('bounded optional approval deadline survives normalization and preview only',()=>{
+  const base=r('deadline','finished');
+  for(const invalid of [-1,0,999,3600001,1.5,NaN,Infinity,'1000',null]){
+    const value=rules.normalize([{...base,when:{phase:'finished',approvalDeadlineMs:invalid}}]);
+    assert.equal(value.error,'invalid-rule','unexpected accepted deadline: '+String(invalid));
+  }
+  for(const ms of [1000,3600000]){
+    const policy={...base,when:{phase:'finished',approvalDeadlineMs:ms}};
+    const normalized=rules.normalize([policy]);
+    assert.equal(normalized.ok,true);
+    assert.equal(normalized.rules[0].when.approvalDeadlineMs,ms);
+    const proposal=rules.evaluate([policy],e());
+    assert.equal(proposal.decision.approvalDeadlineMs,ms);
+    assert.equal(proposal.decision.approvalRequired,true);
+    assert.equal(rules.auditPreview(proposal,e()).approvalRequired,true);
+    assert.equal(JSON.stringify(rules.auditPreview(proposal,e())).includes(String(ms)),false,
+      'review audits should never disclose approval timer internals');
+  }
+  assert.equal(rules.evaluate([base],e()).decision.approvalDeadlineMs,undefined);
+});
