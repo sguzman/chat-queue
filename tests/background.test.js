@@ -644,6 +644,71 @@ test('out-of-order metadata cannot release newer conversation dispatch ownership
   assert.equal((await listeners.internal({...newer,sequence:0},first)).error,'invalid-state-sequence');
 });
 
+test('superseded async register cannot overwrite a newer same-route registration or owner',async()=>{
+  const {listeners,context}=create();
+  const route='/c/register-race',url='https://chatgpt.com'+route;
+  const tab={tab:{id:903,url},url};
+  const peer={tab:{id:904,url},url};
+  const register=sender=>listeners.internal({
+    type:'chat-queue-internal/v1',action:'register',route
+  },sender);
+  const originalGet=context.browser.tabs.get;
+  const pending=[];
+  context.browser.tabs.get=()=>new Promise(resolve=>pending.push(resolve));
+  const stale=register(tab);
+  const recent=register(tab);
+  assert.equal(pending.length,2);
+  pending[1]({id:903,url});
+  assert.equal((await recent).ok,true);
+  context.browser.tabs.get=originalGet;
+  assert.equal((await register(peer)).ok,true);
+  const provider={id:'chat-signals@sguzman.github'};
+  const signal={version:1,route,documentToken:'d'.repeat(32),
+    sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+  for(const sender of [tab,peer])
+    assert.equal((await listeners.external({
+      type:'chat-queue-signal/v1',tabId:sender.tab.id,signal
+    },provider)).ok,true);
+  const check=sender=>listeners.internal({
+    type:'chat-queue-internal/v1',action:'dispatch-check',route,
+    documentToken:'d'.repeat(32),epoch:1,sequence:1
+  },sender);
+  assert.equal((await check(tab)).ok,true);
+  pending[0]({id:903,url});
+  assert.equal((await stale).error,'stale-registration');
+  assert.equal((await check(peer)).error,'conversation-owned-by-another-tab',
+    'late old register must not release newer Send owner');
+  assert.equal((await check(tab)).ok,true,
+    'late old register must not erase newer authenticated provider');
+});
+
+test('tab navigation or closure cancels an in-flight registration before it can revive',async()=>{
+  for(const close of [false,true]){
+    const {listeners,context}=create();
+    const url='https://chatgpt.com/c/pending-register';
+    const sender={tab:{id:905,url},url};
+    const originalGet=context.browser.tabs.get;
+    let resolveGet;
+    context.browser.tabs.get=()=>new Promise(resolve=>{resolveGet=resolve;});
+    const registration=listeners.internal({
+      type:'chat-queue-internal/v1',action:'register',route:'/c/pending-register'
+    },sender);
+    assert.equal(typeof resolveGet,'function');
+    if(close)listeners.removed(905);
+    else {
+      listeners.updated(905,{url:'https://chatgpt.com/c/elsewhere'});
+      listeners.updated(905,{url});
+    }
+    context.browser.tabs.get=originalGet;
+    resolveGet({id:905,url});
+    assert.equal((await registration).error,'stale-registration',
+      'returning to the same path must not resurrect an invalidated callback');
+    const view=await listeners.external({type:'chat-queue/v1',
+      action:'listTabs'},{id:'approved@example.test'});
+    assert.equal(view.tabs.length,0);
+  }
+});
+
 test('same-route re-registration invalidates old in-flight metadata generations',async()=>{
   const {listeners,context}=create();
   const url='https://chatgpt.com/c/same-route-rebind';
