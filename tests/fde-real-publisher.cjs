@@ -31,6 +31,16 @@ function stageQueue(dir,root){
     "    void write.then(()=>{"+
     "document.documentElement.dataset.qaSavedRoute=key;"+
     "document.documentElement.dataset.qaSavedItems=String(data.items.length);");
+  // QA-only ephemeral policy for one intentionally selected test route.
+  // Production rules still require the user's explicit saved Options policy.
+  qaQueueContent=patch(qaQueueContent,
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.",
+    "  if(location.pathname==='/c/real-rule-deadline') {"+
+    "void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
+    JSON.stringify({version:1,rules:[seedRule]})+
+    "}).then(()=>document.documentElement.dataset.qaDeadlineSeeded='yes');"+
+    "}\\n"+
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
   fs.writeFileSync(cp,qaQueueContent);
   const bp=path.join(dir,'src/background.js');
   let bg=patch(fs.readFileSync(bp,'utf8'),origin,localOrigin);
@@ -756,6 +766,32 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return location.pathname"),'/c/fde-sixteen-00');
     await driver.switchTo().window(sixteenStartTab);
+    stage='real-provider-authenticated-duration-and-approval-deadline';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-rule-deadline');
+    await ready();
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaDeadlineSeeded==='yes'"),9500);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9500);
+    await driver.executeScript("document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),10000);
+    await driver.sleep(550);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),9500);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /qa-real-timed-deadline/);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional proposal deadline expired')`),8500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /expired · qa-real-timed-deadline · finished · propose/);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Expiring a real provider timed offer never Sends a proposed prompt');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
+      'Expiring a real provider offer never enqueues text');
     stage='provider-removed-no-replay';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
