@@ -7,7 +7,7 @@
   const contract=root.ChatQueueSignal;
   const VERSION=1,MAX_RULES=32,MAX_MESSAGE_CHARS=24000,MAX_SEEN=256;
   const MAX_DURATION_MS=3600000,MAX_RULE_LINKS=8;
-  const PHASES=new Set(['finished','failed','interrupted','limit']);
+  const PHASES=new Set(['finished','failed','interrupted','limit','generating']);
   const CONFIDENCES=new Set(['any','observed','inferred']);
   const ACTIONS=new Set(['propose','pause']);
   const ID=/^[a-zA-Z0-9_-]{1,64}$/;
@@ -25,7 +25,10 @@
          ids.has(item.id)||typeof item.enabled!=='boolean'||
          !Number.isSafeInteger(item.priority)||item.priority<0||item.priority>1000||
          !plain(item.when)||!keys(item.when,['phase','confidence','minDurationMs','maxDurationMs','approvalDeadlineMs','dependsOn','skipIf'])||
-         !PHASES.has(item.when.phase)||!validLinks(item.when.dependsOn)||!validLinks(item.when.skipIf)||
+         !PHASES.has(item.when.phase)||
+         (item.when.phase==='generating'&&
+          (!Number.isSafeInteger(item.when.minDurationMs)||item.when.minDurationMs<1000))||
+         !validLinks(item.when.dependsOn)||!validLinks(item.when.skipIf)||
          (item.when.confidence!==undefined&&!CONFIDENCES.has(item.when.confidence))||
          (item.when.minDurationMs!==undefined&&(!Number.isSafeInteger(item.when.minDurationMs)||item.when.minDurationMs<0||item.when.minDurationMs>MAX_DURATION_MS))||
          (item.when.maxDurationMs!==undefined&&(!Number.isSafeInteger(item.when.maxDurationMs)||item.when.maxDurationMs<0||item.when.maxDurationMs>MAX_DURATION_MS))||

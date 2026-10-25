@@ -215,3 +215,19 @@ test('bounded optional approval deadline survives normalization and preview only
   }
   assert.equal(rules.evaluate([base],e()).decision.approvalDeadlineMs,undefined);
 });
+
+test('authenticated generation deadline requires bounded observed interval and manual review',()=>{
+  const timed={...r('generation-deadline','generating','pause'),
+    when:{phase:'generating',minDurationMs:1200}};
+  assert.equal(rules.normalize([timed]).ok,true);
+  assert.equal(rules.normalize([{...timed,when:{phase:'generating'}}]).error,'invalid-rule');
+  assert.equal(rules.normalize([{...timed,when:{phase:'generating',minDurationMs:999}}]).error,'invalid-rule');
+  assert.equal(rules.evaluate([timed],e('generating'),[],{stateDurationMs:1199}).reason,'no-match');
+  const ready=rules.evaluate([timed],e('generating'),[],{stateDurationMs:1200});
+  assert.equal(ready.decision.action.type,'pause');
+  assert.equal(ready.decision.approvalRequired,true);
+  assert.equal(rules.evaluate([timed],e('finished','fresh',1,9),
+    [ready.decision.eventKey]).reason,'already-considered');
+  assert.equal(rules.evaluate([timed],e('generating','restored',2),[],
+    {stateDurationMs:3000}).reason,'not-actionable');
+});
