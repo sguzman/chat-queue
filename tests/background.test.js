@@ -351,6 +351,47 @@ test('route ownership cannot persist through tab registration or unrelated route
   assert.equal((await listeners.internal(check,sender)).error,'signal-authority-lost');
 });
 
+test('same-route re-registration retains an unresolved cross-tab Send lease',async()=>{
+  const {listeners}=create(),provider={id:'chat-signals@sguzman.github'};
+  const url='https://chatgpt.com/c/renewed-lease';
+  const first={tab:{id:71,url},url},second={tab:{id:72,url},url};
+  const register={type:'chat-queue-internal/v1',action:'register',route:'/c/renewed-lease'};
+  for(const tab of [first,second]){
+    assert.equal((await listeners.internal(register,tab)).ok,true);
+    assert.equal((await listeners.external({
+      type:'chat-queue-signal/v1',tabId:tab.tab.id,
+      signal:{version:1,route:'/c/renewed-lease',
+        documentToken:(tab.tab.id===71?'a':'b').repeat(32),
+        sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'}
+    },provider)).ok,true);
+  }
+  const check=tab=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/renewed-lease',
+    documentToken:(tab.tab.id===71?'a':'b').repeat(32),
+    sequence:1,epoch:1},tab);
+  assert.equal((await check(first)).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'state',phase:'idle',running:false,awaiting:false,
+    leasePending:true,sequence:1},first)).ok,true);
+  assert.equal((await check(second)).error,'conversation-owned-by-another-tab');
+  // A same-path re-registration invalidates the owner's prior provider
+  // registration, but MUST NOT grant its unresolved click to the peer.
+  assert.equal((await listeners.internal(register,first)).ok,true);
+  assert.equal((await check(first)).error,'signal-authority-lost');
+  assert.equal((await check(second)).error,'conversation-owned-by-another-tab',
+    'same-route rebind must not open a cross-tab duplicate Send window');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'state',phase:'unknown',running:false,awaiting:false,
+    leasePending:true,sequence:1},first)).ok,true);
+  assert.equal((await check(second)).error,'conversation-owned-by-another-tab');
+  // Only the owner's later explicit clear-state publication can relinquish
+  // this conservative volatile lease. The peer still needs its own authority.
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'state',phase:'idle',running:false,awaiting:false,
+    leasePending:false,sequence:2},first)).ok,true);
+  assert.equal((await check(second)).ok,true);
+});
+
 test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
   const {listeners,state,forwards,context}=create();
   // Firefox structured-clones peer messages into the recipient realm. Pass
