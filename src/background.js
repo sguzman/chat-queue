@@ -88,10 +88,29 @@
       return live.origin===origin.origin ? live.pathname : null;
     } catch { return null; }
   }
+  // Read-only state notifications still require the Discover capability.
+  // onChanged may lag a committed revoke, and async reads can complete out of
+  // order; only the newest snapshot for a tab may be published.
+  const NOTIFY_GENERATIONS = new Map();
   const notify = (tabId, state) => {
-    for (const port of PORTS.keys()) {
-      try { port.postMessage({ type: PREFIX, protocolVersion: PROTOCOL_VERSION, event:'stateChanged', tabId, state }); } catch { PORTS.delete(port); }
-    }
+    const version=(NOTIFY_GENERATIONS.get(tabId)||0)+1;
+    NOTIFY_GENERATIONS.set(tabId,version);
+    const authorizedAt=grantRevision;
+    void api.storage.local.get(grants.KEY).then(async()=>{
+      if(authorizedAt!==grantRevision||NOTIFY_GENERATIONS.get(tabId)!==version)return;
+      const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
+      if(authorizedAt!==grantRevision||NOTIFY_GENERATIONS.get(tabId)!==version)return;
+      for(const [port,id] of PORTS){
+        if(!grants.has(current,id,'discover')){
+          PORTS.delete(port);
+          try{port.disconnect();}catch{}
+          continue;
+        }
+        try{port.postMessage({type:PREFIX,protocolVersion:PROTOCOL_VERSION,
+          event:'stateChanged',tabId,state});}
+        catch{PORTS.delete(port);}
+      }
+    }).catch(()=>{/* storage failure: no metadata disclosure */});
   };
 
   function syncVerifiedProvider(tabId,route){
