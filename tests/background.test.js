@@ -488,6 +488,29 @@ test('project-route alias navigation preserves unresolved conversation ownership
     'tab closure must clear retained lease even when the registry is absent');
 });
 
+test('rule-library reads reject durable revocation before its event notification',async()=>{
+  const {listeners,state,context}=create();
+  const client='sandbox@example.test';
+  const key='chatqueue:external-rules:v1:'+client;
+  state[key]={version:1,revision:1,rules:[{version:1,id:'private-fixture',
+    enabled:true,priority:10,when:{phase:'failed'},then:{type:'pause'}}]};
+  const original=context.browser.storage.local.get;
+  let resume;
+  context.browser.storage.local.get=(requested)=>{
+    if(requested===key)return new Promise(resolve=>{resume=()=>resolve(original(requested));});
+    return original(requested);
+  };
+  const pending=listeners.external({type:'chat-queue/v1',action:'rulesGet'}, {id:client});
+  for(let i=0;i<8&&!resume;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof resume,'function');
+  state['chatqueue:api-grants:v2']={version:2,grants:{[client]:['discover']}};
+  // No storage.onChanged notification: the saved grant is already revoked.
+  resume();
+  const reply=await pending;
+  assert.equal(reply.error,'authorization-changed');
+  assert.equal(JSON.stringify(reply).includes('private-fixture'),false);
+});
+
 test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
   const {listeners,state,forwards,context}=create();
   // Firefox structured-clones peer messages into the recipient realm. Pass
