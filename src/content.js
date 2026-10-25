@@ -484,6 +484,12 @@
   function recordRuleClock(signal) {
     if(!state.rulesEnabled||!state.initialized||state.routing)return;
     if(signal.origin!=='fresh'||signal.confidence==='unknown'){
+      // A restored terminal is historical evidence that this epoch ended.
+      // It cannot supply a duration, but it must also forbid later same-
+      // epoch busy events from fabricating fresh duration evidence.
+      if(rulesEngine.PHASES.has(signal.phase))
+        state.ruleClosedEpoch={documentToken:signal.documentToken,
+          route:signal.route,epoch:signal.epoch};
       state.ruleClock=null;return;
     }
     const now=performance.now();

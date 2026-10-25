@@ -981,6 +981,19 @@ async function main(){
       /duration-fallback/,
       'A restored terminal invalidates prior duration evidence for its response epoch');
     await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    // A restored terminal closes epoch 4 without authentic busy-duration
+    // evidence. A later busy under that SAME epoch cannot change history
+    // into a newly timed completion; only the untimed fallback is eligible.
+    await emit('finished',4,457,'observed','restored','/c/rule-duration');
+    await emit('generating',4,458,'observed','fresh','/c/rule-duration');
+    await driver.sleep(380);
+    await emit('finished',4,459,'observed','fresh','/c/rule-duration');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /duration-fallback/,
+      'Restored terminal must forbid reopening timed evidence in its old epoch');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Authenticated timing evidence must never directly authorize Send');
 
