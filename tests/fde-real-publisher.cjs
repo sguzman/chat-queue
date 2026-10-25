@@ -380,6 +380,51 @@ async function main(){
       `return Boolean(${hud('run')}) && ${hud('count')}.textContent==='0 queued'`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Reload after cancellation and deliberate restart must not replay Sends');
+    // These are actual provider-classified visible response failures, not
+    // forged extension events. Existing response authorization must be
+    // cancelled, and neither a new terminal nor an old Start may send again.
+    for(const [phase,notice] of [
+      ['failed','Error in input stream.'],
+      ['interrupted','Connection interrupted. Waiting for the complete answer.'],
+      ['limit','You have reached the maximum conversation length.']
+    ]){
+      stage='visible-provider-'+phase+'-pauses-active-queue';
+      await driver.get('http://127.0.0.1:'+server.address().port+'/c/source-error-'+phase);
+      await ready();
+      for(const [index,text] of [
+        'Synthetic source-'+phase+' first item',
+        'Synthetic source-'+phase+' pending next item'
+      ].entries()){
+        await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+        await driver.executeScript(`return ${hud('add')}.click()`);
+        await driver.wait(async()=>await driver.executeScript(
+          `return ${hud('count')}.textContent===arguments[0]`,
+          (index+1)+' queued'),9000);
+      }
+      await driver.executeScript(`return ${hud('run')}.click()`);
+      await driver.wait(async()=>await driver.executeScript('return window.__sendCount===1'),12000);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),9500);
+      await driver.executeScript(text=>{
+        const alert=document.createElement('div');
+        alert.setAttribute('role','alert');
+        alert.textContent=text;
+        document.querySelector('main').prepend(alert);
+      },notice);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes(arguments[0])`,
+        'Paused on '+phase),13000);
+      await driver.sleep(800);
+      assert.equal(await driver.executeScript('return window.__sendCount'),1,
+        phase+' must not dispatch the next queued item');
+      assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),
+        '1 queued','The already-clicked message must not be retried');
+      await driver.navigate().refresh();
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}?.textContent==='1 queued'`),13000);
+      assert.equal(await driver.executeScript('return window.__sendCount'),0,
+        phase+' must remain paused and not retry on reload');
+    }
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
     stage='provider-removed-no-replay';
