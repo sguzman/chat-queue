@@ -577,7 +577,7 @@
     state.attempting=item.id;
     statusNote('Preparing next message');
     let clicked=false;
-    let editor,send,proof;
+    let editor,send,proof,composerForm;
     let humanTouched=false;
     const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
     try {
@@ -605,12 +605,15 @@
       const current=findComposer();
       if(current.editor!==found.editor||current.form!==found.form)
         throw new Error('Composer replaced during uncertainty journal');
-      editor=current.editor;
+      editor=current.editor;composerForm=current.form;
       fillComposer(editor,item.text);
       send=findSend(current.form);
       editor.addEventListener('beforeinput',onHumanInput,true);
       editor.addEventListener('input',onHumanInput,true);
       send.addEventListener('click',onHumanInput,true);
+      // A real file-picker change can happen after the click without any
+      // input event on the editor or Send button. Treat it as user interference.
+      composerForm.addEventListener('change',onHumanInput,true);
       // Require the event page to still own this authenticated provider
       // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
@@ -645,6 +648,8 @@
         // editor is insufficient proof once this interaction was observed.
         if(humanTouched)
           throw new Error('Human interaction during submission verification; manual review required');
+        if(composerForm && [...composerForm.querySelectorAll('input[type="file"]')].some(input=>input.files?.length))
+          throw new Error('Composer attachment during submission verification; manual review required');
         if (state.destroyed || !state.running || state.key!==attemptKey ||storageKey()!==attemptKey || !editor.isConnected) break;
         const busy=proof.busy || (contract.newBusy(state.trusted,baseline)?state.trusted:null);
         if (busy && !editorValue(editor).trim()) {
@@ -680,6 +685,7 @@
         editor.removeEventListener('input',onHumanInput,true);
       }
       if(send)send.removeEventListener('click',onHumanInput,true);
+      if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       state.attempting=null;
       render();
     }

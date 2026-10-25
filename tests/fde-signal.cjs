@@ -90,7 +90,7 @@ function prepareQueue(dir,source){
   fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})")
     // Widen only the rapid-terminal fixture's confirmation polling interval.
     .replace('const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));',
-      "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:routeKey()==='/c/post-click-user'?850:ms));")
+      "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:['/c/post-click-user','/c/post-click-file'].includes(routeKey())?850:ms));")
     // QA-only short freshness horizon and delayed queue timer. This simulates
     // timer throttling in an inactive Firefox tab without 15+ seconds of wait.
     .replace("performance.now()-state.trustedAt<15000",
@@ -444,6 +444,42 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The single attempted Send requires manual uncertainty resolution');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    await driver.switchTo().window(priorTrustedRaceTab);
+
+    qaStage='file-attachment-after-send-click';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/post-click-file');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic file-attachment race';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('draft')}.value===''&&${hud('count')}.textContent==='1 queued'`),10000);
+    await emit('idle',0,585,'observed','fresh','/c/post-click-file');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    const lateFile=await driver.executeScript(() => {
+      window.__qaPostClickFileChanges=0;
+      const form=document.querySelector('main form');
+      form.addEventListener('change',e=>{if(e.isTrusted)window.__qaPostClickFileChanges++},true);
+      const input=document.createElement('input');
+      input.id='qa-post-click-file';input.type='file';form.append(input);
+      return input;
+    });
+    await lateFile.sendKeys(fixtureAttachment);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#qa-post-click-file').files.length"),1);
+    await emit('generating',1,586,'observed','fresh','/c/post-click-file');
+    await emit('finished',1,587,'observed','fresh','/c/post-click-file');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('manual review required')`),9000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'An attachment added after the Queue click cannot trigger a second Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#qa-post-click-file').files.length"),1,
+      'The user's selected attachment must remain untouched');
     await driver.switchTo().window(priorTrustedRaceTab);
 
     qaStage='trusted-user-edit-race';
