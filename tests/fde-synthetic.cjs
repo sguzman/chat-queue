@@ -1418,22 +1418,22 @@ async function main(){
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Still active after untrusted event';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('count')}?.textContent==='1 queued'`),9000);
-    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+      `return ${jsEl('count')}?.textContent==='1 queued' && window.__sendCount===0`),9000,
+      'Forged lifecycle event must neither clear the queue nor Send');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/pagehide-away');
     await driver.navigate().back();
     // Firefox may instantiate a new document or resume a bfcache document.
     // Both paths must restore the persisted message but never an old Run.
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('count')}?.textContent==='1 queued' && window.__sendCount===0`),15000);
-    // Firefox can mount an extension content script before this fixture's
-    // inline page counter is initialized on a back-forward restoration.
-    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // Firefox can restore a bfcache page and then reload it after the
+    // trusted pageshow. The preceding wait checks both the current HUD and
+    // initialized page counter; do not sample the counter in a second,
+    // potentially mid-reload document before continuing.
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Editable after back navigation';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('count')}.textContent==='2 queued'`),9000);
-    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      `return ${jsEl('count')}?.textContent==='2 queued' && window.__sendCount===0`),9000,
       'Back-navigation cannot resurrect a prior Send grant');
 
     qaStage='teardown';
