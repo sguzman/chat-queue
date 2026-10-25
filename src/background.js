@@ -179,17 +179,41 @@
          last.epoch!==message.epoch || last.sequence!==message.sequence ||
          !signalContract.ready(last,message.route))
         return Promise.resolve({ok:false,error:'signal-authority-lost'});
-      return currentRoute(sender).then(live=>{
+      return currentRoute(sender).then(async live=>{
         if(live!==message.route || SIGNALS.get(tab.id)!==last ||
            ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id))
           return {ok:false,error:'route-or-signal-changed'};
-        // Different assigned URL shapes with the same conversation ID are
-        // potential aliases. Deny a second concurrent owner, while keeping
-        // route/document/epoch authority exact for the current tab.
+        // Pre-click uncertainty journals persist across Firefox event-page
+        // suspension. Volatile OWNERS alone cannot protect a possibly-clicked
+        // Send after this page restarts. Refuse conflicts with saved uncertainty
+        // in another tab of the same assigned conversation, including aliases.
+        let saved;
+        try{saved=await api.storage.local.get(null);}
+        catch{return {ok:false,error:'journal-storage-unavailable'};}
+        if((await currentRoute(sender))!==message.route ||
+           SIGNALS.get(tab.id)!==last || ROUTES.get(tab.id)!==message.route ||
+           !TABS.has(tab.id))
+          return {ok:false,error:'route-or-signal-changed'};
+        for(const [key,record] of Object.entries(saved)){
+          const match=/^chatqueue:v1:tab:(\\d+):(\\/.*)$/.exec(key);
+          if(!match||signalContract.assignedConversationId(match[2])!==conversationId||
+             !record||!Array.isArray(record.items))continue;
+          for(const item of record.items){
+            if(!item||item.status==='pending')continue;
+            // The same item is intentionally journaled uncertain between
+            // initial ownership and the second, immediately pre-click check.
+            // Any other saved uncertain/unknown-status item blocks this Send.
+            if(Number(match[1])===tab.id &&
+               typeof message.itemId==='string'&&item.id===message.itemId)
+              continue;
+            return {ok:false,error:'unresolved-saved-send'};
+          }
+        }
+        // The authoritative volatile claim remains synchronous AFTER both
+        // asynchronous reads, so simultaneous tabs cannot both acquire it.
         const owner=OWNERS.get(conversationId);
         if(owner!==undefined&&owner!==tab.id)
           return {ok:false,error:'conversation-owned-by-another-tab'};
-        // The claim is synchronous after the browser-owned route check.
         OWNERS.set(conversationId,tab.id);
         return {ok:true};
       });
