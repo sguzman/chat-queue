@@ -727,6 +727,52 @@ test('rules-scoped per-client libraries are revisioned, durable and concurrent-w
   assert.equal(forwards.length,0);
 });
 
+test('silent rules-scope revocation stops a delayed rulesChanged notification',async()=>{
+  const {listeners,state,context}=create();
+  const peer='sandbox@example.test';
+  const acl='chatqueue:api-grants:v2';
+  const ruleKey='chatqueue:external-rules:v1:'+peer;
+  state[acl]={version:2,grants:{[peer]:['discover','rules']}};
+  const received=[];
+  listeners.connect({name:'chat-queue/v1',sender:{id:peer},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:message=>received.push(message),
+    disconnect:()=>{}});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received[0]?.event,'ready');
+  const oldPolicy=state[acl];
+  const originalSet=context.browser.storage.local.set;
+  const originalGet=context.browser.storage.local.get;
+  let intercept=false,resume;
+  context.browser.storage.local.set=async changes=>{
+    await originalSet(changes);
+    if(Object.hasOwn(changes,ruleKey))intercept=true;
+  };
+  context.browser.storage.local.get=key=>{
+    if(key===acl&&intercept){
+      intercept=false;
+      return new Promise(resolve=>{
+        resume=()=>resolve({[acl]:oldPolicy});
+      });
+    }
+    return originalGet(key);
+  };
+  const rule={id:'silent-rule',version:1,enabled:true,priority:1,
+    when:{phase:'failed'},then:{type:'pause'}};
+  const frame=vm.runInContext('JSON.parse('+JSON.stringify(JSON.stringify({
+    type:'chat-queue/v1',action:'rulesPut',
+    payload:{revision:0,rules:[rule]}
+  }))+')',context);
+  assert.equal((await listeners.external(frame,{id:peer})).ok,true);
+  assert.equal(typeof resume,'function');
+  // The storage notification has not yet fired: source snapshot is stale.
+  state[acl]={version:2,grants:{[peer]:['discover']}};
+  resume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received.filter(x=>x.event==='rulesChanged').length,0,
+    'revoked rules scope cannot receive even an external rule revision');
+});
+
 test('rulesChanged events stop after rules grant revocation while discover remains',async()=>{
   const {listeners,state,context,forwards}=create();
   const peer='sandbox@example.test';
