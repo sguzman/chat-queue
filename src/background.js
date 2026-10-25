@@ -195,7 +195,7 @@
            !TABS.has(tab.id))
           return {ok:false,error:'route-or-signal-changed'};
         for(const [key,record] of Object.entries(saved)){
-          const match=/^chatqueue:v1:tab:(\\d+):(\\/.*)$/.exec(key);
+          const match=/^chatqueue:v1:tab:([0-9]+):(\/.*)$/.exec(key);
           if(!match||signalContract.assignedConversationId(match[2])!==conversationId||
              !record||!Array.isArray(record.items))continue;
           for(const item of record.items){
