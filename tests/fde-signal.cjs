@@ -1823,6 +1823,46 @@ async function main(){
       'Pause then rejected Start cannot revive delayed dispatch authorization');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
 
+    qaStage='orphaned-durable-uncertain-journal-after-tab-closure';
+    const survivingWindow=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectAcceptedWrite='yes';"+
+      `"const d=${hud('draft')};d.value='Synthetic accepted write must stay uncertain';"`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,730,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,731,'observed','fresh','/c/accepted-journal-fail');
+    await waitNote('Submission record could not be saved; review uncertain message');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+        Boolean(document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain'))`),true);
+    // Close the actual owner tab. Firefox's tabs.onRemoved clears OWNERS,
+    // but its saved pre-click uncertainty journal must independently prevent
+    // a newly registered same-conversation tab from authorizing Send.
+    await driver.close();
+    await driver.switchTo().window(survivingWindow);
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      `const d=${hud('draft')};d.value='Synthetic orphan competitor must not Send';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,732,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Unresolved saved submission in this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Saved uncertainty must block Send even when its volatile tab owner closed');
+
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
