@@ -225,6 +225,43 @@ async function main(){
       `return ${hud('status')}?.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),2,
       'Exactly two synthetic Send clicks and no duplicate retries');
+    stage='scoped-project-route-isolation';
+    // An unsubmitted prompt from the prior chat must remain local when
+    // navigating to a project conversation with an independently attested
+    // provider route and document.
+    await driver.executeScript(`const d=${hud('draft')};d.value='Pending in previous synthetic chat';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    const projectRoute='/g/g-p-synthetic123/c/project-chat-123';
+    await driver.get('http://127.0.0.1:'+server.address().port+projectRoute);
+    await ready();
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
+      'A different project conversation cannot see or send the previous queue');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Single scoped project prompt';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
+    await ready();
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued',
+      'Original conversation retains its own unsubmitted queue after project visit');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Returning to another route must not automatically send its pending prompt');
+    // Switch to an unused conversation for the disconnected-provider check,
+    // preserving all previous queues without editing or clearing them.
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
+    await ready();
     stage='provider-removed-no-replay';
     await driver.uninstallAddon(sid);
     await driver.navigate().refresh();
