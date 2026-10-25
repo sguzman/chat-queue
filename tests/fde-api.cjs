@@ -54,12 +54,12 @@ function createQueue(dest,root){
  bg=bg.replace(statusBoundary,
    "      if(message.action==='status'&&message.payload?.qaHold===true){"+
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
-   "await new Promise(resolve=>setTimeout(resolve,2400));}\\n"+
+   "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    statusBoundary);
  const grantListener="  api.storage.onChanged.addListener((changes,area)=>{";
  assert.equal(bg.split(grantListener).length,2);
  bg=bg.replace(grantListener,grantListener+
-   "\\n    if(globalThis.__qaSkipGrantChangeNotice&&area==='local'&&changes[grants.KEY])return;");
+   "\n    if(globalThis.__qaSkipGrantChangeNotice&&area==='local'&&changes[grants.KEY])return;");
  // QA-only: delay one stale tab metadata state before URL inspection.
  const section=bg.indexOf("    if (message.action === 'state') {");
  assert.ok(section>=0);
