@@ -349,6 +349,36 @@ test('revoking discover while a port authorization read is pending fails closed'
   assert.equal(posts,0);
 });
 
+test('silent Discover revocation blocks delayed listTabs and capabilities responses',async()=>{
+  for(const action of ['listTabs','capabilities']){
+    const {listeners,state,context}=create();
+    const url='https://chatgpt.com/c/private-discovery';
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/private-discovery'},
+      {tab:{id:89,url},url})).ok,true);
+    const original=context.browser.storage.local.get;
+    const oldPolicy=state['chatqueue:api-grants:v2'];
+    let resume,reads=0;
+    context.browser.storage.local.get=key=>{
+      if(key==='chatqueue:api-grants:v2'&&++reads===1)
+        return new Promise(resolve=>{resume=()=>resolve({'chatqueue:api-grants:v2':oldPolicy});});
+      return original(key);
+    };
+    const pending=listeners.external({type:'chat-queue/v1',action},
+      {id:'approved@example.test'});
+    assert.equal(typeof resume,'function');
+    // Persisted change is deliberately not delivered via storage.onChanged.
+    state['chatqueue:api-grants:v2']={version:2,grants:{
+      'approved@example.test':['append']}};
+    resume();
+    const result=await pending;
+    assert.equal(result.error,'authorization-changed',action);
+    assert.equal(reads,2,action+' must re-read its durable grant');
+    assert.equal(JSON.stringify(result).includes('private-discovery'),false);
+    assert.equal(Object.hasOwn(result,'scopes'),false);
+  }
+});
+
 test('silent durable Discover revocation denies delayed event-port ready metadata',async()=>{
   const {listeners,state,context}=create();
   const url='https://chatgpt.com/c/private-port';
