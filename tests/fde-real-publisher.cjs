@@ -356,12 +356,14 @@ async function main(){
     // An unsubmitted prompt from the prior chat must remain local when
     // navigating to a project conversation with an independently attested
     // provider route and document.
+    stage='scoped-origin-queue-durable';
     await driver.executeScript(`const d=${hud('draft')};d.value='Pending in previous synthetic chat';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='1 queued' &&
-        document.documentElement.dataset.qaSavedRoute.endsWith('/c/provider-test-123') &&
+        document.documentElement.dataset.qaSavedRoute?.endsWith('/c/provider-test-123') &&
         document.documentElement.dataset.qaSavedItems==='1'`),9000);
+    stage='scoped-spa-project-transition';
     const projectRoute='/g/g-p-synthetic123/c/project-chat-123';
     const priorSendClicks=await driver.executeScript('return window.__sendCount');
     // Model a React/History API route transition inside the SAME document.
@@ -388,11 +390,12 @@ async function main(){
         !${hud('status')}.textContent.includes('(unverified)')`,projectRoute),16000);
     assert.equal(await driver.executeScript('return window.__sendCount'),priorSendClicks,
       'A SPA route transition must never send the old queued item');
+    stage='scoped-project-queue-durable';
     await driver.executeScript(`const d=${hud('draft')};d.value='Single scoped project prompt';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='1 queued' &&
-        document.documentElement.dataset.qaSavedRoute.endsWith('/c/project-chat-123') &&
+        document.documentElement.dataset.qaSavedRoute?.endsWith('/c/project-chat-123') &&
         document.documentElement.dataset.qaSavedItems==='1'`),9000);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
@@ -403,8 +406,11 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
     assert.equal(await driver.executeScript('return window.__sendCount'),priorSendClicks+1);
+    stage='scoped-return-retains-original-queue';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     await ready();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued',
       'Original conversation retains its own unsubmitted queue after project visit');
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
