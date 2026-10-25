@@ -120,6 +120,15 @@
       seen.add(item.id); return true;
     }).map(item => ({ id: item.id, text: item.text, status: item.status === 'pending' ? 'pending' : 'uncertain' }));
   }
+  // A queued storage write can run after subsequent provider events changed
+  // the current history entry. Preserve the exact state at save() invocation:
+  // neither later status edits nor unrelated extension metadata may mutate
+  // the snapshot while an older write waits in the serialized save chain.
+  function snapshotHistory(history) {
+    return history.slice(0,20).map(entry=>({
+      id:entry.id,text:entry.text,at:entry.at,status:entry.status
+    }));
+  }
   // Recovery discovery is metadata-only. Exact pathname matching prevents a
   // queue from another conversation being offered after a tab-ID change.
   // Never auto-resume old items; the HUD must explicitly stage and confirm.
@@ -185,7 +194,7 @@
   function completionArrived(phase, waitingForCompletion, busySeen) {
     return waitingForCompletion && busySeen && phase === 'finished';
   }
-  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, MAX_REQUEST_CLIENTS, validRequestHighWatermarks, readRequestHighWatermarks, recoveryCandidates, matchesRecoverySnapshot, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
+  const api = Object.freeze({ PHASES, BUSY, BLOCKED, MAX_ITEMS, MAX_CHARS, validPhase, validText, makeItem, nextPosition, moveTo, exactPermutation, savedRecordSupport, normalizeSaved, MAX_REQUEST_CLIENTS, validRequestHighWatermarks, readRequestHighWatermarks, recoveryCandidates, matchesRecoverySnapshot, snapshotHistory, BACKUP_KIND, BACKUP_VERSION, MAX_BACKUP_BYTES, backupItems, parseBackup, mayDispatch, completionArrived });
   root.ChatQueueCore = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

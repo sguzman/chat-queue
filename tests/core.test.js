@@ -160,3 +160,18 @@ test('malformed history and recovery markers are never silently lost on save',()
   assert.equal(q.savedRecordSupport({items:[item]}).ok,true,
     'legacy queue records may omit history and recovery markers');
 });
+
+test('serialized queue history snapshots cannot be altered by later response events',()=>{
+  const history=[{id:'history0001',text:'Synthetic stored message',
+    at:1730000000000,status:'submitted',unexpected:'do not persist'}];
+  const saved=q.snapshotHistory(history);
+  history[0].status='finished';
+  history[0].text='A later synthetic edit';
+  history.push({id:'history0002',text:'New later event',
+    at:1730000000001,status:'failed'});
+  assert.deepEqual(saved,[{id:'history0001',text:'Synthetic stored message',
+    at:1730000000000,status:'submitted'}],
+    'a delayed prior write must keep its original fixed-schema receipt');
+  assert.notEqual(saved[0],history[0],'history entries must not be shared objects');
+  assert.equal(q.savedRecordSupport({version:1,items:[],history:saved}).ok,true);
+});

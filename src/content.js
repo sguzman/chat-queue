@@ -417,7 +417,7 @@
   function save() {
     if(state.blockedRecord)return Promise.reject(new Error('unsupported-saved-queue'));
     state.clearArmed=false;
-    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:state.history.slice(0,20),recoveredSources:state.recoveredSources.slice(-32),requestHighWatermarks:{...state.requestHighWatermarks}};
+    state.revision++;state.etag=uid();const key=state.key;const data={version:1,items:state.items.map(item=>({id:item.id,text:item.text,status:item.status})),history:core.snapshotHistory(state.history),recoveredSources:state.recoveredSources.slice(-32),requestHighWatermarks:{...state.requestHighWatermarks}};
     // Synchronous pending-write accounting prevents a fast Start from
     // dispatching a message whose local queue write has not committed.
     state.pendingSaves++;
