@@ -1,8 +1,16 @@
 #!/usr/bin/env node
-// Public CI supply-chain boundary: immutable, allowlisted first-party actions.
-// This is not a cryptographic provenance audit of upstream action code.
+// Verify the complete public workflow inventory, not just the main check.
+// Immutable allowlisted action references and least-privilege token policy
+// are necessary but not sufficient upstream provenance guarantees.
 import fs from 'node:fs';
-const workflow=fs.readFileSync(new URL('../.github/workflows/check.yml',import.meta.url),'utf8');
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const folder=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../.github/workflows');
+const allowedFiles=['check.yml','qa-launcher.yml'];
+const present=fs.readdirSync(folder).filter(f=>/\.ya?ml$/.test(f)).sort();
+const fail=[];
+if(JSON.stringify(present)!==JSON.stringify(allowedFiles))
+  fail.push('Unexpected or missing workflow inventory: '+present.join(', '));
 const required=new Set([
   'actions/checkout',
   'actions/setup-node',
@@ -10,30 +18,42 @@ const required=new Set([
   'browser-actions/setup-firefox',
   'browser-actions/setup-geckodriver'
 ]);
-const uses=[...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)/gm)].map(x=>x[1]);
-const fail=[];
-if(uses.length<required.size)fail.push('Missing required audited actions');
-for(const action of uses){
-  const match=/^([a-z0-9_.-]+\/[a-z0-9_.-]+)@([0-9a-f]{40})$/.exec(action);
-  if(!match){
-    fail.push('Nonimmutable or unrecognized action reference '+action);
+let total=0;
+for(const name of allowedFiles){
+  if(!fs.existsSync(path.join(folder,name))){
+    fail.push('Missing workflow: '+name);
     continue;
   }
-  if(!required.has(match[1]))fail.push('Action owner/repository is not reviewed: '+match[1]);
+  const workflow=fs.readFileSync(path.join(folder,name),'utf8');
+  const uses=[...workflow.matchAll(/^\s*(?:-\s*)?uses:\s+([^\s#]+)/gm)].map(x=>x[1]);
+  total+=uses.length;
+  if(name==='check.yml'&&uses.length<required.size)
+    fail.push(name+': missing required audited actions');
+  if(name==='qa-launcher.yml'&&uses.length!==1)
+    fail.push(name+': expected only one reviewed checkout action');
+  for(const action of uses){
+    const match=/^([a-z0-9_.-]+\/[a-z0-9_.-]+)@([0-9a-f]{40})$/.exec(action);
+    if(!match){fail.push(name+': nonimmutable or unrecognized action '+action);continue;}
+    if(!required.has(match[1]))
+      fail.push(name+': unreviewed action owner/repository '+match[1]);
+    if(name==='qa-launcher.yml'&&match[1]!=='actions/checkout')
+      fail.push(name+': unexpected QA launcher action '+match[1]);
+  }
+  if(name==='check.yml')
+    for(const action of required)
+      if(!uses.some(x=>x.startsWith(action+'@')))
+        fail.push(name+': required action missing '+action);
+  if(!/^permissions:\n  contents: read\n/m.test(workflow))
+    fail.push(name+': explicit read-only contents permission missing');
+  if(/^\s+[a-z_-]+:\s*write\b/m.test(workflow)||
+     /^\s*pull_request_target\s*:/m.test(workflow)||
+     /^\s*permissions\s*:\s*write-all\b/m.test(workflow))
+    fail.push(name+': dangerous trigger or write permission');
 }
-for(const name of required)if(!uses.some(x=>x.startsWith(name+'@')))
-  fail.push('Required action missing: '+name);
-if(!/^permissions:\n  contents: read\n/m.test(workflow))
-  fail.push('Workflow needs explicit top-level read-only contents permission');
-if(/^\s+[a-z_-]+:\s*write\b/m.test(workflow))
-  fail.push('Workflow requests unreviewed write permission');
-if(/^\s*pull_request_target\s*:/m.test(workflow)||
-   /^\s*permissions\s*:\s*write-all\b/m.test(workflow))
-  fail.push('Dangerous workflow trigger or broad permission');
 if(fail.length){
-  fail.forEach(x=>console.error('CI supply-chain audit: '+x));
+  for(const item of fail)console.error('CI supply-chain audit: '+item);
   process.exitCode=1;
 }else{
-  console.log('CI supply-chain audit: '+uses.length+
-    ' immutable allowlisted references, no broad write/target trigger');
+  console.log('CI supply-chain audit: '+allowedFiles.length+' audited workflows, '+
+    total+' immutable allowlisted references, explicit read-only tokens');
 }
