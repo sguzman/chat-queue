@@ -20,15 +20,15 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <p><button type="button" id="save">Save permissions</button> <output id="message" role="status"></output></p>
 <p>API namespace: <code>chat-queue/v1</code>. Add-on ID: <code>chat-queue@sguzman.github</code>.</p>
 <section id="rule-sandbox" aria-label="Conditional rule sandbox">
-<h2>Conditional rule sandbox (simulation only)</h2>
-<p class="note">Propose a response or pause based on a simulated Signal event. Rules are saved only in this Firefox profile. Saving does not activate any rule, read conversations, change a queue, or click Send.</p>
+<h2>Conditional rule library and dry-run sandbox</h2>
+<p class="note">Rules stay local to this Firefox profile and cannot execute when saved. Only a separate per-conversation Enable previews click can offer a manually approved action from browser-authenticated Chat Signals. Approval itself never clicks Send. The dry-run tools below use simulated events and never change a queue.</p>
 <form id="rule-form">
 <label for="rule-id">Rule identifier</label><input id="rule-id" required value="example-rule" maxlength="64" spellcheck="false">
 <label for="rule-priority">Priority (0–1000)</label><input type="number" id="rule-priority" min="0" max="1000" step="1" value="10" required>
 <label for="rule-phase">When response state is</label><select id="rule-phase"><option value="finished">Finished</option><option value="generating">Generating beyond minimum duration</option><option value="failed">Failed</option><option value="interrupted">Connection interrupted</option><option value="limit">Conversation limit</option></select>
 <label for="rule-confidence">Required confidence</label><select id="rule-confidence"><option value="any">Any known confidence</option><option value="observed">Observed</option><option value="inferred">Inferred</option></select>
-<label for="rule-min-duration">Minimum simulated state duration (ms, optional)</label><input id="rule-min-duration" type="number" min="0" max="3600000" step="1" placeholder="No minimum">
-<label for="rule-max-duration">Maximum simulated state duration (ms, optional)</label><input id="rule-max-duration" type="number" min="0" max="3600000" step="1" placeholder="No maximum">
+<label for="rule-min-duration">Minimum observed state duration (ms; generating rules require at least 1000)</label><input id="rule-min-duration" type="number" min="0" max="3600000" step="1" placeholder="No minimum">
+<label for="rule-max-duration">Maximum observed state duration (ms, optional)</label><input id="rule-max-duration" type="number" min="0" max="3600000" step="1" placeholder="No maximum">
 <label for="rule-approval-deadline">Time to approve after an offer appears (ms, optional; 1000–3600000)</label><input id="rule-approval-deadline" type="number" min="1000" max="3600000" step="1" placeholder="No deadline">
 <label for="rule-depends">Require completed rule IDs (comma-separated, optional)</label><input id="rule-depends" spellcheck="false" placeholder="prior-rule-id" maxlength="560">
 <label for="rule-skip">Skip if completed rule IDs (comma-separated, optional)</label><input id="rule-skip" spellcheck="false" placeholder="already-handled" maxlength="560">
