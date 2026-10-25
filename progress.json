@@ -690,7 +690,8 @@
                   "status": "implemented",
                   "evidence": [
                     "Composer text is durably journaled uncertain before injection; final pre-Send guard checks trusted human beforeinput/input/click, attachment additions, editor identity, same enabled Send and exact input. Real synthetic Firefox Developer Edition test delays second authorization and simulates trusted user editing then restoring identical text; no automatic Send occurs: https://github.com/sguzman/chat-queue/actions/runs/40047326561. Optimistic edit tokens cover stale API edits; concurrent live user/API races and authenticated ChatGPT acceptance remain unverified.",
-                    "Actual Firefox trusted-keyboard changes after the Queue's single Send click invalidate new-busy/empty-editor confirmation and require manual uncertainty resolution, without dispatching the next queued item. Synthetic-provider CI: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Authenticated React site races remain open."
+                    "Actual Firefox trusted-keyboard changes after the Queue's single Send click invalidate new-busy/empty-editor confirmation and require manual uncertainty resolution, without dispatching the next queued item. Synthetic-provider CI: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Authenticated React site races remain open.",
+                    "Real disposable Firefox WebDriver selects a local attachment after the Queue's single synthetic Send click. Form-level trusted change and rechecked file-input occupancy force manual uncertainty; selected file survives and no second queued Send occurs. Full CI https://github.com/sguzman/chat-queue/actions/runs/40154290822. Authenticated React/ProseMirror acceptance remains pending."
                   ]
                 },
                 {
@@ -708,7 +709,8 @@
                   "title": "Test duplicate avoidance, error recovery and wrong-conversation races",
                   "status": "implemented",
                   "evidence": [
-                    "Native synthetic Firefox Developer Edition tests cover stale/old epoch, duplicate prevention after Signal uncertainty, manual retry, simultaneous same-route owner leases, page draft preservation and History API route transition during delayed pre-Send authorization. Old route retains uncertain queue and new route sends nothing: https://github.com/sguzman/chat-queue/actions/runs/40052236598. Real authenticated ChatGPT rerender, error and network recovery remain unaccepted."
+                    "Native synthetic Firefox Developer Edition tests cover stale/old epoch, duplicate prevention after Signal uncertainty, manual retry, simultaneous same-route owner leases, page draft preservation and History API route transition during delayed pre-Send authorization. Old route retains uncertain queue and new route sends nothing: https://github.com/sguzman/chat-queue/actions/runs/40052236598. Real authenticated ChatGPT rerender, error and network recovery remain unaccepted.",
+                    "Native FDE two-add-on regression forbids next-message delivery after post-click file attachment changes, while preserving a single uncertain attempt and human attachment: https://github.com/sguzman/chat-queue/actions/runs/40154290822. Full live ChatGPT recovery acceptance pending."
                   ]
                 }
               ]
