@@ -91,6 +91,12 @@ function prepareQueue(dir,source){
     // Widen only the rapid-terminal fixture's confirmation polling interval.
     .replace('const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));',
       "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:routeKey()==='/c/post-click-user'?850:ms));")
+    // QA-only short freshness horizon and delayed queue timer. This simulates
+    // timer throttling in an inactive Firefox tab without 15+ seconds of wait.
+    .replace("performance.now()-state.trustedAt<15000",
+      "performance.now()-state.trustedAt<(routeKey()==='/c/provider-stale'?2000:15000)")
+    .replace("    },350);",
+      "    },routeKey()==='/c/provider-stale'?3000:350);")
     // QA-only deferred policy read: expose the race where an onChanged
     // invalidation arrives before a previously initiated read settles.
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
@@ -487,6 +493,30 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The source conversation must retain its uncertain pre-Send journal');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    qaStage='stale-provider-ready-timer-does-not-resume';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-stale');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Must not send after stale ready signal';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('draft')}.value==='' && ${hud('count')}.textContent==='1 queued'`),10000);
+    await emit('idle',0,610,'observed','fresh','/c/provider-stale');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Running')`),4500);
+    await waitNote('Authenticated Signal stale; manually Start to resume');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    // A new fresh phase after the stale timer must not silently revive the
+    // old Start command or schedule an unrelated new prompt.
+    await emit('finished',1,611,'observed','fresh','/c/provider-stale');
+    await driver.sleep(1000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'After stale provider authority, fresh terminal alone cannot Send');
+    assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
     qaStage='unknown-confidence-safety';
     // Authenticated but unknown-confidence phase events are not proof of
     // accepted Send or completed response; they can only pause/withhold progress.

@@ -714,8 +714,16 @@
   function planNext() {
     if (state.scheduler) clearTimeout(state.scheduler);
     state.scheduler=setTimeout(()=>{state.scheduler=null;
-      if (!state.running || state.awaiting || state.attempting || state.blockedRecord ||
-          !freshProvider() || !contract.ready(state.trusted,routeKey())) return;
+      if (!state.running || state.awaiting || state.attempting || state.blockedRecord)return;
+      // Timers may be throttled in hidden Firefox tabs. A once-fresh ready
+      // event is not indefinite authority: pause, then require a new Start.
+      // A later provider transition must not resurrect a stale Run request.
+      if(!freshProvider()){
+        state.running=false;
+        statusNote('Authenticated Signal stale; manually Start to resume');
+        return;
+      }
+      if(!contract.ready(state.trusted,routeKey()))return;
       if (!pending()) {state.running=false;statusNote('Queue completed');return;}
       void dispatchOne();
     },350);
