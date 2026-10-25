@@ -22,6 +22,11 @@
   // Deadlines only dismiss a pending manual review; they never authorize
   // execution, enqueue or Send. A stale timer cannot act on a newer offer.
   let ruleApprovalTimer=null;
+  let activeRuleDeadlineTimer=null;
+  function clearActiveRuleDeadlineTimer(){
+    if(activeRuleDeadlineTimer!==null)clearTimeout(activeRuleDeadlineTimer);
+    activeRuleDeadlineTimer=null;
+  }
   function clearRuleApprovalTimer(){
     if(ruleApprovalTimer!==null)clearTimeout(ruleApprovalTimer);
     ruleApprovalTimer=null;
@@ -165,7 +170,7 @@
     if(!offer||!['offered','approved','dismissed','expired','invalidated','save-failed'].includes(outcome)||
        !/^[a-zA-Z0-9_-]{1,64}$/.test(offer.ruleId)||
        !['propose','pause'].includes(offer.action?.type)||
-       !['finished','failed','interrupted','limit'].includes(offer.phase))return;
+       !['finished','failed','interrupted','limit','generating'].includes(offer.phase))return;
     state.ruleAudit=[...state.ruleAudit,{outcome,ruleId:offer.ruleId,
       phase:offer.phase,action:offer.action.type}].slice(-20);
   }
@@ -184,6 +189,7 @@
   function render() {
     if (state.destroyed) return;
     if(!state.ruleOffer)clearRuleApprovalTimer();
+    if(!state.rulesEnabled)clearActiveRuleDeadlineTimer();
     host.dataset.theme=state.theme;els.theme.value=state.theme;
     els.count.textContent = `${state.items.length} queued`;
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
@@ -509,10 +515,14 @@
       }
       if(!same){
         state.ruleClock={documentToken:signal.documentToken,route:signal.route,
-          epoch:signal.epoch,startedAt:now,terminalPhase:null,durationMs:null};
+          epoch:signal.epoch,startedAt:now,
+          generatingAt:signal.phase==='generating'?now:null,
+          terminalPhase:null,durationMs:null};
       }else if(clock.terminalPhase){
         // Re-entering busy after terminal is not continuous timing evidence.
         state.ruleClock=null;
+      }else if(signal.phase==='generating'&&clock.generatingAt===null){
+        clock.generatingAt=now;
       }
       return;
     }
@@ -538,10 +548,16 @@
   }
   function ruleDuration(signal){
     const clock=state.ruleClock;
-    return clock&&clock.documentToken===signal.documentToken&&
-      clock.route===signal.route&&clock.epoch===signal.epoch&&
-      clock.terminalPhase===signal.phase&&Number.isSafeInteger(clock.durationMs)
-      ? clock.durationMs : undefined;
+    if(!clock||clock.documentToken!==signal.documentToken||
+       clock.route!==signal.route||clock.epoch!==signal.epoch)return undefined;
+    if(signal.phase==='generating'&&clock.terminalPhase===null&&
+       Number.isFinite(clock.generatingAt)){
+      const duration=performance.now()-clock.generatingAt;
+      return duration>=0&&duration<=rulesEngine.MAX_DURATION_MS
+        ? Math.floor(duration):undefined;
+    }
+    return clock.terminalPhase===signal.phase&&Number.isSafeInteger(clock.durationMs)
+      ?clock.durationMs:undefined;
   }
   function expireConditionalOffer(offer,force=false){
     if(state.ruleOffer!==offer||offer.deadlineAt===undefined)return;
@@ -558,6 +574,38 @@
     if(state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
     statusNote('Conditional proposal deadline expired; press Start separately');
+  }
+  // This clock only proves no authenticated terminal was received within a
+  // bounded local interval. It does not claim the remote model remains busy,
+  // and it can OFFER manual review but never Send, retry or resume.
+  function scheduleActiveRuleDeadline(signal){
+    clearActiveRuleDeadlineTimer();
+    if(!state.rulesEnabled||state.ruleOffer||state.routing||state.destroyed||
+       state.key!==storageKey()||signal?.phase!=='generating'||
+       signal.origin!=='fresh'||signal.confidence==='unknown'||
+       !sameRuleEpoch(state.ruleClock,signal)||
+       state.ruleClock.terminalPhase!==null)return;
+    const duration=ruleDuration(signal);
+    if(duration===undefined)return;
+    const future=state.ruleLibrary.filter(rule=>rule.enabled&&
+      rule.when.phase==='generating'&&
+      Number.isSafeInteger(rule.when.minDurationMs)&&
+      rule.when.minDurationMs>duration).map(rule=>rule.when.minDurationMs);
+    if(!future.length)return;
+    const remaining=Math.max(1,Math.min(...future)-duration);
+    const mark={documentToken:signal.documentToken,route:signal.route,epoch:signal.epoch};
+    activeRuleDeadlineTimer=setTimeout(()=>{
+      activeRuleDeadlineTimer=null;
+      const current=state.trusted;
+      if(!state.rulesEnabled||state.ruleOffer||!state.initialized||
+         state.routing||state.destroyed||state.key!==storageKey()||
+         !current||current.phase!=='generating'||current.origin!=='fresh'||
+         current.confidence==='unknown'||!sameRuleEpoch(mark,current)||
+         !sameRuleEpoch(state.ruleClock,current)||
+         state.ruleClock.terminalPhase!==null)return;
+      considerConditionalPreview(current);
+      if(!state.ruleOffer)scheduleActiveRuleDeadline(current);
+    },Math.ceil(remaining));
   }
   // This is preview-only: authenticated provider events may offer an action,
   // but only the explicit local Approve control can enqueue or pause.
@@ -585,6 +633,7 @@
       ruleApprovalTimer=setTimeout(()=>expireConditionalOffer(offer),deadlineMs);
     }
     auditOffer('offered',state.ruleOffer);
+    clearActiveRuleDeadlineTimer();
     // A proposal requiring manual review must stop any already-scheduled
     // next Send synchronously. processSignal may have just scheduled it on
     // the terminal event; the timeout cannot fire until this listener ends.
@@ -1415,6 +1464,7 @@
       recordRuleClock(next);
       processSignal();
       considerConditionalPreview(next);
+      scheduleActiveRuleDeadline(next);
       return Promise.resolve({ok:true});
     }
     if (message?.type!=='chat-queue-api/v1') return;
