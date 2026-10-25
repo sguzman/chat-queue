@@ -467,12 +467,22 @@
   // authorize a Send or to decide which page editor is the active composer.
   function actionableControl(element) {
     if(!element.isConnected||!element.getClientRects().length||
-       element.closest('[hidden],[inert],[aria-hidden="true"]')||
+       element.closest('[hidden],[inert],[aria-hidden="true" i]')||
        element.disabled===true||element.readOnly===true||
        element.getAttribute('aria-disabled')==='true')return false;
-    const style=getComputedStyle(element);
-    return style.visibility==='visible'&&style.display!=='none'&&
-      style.pointerEvents!=='none';
+    // Hidden-but-laid-out or offscreen controls still accept script clicks.
+    // Opacity is not inherited: inspect the entire ancestor chain, not just
+    // the target element. Dispatch remains fail-closed during fade/transition.
+    for(let node=element;node;node=node.parentElement){
+      const style=getComputedStyle(node);
+      if(style.visibility!=='visible'||style.display==='none'||
+         !(Number(style.opacity)>0))return false;
+    }
+    const bounds=element.getBoundingClientRect();
+    if(bounds.width<=0||bounds.height<=0||bounds.right<=0||
+       bounds.bottom<=0||bounds.left>=innerWidth||bounds.top>=innerHeight)
+      return false;
+    return getComputedStyle(element).pointerEvents!=='none';
   }
   function usableComposer(editor) {
     return actionableControl(editor)&&editor.getAttribute('contenteditable')!=='false';

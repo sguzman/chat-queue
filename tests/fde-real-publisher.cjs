@@ -813,6 +813,29 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    // Neither an opacity-zero ancestor nor aria-hidden/inert form is an
+    // actionable composer, even though the editor itself has layout rects.
+    for(const mode of ['opacity','aria-hidden','inert','offscreen']){
+      await driver.executeScript(mode=>{
+        const form=document.querySelector('main form');
+        const editor=document.getElementById('prompt-textarea');
+        editor.style.visibility='visible';
+        editor.style.position='';
+        editor.style.left='';
+        form.style.opacity='';
+        form.removeAttribute('aria-hidden');
+        form.removeAttribute('inert');
+        if(mode==='opacity')form.style.opacity='0';
+        if(mode==='aria-hidden')form.setAttribute('aria-hidden','TRUE');
+        if(mode==='inert')form.setAttribute('inert','');
+        if(mode==='offscreen'){editor.style.position='fixed';editor.style.left='-10000px';}
+      },mode);
+      await driver.executeScript(`return ${hud('run')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),9500);
+      assert.equal(await driver.executeScript('return window.__sendCount'),0,
+        'Non-actionable editor must never Send: '+mode);
+    }
 
     stage='real-provider-hidden-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/hidden-send');
@@ -837,6 +860,26 @@ async function main(){
     await driver.sleep(700);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Revealing Send must not silently retry the uncertain item');
+
+    stage='real-provider-transparent-send-never-clicks';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic transparent-button test';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(
+      "document.querySelector('main form').style.opacity='0'");
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('[data-testid=send-button]').getClientRects().length>0"),true);
+    // The form is transparent but contenteditable also inherits its full
+    // dispatch preflight. It must fail before journal or Send, preserving text.
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
     stage='real-provider-sixteen-tabs-hidden-retention';
     const sixteenStartTab=await driver.getWindowHandle();
     const loadTabs=[];
