@@ -17,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -379,7 +379,7 @@
     if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -475,6 +475,12 @@
   // of the same provider document, route, and response epoch. Freeze the
   // duration at terminal: later repeats cannot turn a timer filter true.
   // Restoration, unknown or intervening idle invalidate all clock evidence.
+  // Once a trusted terminal phase has closed a response epoch, a later busy
+  // event using that same epoch cannot start a new duration interval. Keep a
+  // volatile tombstone even when restored/unknown signals erase clock data.
+  const sameRuleEpoch=(mark,signal)=>Boolean(mark&&
+    mark.documentToken===signal.documentToken&&mark.route===signal.route&&
+    mark.epoch===signal.epoch);
   function recordRuleClock(signal) {
     if(!state.rulesEnabled||!state.initialized||state.routing)return;
     if(signal.origin!=='fresh'||signal.confidence==='unknown'){
@@ -482,9 +488,11 @@
     }
     const now=performance.now();
     const clock=state.ruleClock;
-    const same=clock&&clock.documentToken===signal.documentToken&&
-      clock.route===signal.route&&clock.epoch===signal.epoch;
+    const same=sameRuleEpoch(clock,signal);
     if(contract.ACTIVE.has(signal.phase)){
+      if(sameRuleEpoch(state.ruleClosedEpoch,signal)){
+        state.ruleClock=null;return;
+      }
       if(!same){
         state.ruleClock={documentToken:signal.documentToken,route:signal.route,
           epoch:signal.epoch,startedAt:now,terminalPhase:null,durationMs:null};
@@ -497,6 +505,11 @@
     if(!rulesEngine.PHASES.has(signal.phase)){
       state.ruleClock=null;return;
     }
+    // The first fresh terminal closes this response epoch whether or not we
+    // observed busy. This prevents a later duplicate busy from inventing it.
+    if(!sameRuleEpoch(state.ruleClosedEpoch,signal))
+      state.ruleClosedEpoch={documentToken:signal.documentToken,
+        route:signal.route,epoch:signal.epoch};
     if(!same){state.ruleClock=null;return;}
     if(clock.terminalPhase!==null){
       if(clock.terminalPhase!==signal.phase)state.ruleClock=null;
@@ -728,7 +741,7 @@
     // future ChatGPT route in this tab. Navigation invalidates all offers.
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
-    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
+    state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1167,7 +1180,7 @@
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       ruleReadId++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
-      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
     const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
@@ -1182,7 +1195,7 @@
       if(ruleLibraryGeneration!==libraryGeneration||ruleReadId!==loadId)
         throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
-      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;state.ruleClosedEpoch=null;
       state.rulesEnabled=true;
       statusNote('Conditional previews enabled; future authenticated events only');
     }catch(error){
@@ -1190,7 +1203,7 @@
       // own opt-in, nor let a superseded library snapshot become active.
       if(!state.destroyed&&state.key===key&&routeGeneration===generation&&ruleReadId===loadId){
         state.rulesEnabled=false;state.ruleConsentGeneration++;
-        state.ruleCompleted=[];state.ruleSeen=[];state.ruleClock=null;
+        state.ruleCompleted=[];state.ruleSeen=[];state.ruleClock=null;state.ruleClosedEpoch=null;
         state.ruleLibrary=[];state.ruleOffer=null;
         statusNote('Conditional previews unavailable: '+String(error?.message||error));
       }
@@ -1257,7 +1270,7 @@
       ruleLibraryGeneration++;state.ruleConsentGeneration++;ruleReadId++;
       state.rulesLoading=false;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
-      state.ruleCompleted=[];state.ruleClock=null;
+      state.ruleCompleted=[];state.ruleClock=null;state.ruleClosedEpoch=null;
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
       relevant=true;
     }
