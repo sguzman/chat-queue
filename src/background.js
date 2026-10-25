@@ -368,14 +368,14 @@
     }
   });
 
-  function invalidate(tabId,keepConversationId=null){
+  function invalidate(tabId,keepConversationId=null,preservePending=false){
     // A route-alias update may have already cleared the tab registry while
     // preserving its unresolved owner. Tab close or origin exit must still
     // relinquish that orphan even without another content registration.
     releaseOwner(tabId,keepConversationId);
     // Also revoke a registration still awaiting the browser-owned URL read:
     // a later A->B->A must not resurrect the old callback.
-    REGISTER_ATTEMPTS.delete(tabId);
+    if(!preservePending)REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
     ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
@@ -387,9 +387,11 @@
       try {const nextRoute=new URL(change.url).pathname;
         if(nextRoute!==(ROUTES.get(tabId)||REGISTER_ATTEMPTS.get(tabId)?.route)){
         // An exact route change invalidates the provider epoch and registry.
-        // It must NOT free a still-unresolved Send when both assigned route
-        // shapes identify the same conversation. Release on different ID.
-        invalidate(tabId,signalContract.assignedConversationId(nextRoute));
+        // A newer registration may already be awaiting tabs.get() for THIS
+        // route; preserve that registration while revoking the old provider.
+        // Unresolved Sends remain owned across aliases of the same ID.
+        const preservePending=REGISTER_ATTEMPTS.get(tabId)?.route===nextRoute;
+        invalidate(tabId,signalContract.assignedConversationId(nextRoute),preservePending);
         void api.tabs.sendMessage(tabId,{type:'chat-queue-route-changed/v1'}).catch(()=>{});
       }}catch{}
     }
