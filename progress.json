@@ -379,7 +379,8 @@
                   "title": "Persist queued items before treating changes as committed",
                   "status": "verified",
                   "evidence": [
-                    "Native synthetic Firefox Developer Edition fault injection: rejection blocks Start with storage-unavailable; subsequent successful save requires manual Start; delayed write blocks Start with queue-save-pending; reload persists correct items, with no Send. https://github.com/sguzman/chat-queue/actions/runs/40046386978. Full crash/quota and live browser acceptance remain separate gates."
+                    "Native synthetic Firefox Developer Edition fault injection: rejection blocks Start with storage-unavailable; subsequent successful save requires manual Start; delayed write blocks Start with queue-save-pending; reload persists correct items, with no Send. https://github.com/sguzman/chat-queue/actions/runs/40046386978. Full crash/quota and live browser acceptance remain separate gates.",
+                    "Real disposable Firefox Developer Edition tests a delayed rejected Add against simultaneous Forget history clicks; pending queue save blocks a competing history snapshot, failed Add rolls back to zero items, previous history survives reload, and Send remains untouched. https://github.com/sguzman/chat-queue/actions/runs/40149040013. This is synthetic local-storage fault acceptance, not authenticated send evidence."
                   ]
                 },
                 {
