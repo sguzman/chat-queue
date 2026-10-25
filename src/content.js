@@ -786,6 +786,13 @@
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.routing=false;render();host.style.removeProperty('visibility');publish();
   }
+  // A failed speculative write must invalidate any optimistic token that an
+  // external client may have observed before the persistence error.
+  function rollbackRejectedWrite(key,priorRevision,restore){
+    if(state.key!==key||state.revision!==priorRevision+1)return false;
+    restore();state.revision++;state.etag=uid();
+    render();publish();return true;
+  }
   // Changes must either reach durable storage or leave no in-memory phantom.
   // Deep-copy items because updating one item mutates an existing object.
   async function persistItemMutation(mutate) {
@@ -1012,7 +1019,7 @@
       statusNote('Queue changed since import preview; select file again');return;
     }
     if(state.items.length+draft.items.length>core.MAX_ITEMS){statusNote('Queue full');return;}
-    const original=state.items.slice(),key=state.key;
+    const original=state.items.slice(),key=state.key,revision=state.revision;
     state.importing=true;
     try{
       state.items.push(...draft.items.map(item=>({...core.makeItem(item.text,uid()),status:item.status})));
@@ -1021,10 +1028,8 @@
       if(state.key===key&&!state.destroyed)
         els['data-note'].textContent='Imported '+draft.items.length+' messages; queue remains paused';
     }catch{
-      if(state.key===key){
-        state.items=original;
+      if(rollbackRejectedWrite(key,revision,()=>{state.items=original;}))
         statusNote('Import could not be stored; queue paused');
-      }
     }finally{
       state.importing=false;
       if(!state.destroyed)render();
@@ -1097,10 +1102,9 @@
         render();
       }
     }catch{
-      if(state.key===draft.key){
+      if(rollbackRejectedWrite(draft.key,draft.revision,()=>{
         state.items=before;state.recoveredSources=sources;
-        statusNote('Recovery could not be saved; no automatic send');
-      }
+      }))statusNote('Recovery could not be saved; no automatic send');
     }
     } finally {
       state.importing=false;
@@ -1115,8 +1119,10 @@
        state.blockedRecord||state.pendingSaves>0||state.storageFault||!state.history.length)return;
     if(!state.historyClearArmed){state.historyClearArmed=true;render();return;}
     state.historyClearArmed=false;
-    const oldHistory=state.history.slice();state.history=[];
-    try{await save();render();}catch{state.history=oldHistory;render();}
+    const oldHistory=state.history.slice(),key=state.key,revision=state.revision;
+    state.history=[];
+    try{await save();if(state.key===key)render();}
+    catch{rollbackRejectedWrite(key,revision,()=>{state.history=oldHistory;});}
   });
   shadow.addEventListener('click',event=>{
     if(state.historyClearArmed&&event.target!==els['history-clear']){

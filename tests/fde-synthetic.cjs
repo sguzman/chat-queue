@@ -37,6 +37,15 @@ async function main(){
     const marker="attachShadow({mode:'closed'})";
     assert.equal(content.split(marker).length,2,'QA must make exactly one scoped Shadow DOM substitution');
     content=content.replace(marker,"attachShadow({mode:'open'})");
+    // Test-only optimistic-token diagnostics. Never bundled in production.
+    const renderStart="  function render() {";
+    assert.equal(content.split(renderStart).length,2);
+    content=content.replace(renderStart,
+      "  function render() { document.documentElement.dataset.qaRenderedEtag=state.etag;");
+    const writeToken="state.revision++;state.etag=uid();const key=state.key;";
+    assert.equal(content.split(writeToken).length,2);
+    content=content.replace(writeToken,
+      "state.revision++;state.etag=uid();document.documentElement.dataset.qaWriteEtag=state.etag;const key=state.key;");
     // QA-only error injection in the queue write boundary. This never changes
     // the production content script or accesses the user's browser profile.
     const persistence="api.storage.local.set({[key]:data})";
@@ -515,6 +524,13 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript(`return ${jsEl('backup-confirm')}.hidden`),true);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const importTokens=await driver.executeScript(() => ({
+      write:document.documentElement.dataset.qaWriteEtag,
+      rendered:document.documentElement.dataset.qaRenderedEtag
+    }));
+    assert.ok(importTokens.write && importTokens.rendered);
+    assert.notEqual(importTokens.rendered,importTokens.write,
+      'A rejected speculative save must invalidate its optimistic etag');
     // Storage is available again. An explicit fresh file selection and
     // confirmation may retry the local import, but not resume dispatch.
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
@@ -680,6 +696,13 @@ async function main(){
       document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('history')
         .querySelectorAll('.historyitem').length),1,
       'Rejected history deletion must repaint the restored history immediately');
+    const historyTokens=await driver.executeScript(() => ({
+      write:document.documentElement.dataset.qaWriteEtag,
+      rendered:document.documentElement.dataset.qaRenderedEtag
+    }));
+    assert.ok(historyTokens.write && historyTokens.rendered);
+    assert.notEqual(historyTokens.rendered,historyTokens.write,
+      'A rejected speculative save must invalidate its optimistic etag');
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('history')
@@ -740,6 +763,13 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const recoveryTokens=await driver.executeScript(() => ({
+      write:document.documentElement.dataset.qaWriteEtag,
+      rendered:document.documentElement.dataset.qaRenderedEtag
+    }));
+    assert.ok(recoveryTokens.write && recoveryTokens.rendered);
+    assert.notEqual(recoveryTokens.rendered,recoveryTokens.write,
+      'A rejected speculative save must invalidate its optimistic etag');
     await driver.executeScript("document.documentElement.dataset.qaRejectQueueSave='no'");
     await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('recovery-confirm')}?.hidden===false`),5000);
