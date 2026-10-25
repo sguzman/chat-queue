@@ -606,7 +606,8 @@
                   "title": "Locate exactly one current ChatGPT composer and Send control",
                   "status": "implemented",
                   "evidence": [
-                    "src/content.js findComposer/findSend; real site QA pending"
+                    "src/content.js findComposer/findSend; real site QA pending",
+                    "Native disposable Firefox Developer Edition rejects CSS-hidden, transparent-ancestor, aria-disabled/inert/fieldset-disabled, offscreen and pointer-occluded composer/Send controls; the synthetic provider also rejects a non-text checkbox with the composer ID. Full browser CI: https://github.com/sguzman/chat-queue/actions/runs/40223820479 and https://github.com/sguzman/chat-queue/actions/runs/40222943807. Live ChatGPT ProseMirror acceptance remains open."
                   ]
                 },
                 {
@@ -633,7 +634,8 @@
                   "title": "Verify prepared text and enabled Send at dispatch time",
                   "status": "implemented",
                   "evidence": [
-                    "local exact-text postcondition in src/content.js"
+                    "local exact-text postcondition in src/content.js",
+                    "Native Firefox before-Send guards require a pointer-hittable, semantically text-editable composer and a separately actionable Send control, refusing overlays or hidden/disabled ancestors with zero Send clicks. Full CI: https://github.com/sguzman/chat-queue/actions/runs/40223820479. Authenticated ChatGPT dispatch acceptance pending."
                   ]
                 },
                 {
@@ -670,7 +672,8 @@
                   "status": "implemented",
                   "evidence": [
                     "Durable uncertain marker is saved before send click: src/content.js; crash and authenticated browser acceptance pending.",
-                    "A native Firefox synthetic dispatch opens an editor before authority loss, then verifies uncertain status closes the editor, preserves the original payload and disallows ordinary edits: Actions 40143672392. Real ChatGPT and publisher acceptance remain open."
+                    "A native Firefox synthetic dispatch opens an editor before authority loss, then verifies uncertain status closes the editor, preserves the original payload and disallows ordinary edits: Actions 40143672392. Real ChatGPT and publisher acceptance remain open.",
+                    "Native Firefox synthetic provider fault injection rejects the accepted-history write AFTER one Send click. The attempt remains uncertain and manually resolvable, a competing tab cannot Send during its response lease, and a later terminal cannot relabel an unrelated earlier submitted history item. Full green CI: https://github.com/sguzman/chat-queue/actions/runs/40223661321. Real account/network crash acceptance remains pending."
                   ]
                 },
                 {
@@ -720,7 +723,8 @@
                   "status": "implemented",
                   "evidence": [
                     "Native synthetic Firefox Developer Edition tests cover stale/old epoch, duplicate prevention after Signal uncertainty, manual retry, simultaneous same-route owner leases, page draft preservation and History API route transition during delayed pre-Send authorization. Old route retains uncertain queue and new route sends nothing: https://github.com/sguzman/chat-queue/actions/runs/40052236598. Real authenticated ChatGPT rerender, error and network recovery remain unaccepted.",
-                    "Native FDE two-add-on regression forbids next-message delivery after post-click file attachment changes, while preserving a single uncertain attempt and human attachment: https://github.com/sguzman/chat-queue/actions/runs/40154290822. Full live ChatGPT recovery acceptance pending."
+                    "Native FDE two-add-on regression forbids next-message delivery after post-click file attachment changes, while preserving a single uncertain attempt and human attachment: https://github.com/sguzman/chat-queue/actions/runs/40154290822. Full live ChatGPT recovery acceptance pending.",
+                    "Native FDE synthetic regression tests after-click accepted-history persistence failure and a competing tab's denial, retaining the exact uncertain prompt and a prior independent submitted history row, then verifies explicit discard without another Send. Full CI: https://github.com/sguzman/chat-queue/actions/runs/40223661321. Authenticated site duplicate/rerender recovery remains open."
                   ]
                 }
               ]
@@ -1065,7 +1069,8 @@
                   "title": "Verify Chat Signals and Chat Queue coexist without DOM races",
                   "status": "implemented",
                   "evidence": [
-                    "Actual Chat Signals v0.3.13 and Chat Queue coexist on isolated synthetic Firefox page without triggering Send; authenticated ChatGPT DOM races and full multi-tab acceptance remain pending. https://github.com/sguzman/chat-queue/actions/runs/40042631264"
+                    "Actual Chat Signals v0.3.13 and Chat Queue coexist on isolated synthetic Firefox page without triggering Send; authenticated ChatGPT DOM races and full multi-tab acceptance remain pending. https://github.com/sguzman/chat-queue/actions/runs/40042631264",
+                    "Disposable Firefox tests reject page-origin forged pagehide/pageshow teardown and restore a paused, editable queue after real back-navigation without a Send. Actual pinned Chat Signals source publisher integration also passes in https://github.com/sguzman/chat-queue/actions/runs/40223820479. Authenticated-site coexistence remains unverified."
                   ]
                 },
                 {
@@ -1134,7 +1139,8 @@
                   "evidence": [
                     "scripts/security-audit.mjs runs in npm check and Firefox CI; adversarial fixture tests reject permission creep, network code and remote UI assets. docs/SECURITY-AUDIT.md documents CSP/storage/dependency review and remaining threats. Passing static audit and unit tests: https://github.com/sguzman/chat-queue/actions/runs/40046051894. Full independent privacy/security audit and authenticated delivery acceptance pending.",
                     "Volatile conditional review audit now excludes prompt text, route, epoch, document token and arbitrary errors. Headless Firefox verifies cross-conversation clearing and bounded retention: Actions 40144526167 and 40144757338. Independent production-site security audit remains open.",
-                    "Security audit hardening completed directly on main without expanding production permissions: exact Firefox manifest surface/script-context allowlists reject unreviewed main-world injection and extra workers; the local Options gate blocks remote form actions and CSS resource URLs; Gecko-specific identity/update policy rejects arbitrary update_url and optional data-collection categories. Disposable adversarial tests for each; static-and-unit passed https://github.com/sguzman/chat-queue/actions/runs/40208432084 and subsequent full Firefox jobs also passed there. CI supply-chain audit now covers both workflows and refuses unreviewed workflow files, unpinned action tags, new owners and elevated tokens; isolated QA launcher and full Firefox workflow passed https://github.com/sguzman/chat-queue/actions/runs/40208677960 and https://github.com/sguzman/chat-queue/actions/runs/40208678061. Latest Gecko-field static audit passed in run 40208952065, full browser job pending at evidence update. An independent production-source/security review and authenticated-site privacy gates remain OPEN; do not promote M7-09 until met."
+                    "Security audit hardening completed directly on main without expanding production permissions: exact Firefox manifest surface/script-context allowlists reject unreviewed main-world injection and extra workers; the local Options gate blocks remote form actions and CSS resource URLs; Gecko-specific identity/update policy rejects arbitrary update_url and optional data-collection categories. Disposable adversarial tests for each; static-and-unit passed https://github.com/sguzman/chat-queue/actions/runs/40208432084 and subsequent full Firefox jobs also passed there. CI supply-chain audit now covers both workflows and refuses unreviewed workflow files, unpinned action tags, new owners and elevated tokens; isolated QA launcher and full Firefox workflow passed https://github.com/sguzman/chat-queue/actions/runs/40208677960 and https://github.com/sguzman/chat-queue/actions/runs/40208678061. Latest Gecko-field static audit passed in run 40208952065, full browser job pending at evidence update. An independent production-source/security review and authenticated-site privacy gates remain OPEN; do not promote M7-09 until met.",
+                    "Native Firefox security/lifecycle regression proves untrusted pagehide events cannot destroy the content listener; back navigation retains local queue without automatically resuming Send. Visibility, overlay hit-test and nontext-composer adversarial cases fail closed under https://github.com/sguzman/chat-queue/actions/runs/40223820479. Independent source/privacy audit and authenticated production testing remain open."
                   ]
                 },
                 {
