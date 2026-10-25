@@ -124,6 +124,7 @@ test('scoped API closes revoked event ports and refuses new calls',async()=>{
   const syntheticTab={tab:{id:72,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
   await listeners.internal({type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'},syntheticTab);
   await listeners.internal({type:'chat-queue-internal/v1',action:'state',phase:'generating',size:3,running:true,awaiting:true,leasePending:true,revision:5,sequence:1},syntheticTab);
+  await new Promise(resolve=>setImmediate(resolve));
   const change=seen.find(x=>x.event==='stateChanged');
   assert.equal(change?.protocolVersion,1);
   assert.equal(change?.state?.size,3);
@@ -347,6 +348,76 @@ test('revoking discover while a port authorization read is pending fails closed'
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(disconnects,1);
   assert.equal(posts,0);
+});
+
+test('state subscriptions suppress delayed metadata after silent durable Discover revoke',async()=>{
+  const {listeners,state,context}=create();
+  const received=[];let disconnected=0;
+  const port={name:'chat-queue/v1',sender:{id:'observer@example.test'},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:message=>received.push(message),
+    disconnect:()=>disconnected++};
+  listeners.connect(port);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received[0]?.event,'ready');
+  const url='https://chatgpt.com/c/private-notify';
+  const page={tab:{id:86,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/private-notify'},page)).ok,true);
+  const original=context.browser.storage.local.get;
+  const prior=state['chatqueue:api-grants:v2'];
+  let resume,reads=0;
+  context.browser.storage.local.get=key=>{
+    if(key==='chatqueue:api-grants:v2'&&++reads===1)
+      return new Promise(resolve=>{resume=()=>resolve({'chatqueue:api-grants:v2':prior});});
+    return original(key);
+  };
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:1,phase:'generating',running:true},page);
+  assert.equal(typeof resume,'function');
+  // Revocation committed but storage.onChanged has not yet been delivered.
+  state['chatqueue:api-grants:v2']={version:2,grants:{
+    'approved@example.test':['discover']}};
+  resume();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,2);
+  assert.equal(received.filter(x=>x.event==='stateChanged').length,0,
+    'revoked peer must not receive subscribed private-tab state metadata');
+  assert.equal(disconnected,1);
+});
+
+test('state subscriptions never publish superseded out-of-order snapshots',async()=>{
+  const {listeners,context}=create();
+  const received=[];
+  listeners.connect({name:'chat-queue/v1',sender:{id:'observer@example.test'},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:message=>received.push(message),
+    disconnect:()=>{}});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received[0]?.event,'ready');
+  const url='https://chatgpt.com/c/ordered-notify';
+  const page={tab:{id:87,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/ordered-notify'},page)).ok,true);
+  const original=context.browser.storage.local.get;
+  let releaseOld,reads=0;
+  context.browser.storage.local.get=key=>{
+    if(key==='chatqueue:api-grants:v2'&&++reads===1)
+      return new Promise(resolve=>{releaseOld=()=>resolve(original(key));});
+    return original(key);
+  };
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:1,phase:'generating',running:true},page);
+  assert.equal(typeof releaseOld,'function');
+  await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:2,phase:'finished',running:false},page);
+  await new Promise(resolve=>setImmediate(resolve));
+  releaseOld();
+  await new Promise(resolve=>setImmediate(resolve));
+  const changes=received.filter(x=>x.event==='stateChanged');
+  assert.equal(changes.length,1);
+  assert.equal(changes[0].state.phase,'finished',
+    'late older publication cannot revert newer subscriber state');
 });
 
 test('silent Discover revocation blocks delayed listTabs and capabilities responses',async()=>{
