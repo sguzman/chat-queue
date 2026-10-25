@@ -898,6 +898,11 @@
     if(!state.awaiting)return;
     const uncertainHistory=state.awaitingUncertain;
     state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
+    // A failed accepted-history commit left the previously clicked prompt
+    // uncertain. Unknown, failed, interrupted or unattributed idle evidence
+    // cannot release another tab to Send before explicit saved resolution.
+    // An attributable finished epoch follows the separate completion path.
+    if(uncertainHistory)state.unconfirmedClickLease=true;
     // A failed accepted-history write left NO current history entry. Do not
     // accidentally mark an older unrelated submitted response interrupted.
     if(!uncertainHistory&&state.history[0]?.status==='submitted')
