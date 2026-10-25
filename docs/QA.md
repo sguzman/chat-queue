@@ -40,7 +40,7 @@ Do not install the unsigned prototype into a personal browser for automatic send
 | Existing draft or attachment | Remains untouched | Native Firefox synthetic human drafts and selected file inputs passed in [run 40045489196](https://github.com/sguzman/chat-queue/actions/runs/40045489196); authenticated site pending |
 | Navigation to another conversation | No misrouted send | Synthetic Firefox pushState/replaceState, route return and no-send passed in run 40034372239; authenticated live navigation pending |
 | Two tabs same conversation | Deterministic ownership | Native synthetic Firefox lease passed in [run 40042415793](https://github.com/sguzman/chat-queue/actions/runs/40042415793); project URL alias and live identity acceptance separate |
-| Same tab after browser restart | No automatic resumption | Genuine Firefox **event-page** restart and paused recovery passed in [run 40058326692](https://github.com/sguzman/chat-queue/actions/runs/40058326692); whole-browser crash/relaunch untested |
+| Same tab after browser restart | No automatic resumption | Native FDE event-page restart, full Firefox shutdown/relaunch, and active-response tab reload with the real Chat Signals publisher passed in [run 40213411741](https://github.com/sguzman/chat-queue/actions/runs/40213411741); authenticated ChatGPT/crash recovery still pending |
 | Synthetic cross-extension caller denied | No queue contents disclosed | Node tests pass |
 | Approved caller revocation | Immediate denial on new calls | Independent Firefox extension-client acceptance passed; no production-account test |
 | Three themes and system preference | Legible HUD and preferences persist | Synthetic Firefox System/Light/Dark and persistence tests passed; authenticated site pending |
@@ -198,6 +198,12 @@ The Firefox two-addon provider fixture opens an ordinary `/c/<id>` tab and a `/g
 ## 🔄 Full browser shutdown/relaunch (synthetic)
 
 `tests/fde-browser-restart.cjs` runs the production queue scripts in a disposable Firefox Developer Edition profile, shuts the entire Firefox process down, relaunches that same isolated profile and reinstalls its temporary QA add-on. The test requires a previously persisted queue to remain paused and never click synthetic Send. It then deliberately opens a second Firefox tab after relaunch to exercise a distinct tab ID, requiring explicit previous-tab discovery and confirmation; every copied item must become uncertain without removing the source. If Firefox assigns a different tab ID even for the first reopened tab, that recovery path is checked first. If Firefox reuses the same tab ID, persisted items remain paused. The full two-process and forced-distinct-tab regression passed in [Firefox Developer Edition run 40129991817](https://github.com/sguzman/chat-queue/actions/runs/40129991817). It is Q1/Q5 synthetic-site evidence; authenticated ChatGPT recovery and true crash recovery remain separate acceptance gates.
+
+## 🛑 M4-11 — No silent resumption across Firefox lifecycle
+
+Verified within the defined Q1/Q2 synthetic-browser scope by [full green Firefox workflow 40213411741](https://github.com/sguzman/chat-queue/actions/runs/40213411741). The *actual pinned Chat Signals publisher* and Chat Queue ran together in a disposable Firefox Developer Edition profile: Queue sent the first of two synthetic messages and received the current response's authenticated generating phase. Reloading the Firefox tab before completion retained the second prompt but reset the volatile Start grant; it stayed **paused** and caused **zero additional Send clicks**. A real event-page idle/recreation test also denied reused Signal authorization, while complete Firefox process shutdown/relaunch required explicit recovery (and marked copied prompts uncertain) without automatic dispatch.
+
+This verifies the restart fail-closed contract for M4-11, **not** authenticated chatgpt.com, power-loss crash recovery, or the distinct real-site Send/completion and adversarial race gates in M4-06, M4-12 and M7-04.
 
 ## ⚡ Rapid authenticated response completion
 

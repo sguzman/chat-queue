@@ -706,9 +706,11 @@
                   "id": "M4-11",
                   "emoji": "🛑",
                   "title": "Refuse automatic resumption after browser or event-page restart",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "running not persisted; event-page QA pending"
+                    "Disposable Firefox Developer Edition with actual pinned Chat Signals publisher and Chat Queue installed together: after the first of two synthetic prompts was sent and generating, tab reload retained the second prompt paused with no automatic Send. Full Firefox and static CI green: https://github.com/sguzman/chat-queue/actions/runs/40213411741. This is a synthetic ChatGPT fixture, not authenticated site acceptance.",
+                    "Complete Firefox Developer Edition process shutdown and relaunch on disposable profile retained queue without implicit Start; explicit recovery on changed tab ID restored messages as uncertain with no Send. Passing browser test https://github.com/sguzman/chat-queue/actions/runs/40129991817 and repeated in https://github.com/sguzman/chat-queue/actions/runs/40213411741.",
+                    "Genuine Firefox MV3 event-page suspension/recreation invalidated prior provider authority, paused queue and denied Send; tested with native FDE event-page lifecycle https://github.com/sguzman/chat-queue/actions/runs/40058326692 and repeated in https://github.com/sguzman/chat-queue/actions/runs/40213411741."
                   ]
                 },
                 {
