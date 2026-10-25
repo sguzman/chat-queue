@@ -22,9 +22,9 @@
   // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
-  function releaseOwner(tabId){
+  function releaseOwner(tabId,keepConversationId=null){
     for(const [conversationId,id] of OWNERS)
-      if(id===tabId)OWNERS.delete(conversationId);
+      if(id===tabId&&conversationId!==keepConversationId)OWNERS.delete(conversationId);
   }
   const PORTS = new Map();
   // One writer per Firefox-attested peer ID per event page. Persistent
@@ -106,11 +106,10 @@
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
       return currentRoute(sender).then(live=>{
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
-        // A same-route re-registration must not clear an unresolved Send
-        // lease. Rebinding invalidates the old provider epoch, but another
-        // tab must not acquire this conversation during the handoff. Only
-        // leaving the route (or an explicit clear state) releases ownership.
-        if(ROUTES.get(tab.id)!==message.route)releaseOwner(tab.id);
+        // Rebinding invalidates old provider authority but cannot open an
+        // unconfirmed Send to another tab, including across /c/ and /g/.../c/
+        // aliases for the SAME conversation ID. Release unrelated owners.
+        releaseOwner(tab.id,signalContract.assignedConversationId(message.route));
         ROUTES.set(tab.id,message.route);
         STATE_SEQUENCES.set(tab.id,0);
         REGISTRATIONS.set(tab.id,++nextRegistration);
@@ -347,9 +346,9 @@
     }
   });
 
-  function invalidate(tabId){
+  function invalidate(tabId,keepConversationId=null){
     if(!ROUTES.has(tabId))return;
-    releaseOwner(tabId);
+    releaseOwner(tabId,keepConversationId);
     ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
   }
@@ -357,8 +356,12 @@
   api.tabs.onUpdated.addListener((tabId, change) => {
     if (change.url && !change.url.startsWith('https://chatgpt.com/')) invalidate(tabId);
     else if(change.url && ROUTES.has(tabId)){
-      try {if(new URL(change.url).pathname!==ROUTES.get(tabId)){
-        invalidate(tabId);
+      try {const nextRoute=new URL(change.url).pathname;
+        if(nextRoute!==ROUTES.get(tabId)){
+        // An exact route change invalidates the provider epoch and registry.
+        // It must NOT free a still-unresolved Send when both assigned route
+        // shapes identify the same conversation. Release on different ID.
+        invalidate(tabId,signalContract.assignedConversationId(nextRoute));
         void api.tabs.sendMessage(tabId,{type:'chat-queue-route-changed/v1'}).catch(()=>{});
       }}catch{}
     }
