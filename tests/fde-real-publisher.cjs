@@ -796,6 +796,47 @@ async function main(){
     await driver.sleep(900);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Reload during an attributable response cannot auto-send the remaining prompt');
+    stage='real-provider-hidden-composer-never-sends';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/hidden-composer');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic hidden-composer test';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    // visibility:hidden retains layout rectangles but is not a usable editor.
+    await driver.executeScript(
+      "document.getElementById('prompt-textarea').style.visibility='hidden'");
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').getClientRects().length>0"),true);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
+    stage='real-provider-hidden-send-never-clicks';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/hidden-send');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic hidden-button test';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(
+      "document.querySelector('[data-testid=send-button]').style.visibility='hidden'");
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('[data-testid=send-button]').getClientRects().length>0"),true);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Send button missing, disabled or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A script click on a hidden Send is forbidden');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript(
+      "document.querySelector('[data-testid=send-button]').style.visibility='visible'");
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Revealing Send must not silently retry the uncertain item');
     stage='real-provider-sixteen-tabs-hidden-retention';
     const sixteenStartTab=await driver.getWindowHandle();
     const loadTabs=[];

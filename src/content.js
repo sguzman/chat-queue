@@ -462,8 +462,23 @@
     return (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement ? editor.value : editor.innerText || editor.textContent || '').replace(/\r\n/g,'\n');
   }
   const canonicalComposerText=text=>text.replace(/\r\n/g,'\n').replace(/\u00a0/g,' ');
+  // A hidden or inert control can still have layout rectangles, and a script
+  // click can activate a visibility:hidden button. Never use rects alone to
+  // authorize a Send or to decide which page editor is the active composer.
+  function actionableControl(element) {
+    if(!element.isConnected||!element.getClientRects().length||
+       element.closest('[hidden],[inert],[aria-hidden="true"]')||
+       element.disabled===true||element.readOnly===true||
+       element.getAttribute('aria-disabled')==='true')return false;
+    const style=getComputedStyle(element);
+    return style.visibility==='visible'&&style.display!=='none'&&
+      style.pointerEvents!=='none';
+  }
+  function usableComposer(editor) {
+    return actionableControl(editor)&&editor.getAttribute('contenteditable')!=='false';
+  }
   function findComposer() {
-    const found=[...document.querySelectorAll(editorSelector)].filter(e=>e.isConnected && e.getClientRects().length && e.getAttribute('contenteditable')!=='false');
+    const found=[...document.querySelectorAll(editorSelector)].filter(usableComposer);
     if (found.length !== 1) throw new Error('Composer is missing or ambiguous');
     const editor=found[0];
     const form=editor.closest('form');
@@ -486,7 +501,7 @@
     if (value !== canonicalComposerText(text)) throw new Error('Composer did not accept the exact message');
   }
   function findSend(form) {
-    const buttons=[...form.querySelectorAll(sendSelector)].filter(e=>!e.disabled && e.getAttribute('aria-disabled')!=='true' && e.getClientRects().length);
+    const buttons=[...form.querySelectorAll(sendSelector)].filter(actionableControl);
     if (buttons.length !== 1) throw new Error('Send button missing, disabled or ambiguous');
     return buttons[0];
   }
@@ -716,8 +731,7 @@
       // A new attachment, editor, form or Send control after our initial
       // preflight is a genuine user/DOM conflict even if text still matches.
       const form=editor.closest('form');
-      const visibleEditors=[...document.querySelectorAll(editorSelector)].filter(e=>
-        e.isConnected&&e.getClientRects().length&&e.getAttribute('contenteditable')!=='false');
+      const visibleEditors=[...document.querySelectorAll(editorSelector)].filter(usableComposer);
       if(!form?.isConnected || visibleEditors.length!==1 || visibleEditors[0]!==editor ||
          [...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length) ||
          findSend(form)!==send)
