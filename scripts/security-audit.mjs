@@ -46,6 +46,12 @@ if('externally_connectable' in manifest||'web_accessible_resources' in manifest)
 if('content_security_policy' in manifest)fail('custom CSP needs a separate review');
 if(manifest.browser_specific_settings?.gecko?.id!=='chat-queue@sguzman.github')
   fail('stable Firefox add-on ID changed');
+exactKeys(manifest.browser_specific_settings,['gecko'],
+  'Firefox-specific manifest fields');
+exactKeys(manifest.browser_specific_settings?.gecko,
+  ['id','data_collection_permissions'],'Firefox identity and update policy');
+exactKeys(manifest.browser_specific_settings?.gecko?.data_collection_permissions,
+  ['required'],'Mozilla data collection disclosure fields');
 if(!exactly(manifest.browser_specific_settings?.gecko?.data_collection_permissions?.required,['none']))
   fail('data collection disclosure changed');
 if(!Array.isArray(manifest.content_scripts)||manifest.content_scripts.length!==1||

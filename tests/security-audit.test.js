@@ -100,3 +100,24 @@ test('remote CSS url and form actions are rejected in local options',()=>{
     assert.match(result.stderr,/remote assets or inline executable Options HTML/);
   }
 });
+
+test('optional data collection categories cannot bypass required-none disclosure',()=>{
+  const result=runAudit(dir=>{
+    const name=path.join(dir,'manifest.json');
+    const json=JSON.parse(fs.readFileSync(name,'utf8'));
+    json.browser_specific_settings.gecko.data_collection_permissions.optional=['browsingActivity'];
+    fs.writeFileSync(name,JSON.stringify(json));
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Mozilla data collection disclosure fields changed/);
+});
+test('an unreviewed Firefox update URL must fail the manifest audit',()=>{
+  const result=runAudit(dir=>{
+    const name=path.join(dir,'manifest.json');
+    const json=JSON.parse(fs.readFileSync(name,'utf8'));
+    json.browser_specific_settings.gecko.update_url='https://untrusted.invalid/updates.json';
+    fs.writeFileSync(name,JSON.stringify(json));
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Firefox identity and update policy changed/);
+});

@@ -3,7 +3,7 @@
 Chat Queue runs `node scripts/security-audit.mjs` inside `npm run check` on every commit to `main`. The policy checks **the extension distributed to Firefox**, not tests or examples:
 
 - **Permissions and script contexts:** storage-only permission; exactly one `https://chatgpt.com/*` content-script match, fixed isolated-world entrypoints at `document_idle`, fixed Firefox background script list and no unreviewed manifest execution keys such as `world:"MAIN"` or extra workers. No optional hosts, page-accessible resources or `externally_connectable` declaration.
-- **Identity and disclosure:** the stable Firefox add-on ID and Mozilla `data_collection_permissions.required=["none"]`.
+- **Identity and disclosure:** the stable Firefox add-on ID and Mozilla `data_collection_permissions.required=["none"]`. Unknown Gecko update URLs, optional collection categories or additional disclosure keys are rejected and require deliberate review.
 - **Assets and execution:** local Options scripts, no remotely sourced UI assets, remote CSS URLs, form destinations, inline event-handler attributes, dynamic `eval` / `Function` or dynamic module imports.
 - **Network:** production JavaScript cannot introduce `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` without the audit failing. The only permitted URL literal in production scripts is the ChatGPT origin guard.
 - **Dependencies:** the package is private and has no runtime dependencies or dependency-install declaration. CI installs explicitly pinned, QA-only tools separately.
