@@ -813,21 +813,31 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
-    // Neither an opacity-zero ancestor nor aria-hidden/inert form is an
-    // actionable composer, even though the editor itself has layout rects.
-    for(const mode of ['opacity','aria-hidden','inert','offscreen']){
+    // These non-actionable ancestors must override the layout rects of the
+    // editor. Attribute and disabled fieldset semantics are checked too.
+    for(const mode of ['opacity','aria-hidden','aria-disabled','inert','fieldset','offscreen']){
       await driver.executeScript(mode=>{
         const form=document.querySelector('main form');
         const editor=document.getElementById('prompt-textarea');
+        if(editor.parentElement?.id==='qa-disabled-fieldset'){
+          editor.parentElement.replaceWith(editor);
+        }
         editor.style.visibility='visible';
         editor.style.position='';
         editor.style.left='';
         form.style.opacity='';
         form.removeAttribute('aria-hidden');
+        form.removeAttribute('aria-disabled');
         form.removeAttribute('inert');
         if(mode==='opacity')form.style.opacity='0';
         if(mode==='aria-hidden')form.setAttribute('aria-hidden','TRUE');
+        if(mode==='aria-disabled')form.setAttribute('aria-disabled','true');
         if(mode==='inert')form.setAttribute('inert','');
+        if(mode==='fieldset'){
+          const fieldset=document.createElement('fieldset');
+          fieldset.id='qa-disabled-fieldset';fieldset.disabled=true;
+          editor.replaceWith(fieldset);fieldset.append(editor);
+        }
         if(mode==='offscreen'){editor.style.position='fixed';editor.style.left='-10000px';}
       },mode);
       await driver.executeScript(`return ${hud('run')}.click()`);

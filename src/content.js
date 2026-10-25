@@ -467,7 +467,7 @@
   // authorize a Send or to decide which page editor is the active composer.
   function actionableControl(element) {
     if(!element.isConnected||!element.getClientRects().length||
-       element.closest('[hidden],[inert],[aria-hidden="true" i]')||
+       element.closest('[hidden],[inert],[aria-hidden="true" i],[aria-disabled="true" i],fieldset:disabled')||
        element.disabled===true||element.readOnly===true||
        element.getAttribute('aria-disabled')==='true')return false;
     // Hidden-but-laid-out or offscreen controls still accept script clicks.
