@@ -831,6 +831,10 @@ async function main(){
         if(mode==='offscreen'){editor.style.position='fixed';editor.style.left='-10000px';}
       },mode);
       await driver.executeScript(`return ${hud('run')}.click()`);
+      // A previous iteration leaves the same error text in the HUD.
+      // Let the 350ms dispatch timer execute before accepting that note as
+      // evidence of this iteration's denial, not merely the old one.
+      await driver.sleep(600);
       await driver.wait(async()=>await driver.executeScript(
         `return ${hud('status')}.textContent.includes('Composer is missing or ambiguous')`),9500);
       assert.equal(await driver.executeScript('return window.__sendCount'),0,
