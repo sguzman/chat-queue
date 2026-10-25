@@ -955,10 +955,11 @@
                   "id": "M6-07",
                   "emoji": "🧮",
                   "title": "Evaluate conditions deterministically once per signal epoch",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Pure evaluator suppresses repeat phase/epoch keys; once-per-whole-response policy needs integration: src/rules.js",
-                    "Same-response provider document/epoch phase proposals are suppressed after a matching event; deterministic rule order and approved-ID context operate in native Firefox synthetic-provider QA (Actions 40146208533, 40146730072). Complete once-per-response and live authenticated provider acceptance remain pending."
+                    "Same-response provider document/epoch phase proposals are suppressed after a matching event; deterministic rule order and approved-ID context operate in native Firefox synthetic-provider QA (Actions 40146208533, 40146730072). Complete once-per-response and live authenticated provider acceptance remain pending.",
+                    "One terminal conditional proposal per document/route/response epoch: the event key now excludes terminal phase, so a dismissed or approved finished/failed event cannot offer another action when the same response is reclassified; unmatched phases do not consume an epoch. Pure rules tests and synthetic browser-authenticated Firefox integration verify dismissal, explicit approval, denial of repeat same-epoch phase and eligibility of a genuinely newer response. Full static and Firefox workflow passes https://github.com/sguzman/chat-queue/actions/runs/40202859962. Real independently installed Chat Signals conditional success/failure preview acceptance separately passed https://github.com/sguzman/chat-queue/actions/runs/40201835724. Does not assert authenticated production ChatGPT compatibility."
                   ]
                 },
                 {

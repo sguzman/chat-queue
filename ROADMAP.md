@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 73/96 verified (76%) · ███████░░░ · 20 implemented awaiting acceptance.**
+**Overall: 74/96 verified (77%) · ███████░░░ · 19 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -190,14 +190,14 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 **Conditional engine**
 
-- [~] `M6-07` 🧮 Evaluate conditions deterministically once per signal epoch _(implemented; acceptance pending)_
+- [x] `M6-07` 🧮 Evaluate conditions deterministically once per signal epoch
 - [~] `M6-08` 🔁 Reject cycles, unbounded loops and silent auto-retry _(implemented; acceptance pending)_
 - [x] `M6-09` 🔐 Require explicit user policy for sensitive retries and sends
 - [x] `M6-10` 📬 Emit auditable outcomes without recording response text
 - [x] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API
 - [~] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases _(implemented; acceptance pending)_
 
-**M6 acceptance:** 7/12 verified (58%) · █████░░░░░ · 5 implemented but not accepted.
+**M6 acceptance:** 8/12 verified (66%) · ██████░░░░ · 4 implemented but not accepted.
 
 ### 🦊 M7 — Firefox QA & release
 
