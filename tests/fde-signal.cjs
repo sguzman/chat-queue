@@ -90,7 +90,7 @@ function prepareQueue(dir,source){
   fs.writeFileSync(contentPath,original.replace("attachShadow({mode:'closed'})","attachShadow({mode:'open'})")
     // Widen only the rapid-terminal fixture's confirmation polling interval.
     .replace('const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));',
-      "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:ms));")
+      "const delay=ms=>new Promise(resolve=>setTimeout(resolve,routeKey()==='/c/rapid-terminal'?1800:routeKey()==='/c/post-click-user'?850:ms));")
     // QA-only deferred policy read: expose the race where an onChanged
     // invalidation arrives before a previously initiated read settles.
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
@@ -406,6 +406,37 @@ async function main(){
     // While the second pre-Send authorization is in flight, simulate real
     // human input that restores the exact original text. Equality alone would
     // miss the user interaction; a trusted-input marker must stop the click.
+    qaStage='trusted-edit-after-send-click';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/post-click-user');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    for(const text of ['Synthetic first post-click message','Synthetic second protected message']){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(`return ${hud('draft')}.value==='' && ${hud('count')}.textContent===arguments[0]`,text.includes('first')?'1 queued':'2 queued'),10000);
+    }
+    await emit('idle',0,580,'observed','fresh','/c/post-click-user');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await driver.executeScript("window.__qaPostClickTrusted=0;document.getElementById('prompt-textarea').addEventListener('input',e=>{if(e.isTrusted)window.__qaPostClickTrusted++})");
+    const postClickEditor=await driver.findElement(By.id('prompt-textarea'));
+    await postClickEditor.sendKeys('X',Key.BACK_SPACE);
+    assert.ok(await driver.executeScript('return window.__qaPostClickTrusted')>0,
+      'The Firefox input event after the Queue click must be browser-trusted');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),'');
+    await emit('generating',1,581,'observed','fresh','/c/post-click-user');
+    await emit('finished',1,582,'observed','fresh','/c/post-click-user');
+    await waitNote('Human interaction during submission verification; manual review required');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'A later provider completion must not dispatch the second item');
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'The single attempted Send requires manual uncertainty resolution');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+
     qaStage='trusted-user-edit-race';
     const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
     const lateAdd=await driver.executeScript(`return ${hud('add')}`);

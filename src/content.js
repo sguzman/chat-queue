@@ -640,6 +640,11 @@
       let accepted=false;
       for (let i=0;i<12;i++) {
         await delay(250);
+        // The human may edit or click Send after our own single click but
+        // before the provider confirms a fresh busy epoch. A matching empty
+        // editor is insufficient proof once this interaction was observed.
+        if(humanTouched)
+          throw new Error('Human interaction during submission verification; manual review required');
         if (state.destroyed || !state.running || state.key!==attemptKey ||storageKey()!==attemptKey || !editor.isConnected) break;
         const busy=proof.busy || (contract.newBusy(state.trusted,baseline)?state.trusted:null);
         if (busy && !editorValue(editor).trim()) {
