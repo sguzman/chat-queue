@@ -41,7 +41,7 @@ code,.note{color:var(--muted)}label{display:block;margin-bottom:7px}
 <ul id="rule-list" aria-label="Saved preview rules"></ul>
 <form id="preview-form">
 <h3>Simulate one response event</h3>
-<label for="preview-phase">Simulated response state</label><select id="preview-phase"><option value="finished">Finished</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="limit">Limit</option></select>
+<label for="preview-phase">Simulated response state</label><select id="preview-phase"><option value="finished">Finished</option><option value="generating">Generating (duration preview)</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option><option value="limit">Limit</option></select>
 <label for="preview-confidence">Simulated confidence</label><select id="preview-confidence"><option value="observed">Observed</option><option value="inferred">Inferred</option><option value="unknown">Unknown</option></select>
 <label for="preview-origin">Simulated origin</label><select id="preview-origin"><option value="fresh">Fresh</option><option value="restored">Restored historical snapshot</option></select>
 <label for="preview-epoch">Simulated response epoch</label><input id="preview-epoch" type="number" min="0" max="1000000" value="1" required>

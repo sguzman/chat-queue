@@ -73,6 +73,9 @@ function prepareQueue(dir,source){
          priority:100,when:{phase:'failed'},then:{type:'pause'}},
        {version:1,id:'epoch-finished',enabled:true,priority:80,
          when:{phase:'finished'},then:{type:'propose',text:'Synthetic second action'}}]
+       :event.data.mode==='generation-only'?[{
+         version:1,id:'bounded-generating-review',enabled:true,priority:100,
+         when:{phase:'generating',minDurationMs:1200},then:{type:'pause'}}]
        :event.data.mode==='deadline-only'?[{
          version:1,id:'deadline-manual',enabled:true,priority:100,
          when:{phase:'finished',approvalDeadlineMs:event.data.deadlineMs},
@@ -1053,6 +1056,47 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
       /expired · deadline-manual · finished · propose/);
+
+    qaStage='active-generation-duration-manual-review';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/active-generation-deadline');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')}) &&
+        document.documentElement.dataset.qaRuleMutationReady==='yes' &&
+        document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'generation-only'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('generating',1,210,'observed','fresh','/c/active-generation-deadline');
+    await driver.sleep(340);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'An observed generating epoch alone cannot satisfy a bounded duration threshold');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),7000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /bounded-generating-review/);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /offered · bounded-generating-review · generating · pause/);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Local deadline must not Send any chat prompt');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await waitNote('Conditional pause approved');
+    await emit('finished',1,211,'observed','fresh','/c/active-generation-deadline');
+    await driver.sleep(300);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'A terminal state for the same already-reviewed epoch cannot reoffer');
+    await emit('generating',2,212,'observed','fresh','/c/active-generation-deadline');
+    await driver.sleep(280);
+    await emit('finished',2,213,'observed','fresh','/c/active-generation-deadline');
+    await driver.sleep(1500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'The active deadline is cancelled when a real terminal arrives first');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');
