@@ -69,7 +69,11 @@ function prepareQueue(dir,source){
           when:{phase:'finished',dependsOn:['durable-first']},then:{type:'pause'}},
         {version:1,id:'durable-fallback',enabled:true,priority:80,
           when:{phase:'finished',skipIf:['durable-first']},then:{type:'pause'}}
-      ]:event.data.mode==='duration-only'?[
+      ]:event.data.mode==='single-epoch'?[{version:1,id:'epoch-failed',enabled:true,
+         priority:100,when:{phase:'failed'},then:{type:'pause'}},
+       {version:1,id:'epoch-finished',enabled:true,priority:80,
+         when:{phase:'finished'},then:{type:'propose',text:'Synthetic second action'}}]
+       :event.data.mode==='duration-only'?[
         {version:1,id:'duration-frozen',enabled:true,priority:100,
           when:{phase:'finished',minDurationMs:3000},then:{type:'pause'}}
       ]:event.data.mode==='duration'?[
@@ -921,6 +925,39 @@ async function main(){
     assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),/synthetic-changed/);
     await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    qaStage='one-conditional-offer-per-response-epoch';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/one-rule-epoch');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')}) &&
+        document.documentElement.dataset.qaRuleMutationReady==='yes' &&
+        document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'single-epoch'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('failed',1,190,'observed','fresh','/c/one-rule-epoch');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /epoch-failed/);
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await emit('finished',1,191,'observed','fresh','/c/one-rule-epoch');
+    await driver.sleep(550);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),
+      true,'A second terminal phase in the same epoch cannot offer another action');
+    await emit('finished',2,192,'observed','fresh','/c/one-rule-epoch');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /Synthetic second action/);
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Dismissal and reclassification must never Send a proposal');
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');

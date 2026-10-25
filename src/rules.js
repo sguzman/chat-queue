@@ -69,7 +69,10 @@
     out.sort((a,b)=>b.priority-a.priority||a.id.localeCompare(b.id,'en'));
     return {ok:true,rules:Object.freeze(out)};
   }
-  function eventKey(s){return `${s.route}|${s.documentToken}|${s.epoch}|${s.phase}`;}
+  // One terminal proposal opportunity per response epoch, not one per phase.
+  // A later terminal reclassification or duplicate cannot create a second
+  // user action after the first offer was dismissed or approved.
+  function eventKey(s){return `${s.route}|${s.documentToken}|${s.epoch}`;}
   function evaluate(input,event,used=[],context){
     const valid=normalize(input);
     if(!valid.ok)return valid;

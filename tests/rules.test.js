@@ -26,11 +26,22 @@ test('highest priority matching rule wins and only returns a proposal',()=>{
   assert.equal(got.decision.ruleId,'pause');assert.equal(got.decision.action.type,'pause');
   assert.equal(got.decision.approvalRequired,true);
 });
-test('duplicate event key is not considered twice; other phases remain distinct',()=>{
+test('one proposal per response epoch across terminal phase reclassification',()=>{
   const list=[r('ok','finished'),r('error','failed')];
   const first=rules.evaluate(list,e());
-  assert.equal(rules.evaluate(list,e('finished','fresh',1,19),[first.decision.eventKey]).reason,'already-considered');
-  assert.equal(rules.evaluate(list,e('failed'),[first.decision.eventKey]).decision.ruleId,'error');
+  assert.equal(first.decision.ruleId,'ok');
+  assert.equal(rules.evaluate(list,e('finished','fresh',1,19),
+    [first.decision.eventKey]).reason,'already-considered');
+  assert.equal(rules.evaluate(list,e('failed','fresh',1,20),
+    [first.decision.eventKey]).reason,'already-considered',
+    'a later failed state in the same response must not create a second offer');
+  assert.equal(rules.evaluate(list,e('failed','fresh',2,21),
+    [first.decision.eventKey]).decision.ruleId,'error',
+    'a genuinely new response epoch may offer a new terminal proposal');
+  const noFirstMatch=rules.evaluate([r('error','failed')],e('finished'));
+  assert.equal(noFirstMatch.reason,'no-match');
+  assert.equal(rules.evaluate([r('error','failed')],e('failed')).decision.ruleId,'error',
+    'unmatched phases must not consume the response epoch');
 });
 test('historical and unconfirmed responses never produce proposals',()=>{
   assert.equal(rules.evaluate([r('ok','finished')],e('finished','restored')).reason,'not-actionable');
