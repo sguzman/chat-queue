@@ -46,6 +46,11 @@ async function main(){
     const defaultHeartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
     assert.equal(content.split(defaultHeartbeat).length,2);
     content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
+    // QA-only registration race: the old route is rejected after a route change.
+    const bootstrapRegister="api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute})";
+    assert.equal(content.split(bootstrapRegister).length,2);
+    content=content.replace(bootstrapRegister,
+      "(initialRoute==='/c/bootstrap-register-old' ? (document.documentElement.dataset.qaBootstrapRegisterPending='yes', api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute})) : api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute}))");
     // QA-only delayed initial storage tests SPA route changes before HUD mount.
     const bootstrapLoad="api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY])";
     assert.equal(content.split(bootstrapLoad).length,2);
@@ -71,6 +76,9 @@ async function main(){
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
+          if(msg.route==='/c/bootstrap-register-old')
+            return new Promise(resolve=>setTimeout(
+              ()=>resolve({ok:false,error:'route-mismatch'}),1400));
           if(msg.route==='/c/bootstrap-old'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
@@ -988,6 +996,17 @@ async function main(){
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('authenticated-chat-signals-required')`),7000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
+    qaStage='initial-register-route-race';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/bootstrap-register-old');
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaBootstrapRegisterPending==='yes'"),7000);
+    await driver.executeScript("history.pushState({},'', '/c/bootstrap-register-new')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}?.textContent.includes('Paused; press Start')`),10000);
+    assert.equal(await driver.executeScript(
+      `return ${jsEl('count')}.textContent`),'0 queued');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
     qaStage='initial-load-route-privacy';
