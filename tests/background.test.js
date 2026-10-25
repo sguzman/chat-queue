@@ -392,6 +392,48 @@ test('same-route re-registration retains an unresolved cross-tab Send lease',asy
   assert.equal((await check(second)).ok,true);
 });
 
+test('project-route alias navigation preserves unresolved conversation ownership',async()=>{
+  const {listeners}=create(),provider={id:'chat-signals@sguzman.github'};
+  const oldUrl='https://chatgpt.com/c/alias-lease',projectUrl='https://chatgpt.com/g/p/c/alias-lease';
+  const owner={tab:{id:73,url:oldUrl},url:oldUrl};
+  const peer={tab:{id:74,url:oldUrl},url:oldUrl};
+  const register=(tab,route)=>listeners.internal({type:'chat-queue-internal/v1',action:'register',route},tab);
+  const signal=(tab,route,token)=>listeners.external({type:'chat-queue-signal/v1',
+    tabId:tab.tab.id,signal:{version:1,route,documentToken:token.repeat(32),
+      sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'}},provider);
+  const check=(tab,route,token)=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route,documentToken:token.repeat(32),epoch:1,sequence:1},tab);
+  assert.equal((await register(owner,'/c/alias-lease')).ok,true);
+  assert.equal((await register(peer,'/c/alias-lease')).ok,true);
+  assert.equal((await signal(owner,'/c/alias-lease','a')).ok,true);
+  assert.equal((await signal(peer,'/c/alias-lease','b')).ok,true);
+  assert.equal((await check(owner,'/c/alias-lease','a')).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    running:false,awaiting:false,leasePending:true,sequence:1},owner)).ok,true);
+  assert.equal((await check(peer,'/c/alias-lease','b')).error,'conversation-owned-by-another-tab');
+  // A browser-owned URL update clears the old provider registration but
+  // must preserve the still-uncertain Send lease through its project alias.
+  listeners.updated(73,{url:projectUrl});
+  assert.equal((await check(peer,'/c/alias-lease','b')).error,'conversation-owned-by-another-tab',
+    'route invalidation cannot free an unresolved alias Send');
+  const projectSender={tab:{id:73,url:projectUrl},url:oldUrl};
+  assert.equal((await register(projectSender,'/g/p/c/alias-lease')).ok,true);
+  assert.equal((await check(peer,'/c/alias-lease','b')).error,'conversation-owned-by-another-tab',
+    're-registration across aliases cannot free an unresolved Send');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    running:false,awaiting:false,leasePending:true,sequence:1},projectSender)).ok,true);
+  assert.equal((await check(peer,'/c/alias-lease','b')).error,'conversation-owned-by-another-tab');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    running:false,awaiting:false,leasePending:false,sequence:2},projectSender)).ok,true);
+  assert.equal((await check(peer,'/c/alias-lease','b')).ok,true,
+    'an explicitly clear owner state can release the shared identity lease');
+  // A different conversation must never inherit this prior owner.
+  listeners.updated(74,{url:'https://chatgpt.com/c/completely-different'});
+  assert.equal((await register(owner,'/g/p/c/alias-lease')).ok,true);
+  assert.equal((await signal(projectSender,'/g/p/c/alias-lease','c')).ok,true);
+  assert.equal((await check(projectSender,'/g/p/c/alias-lease','c')).ok,true);
+});
+
 test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
   const {listeners,state,forwards,context}=create();
   // Firefox structured-clones peer messages into the recipient realm. Pass
