@@ -554,9 +554,10 @@
                   "id": "M3-10",
                   "emoji": "🔌",
                   "title": "Pause on interruption, failed, limit or unknown state",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js processSignal; browser QA pending"
+                    "src/content.js processSignal; browser QA pending",
+                    "Actual separately installed Chat Signals publisher and Queue running in disposable Firefox: visible stream error, user-visible connection interruption and conversation-length limit each pause an active response and leave later queue items pending, without replay after reload. Full CI both jobs green https://github.com/sguzman/chat-queue/actions/runs/40200031422. Authenticated synthetic-provider test injects versioned unknown phase during an already confirmed response, verifies immediate pause and no subsequent automatic dispatch on terminal evidence, full CI https://github.com/sguzman/chat-queue/actions/runs/40200163352. Production ChatGPT network acceptance still pending."
                   ]
                 },
                 {
