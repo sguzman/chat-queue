@@ -67,3 +67,8 @@ The content HUD closes an already-open item editor when a preflight or Send atte
 ## Volatile conditional audit containment
 
 Only validated rule IDs, enumerated phase/action labels and fixed outcomes enter the in-memory review history (maximum 20). No proposal text, stored queued prompt, route, document token, response epoch, timestamp or raw exception is retained in the audit. Navigation and reload clear it. A delayed approval after route transition must not render its metadata in the subsequent conversation. Losing authenticated provider registry authority discards active offers and disables previews; restored authorization requires fresh explicit consent.
+
+
+## Scope of approved-rule dependency state
+
+The reviewed dependency record is a maximum 32-rule, in-memory list of approved IDs, scoped to one conversation and one explicit preview enablement. It resets on route, rule-library change, opt-out/re-opt-in and provider registry loss. A dismissed proposal, failed queue storage write, restored provider event or stale asynchronous approval cannot satisfy a prerequisite. The list is not written to local storage or exposed to the web page, other tabs or the cross-extension API. An approved prerequisite controls only which future proposal is displayed, not whether or when Queue may Send.

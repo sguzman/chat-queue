@@ -17,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [] };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0 };
   let routeGeneration=0;
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
@@ -160,6 +160,17 @@
        !['finished','failed','interrupted','limit'].includes(offer.phase))return;
     state.ruleAudit=[...state.ruleAudit,{outcome,ruleId:offer.ruleId,
       phase:offer.phase,action:offer.action.type}].slice(-20);
+  }
+  // This is not a durable execution journal: only user-approved rule IDs in
+  // the current explicitly opted-in conversation/consent session. The pure
+  // evaluator already rejects unknown or duplicate completed-rule IDs.
+  function recordRuleCompletion(offer){
+    if(!state.rulesEnabled||!offer||offer.key!==state.key||
+       offer.consentGeneration!==state.ruleConsentGeneration||
+       !state.ruleLibrary.some(rule=>rule.id===offer.ruleId))return;
+    if(!state.ruleCompleted.includes(offer.ruleId) &&
+       state.ruleCompleted.length<rulesEngine.MAX_RULES)
+      state.ruleCompleted=[...state.ruleCompleted,offer.ruleId];
   }
   let paintedRows=null,paintedAudit=null;
   function render() {
@@ -366,6 +377,7 @@
     // authenticated provider epoch; never inherit authority from this tab.
     if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
+    state.ruleCompleted=[];state.ruleConsentGeneration++;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -461,12 +473,14 @@
   function considerConditionalPreview(signal) {
     if(!state.rulesEnabled||!state.initialized||state.routing||
        state.ruleOffer||state.key!==storageKey())return;
-    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen);
+    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,
+      {completedRuleIds:state.ruleCompleted});
     if(!result?.ok||!result.decision)return;
     state.ruleSeen.push(result.decision.eventKey);
     if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
     state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,
-      action:result.decision.action,documentToken:signal.documentToken,
+      action:result.decision.action,consentGeneration:state.ruleConsentGeneration,
+      documentToken:signal.documentToken,
       epoch:signal.epoch,phase:signal.phase,confidence:signal.confidence};
     auditOffer('offered',state.ruleOffer);
     // A proposal requiring manual review must stop any already-scheduled
@@ -663,6 +677,7 @@
     // Explicit preview consent belongs to this exact conversation, not every
     // future ChatGPT route in this tab. Navigation invalidates all offers.
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
+    state.ruleCompleted=[];state.ruleConsentGeneration++;
     state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
@@ -1096,6 +1111,7 @@
     if(state.rulesEnabled){
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
+      state.ruleCompleted=[];state.ruleConsentGeneration++;
       state.ruleLibrary=[];statusNote('Conditional previews disabled');return;
     }
     const key=state.key,generation=routeGeneration,libraryGeneration=ruleLibraryGeneration;
@@ -1108,13 +1124,15 @@
          storageKey()!==key)throw new Error('conversation-changed');
       if(ruleLibraryGeneration!==libraryGeneration)throw new Error('rule-library-changed');
       state.ruleLibrary=decoded.rules;state.ruleSeen=[];state.ruleOffer=null;
+      state.ruleCompleted=[];state.ruleConsentGeneration++;
       state.rulesEnabled=true;
       statusNote('Conditional previews enabled; future authenticated events only');
     }catch(error){
       // An earlier route's pending read must not overwrite this route's
       // own opt-in, nor let a superseded library snapshot become active.
       if(!state.destroyed&&state.key===key&&routeGeneration===generation){
-        state.rulesEnabled=false;
+        state.rulesEnabled=false;state.ruleConsentGeneration++;
+        state.ruleCompleted=[];state.ruleSeen=[];
         state.ruleLibrary=[];state.ruleOffer=null;
         statusNote('Conditional previews unavailable: '+String(error?.message||error));
       }
@@ -1126,7 +1144,8 @@
   });
   els['rules-approve'].addEventListener('click',async()=>{
     const offer=state.ruleOffer;
-    if(!offer||state.routing||state.key!==offer.key||state.key!==storageKey())return;
+    if(!offer||state.routing||state.key!==offer.key||state.key!==storageKey()||
+       !state.rulesEnabled||offer.consentGeneration!==state.ruleConsentGeneration)return;
     // A newer provider epoch/phase must invalidate the pending review; an
     // obsolete success/failure offer cannot be approved for a later response.
     if(!state.trusted||state.trusted.documentToken!==offer.documentToken||
@@ -1141,6 +1160,7 @@
     if(state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;render();publish();
     if(offer.action.type==='pause'){
+      recordRuleCompletion(offer);
       auditOffer('approved',offer);
       statusNote('Conditional pause approved; manually Start to resume');
       return;
@@ -1151,7 +1171,9 @@
     // Never display a previous conversation's rule ID or review outcome in
     // the newly selected conversation's volatile audit/status.
     if(state.destroyed||state.routing||state.key!==offer.key||
-       storageKey()!==offer.key)return;
+       storageKey()!==offer.key||
+       offer.consentGeneration!==state.ruleConsentGeneration)return;
+    if(response.ok)recordRuleCompletion(offer);
     auditOffer(response.ok?'approved':'save-failed',offer);
     if(response.ok)statusNote('Conditional text queued; press Start separately');
     else statusNote('Conditional proposal was not queued: '+response.error);
@@ -1172,8 +1194,9 @@
     let relevant=false;
     if(changes[ruleStore.KEY]){
       if(state.ruleOffer)auditOffer('invalidated',state.ruleOffer);
-      ruleLibraryGeneration++;
+      ruleLibraryGeneration++;state.ruleConsentGeneration++;
       state.rulesEnabled=false;state.ruleOffer=null;state.ruleSeen=[];
+      state.ruleCompleted=[];
       state.ruleLibrary=[];state.note='Rule library changed; previews disabled';
       relevant=true;
     }

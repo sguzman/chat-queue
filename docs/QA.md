@@ -291,3 +291,8 @@ The disposable headless Firefox two-extension test checks that a genuine synthet
 ### Bounded review history under repeated authenticated signals
 
 The native two-extension Firefox QA emits eight additional distinct response-epoch limit outcomes after the initial six review records. Each requires a separate manual Dismiss, and the closed-shadow audit must retain exactly the latest 20 fixed-schema entries, drop the two oldest, and contain no route, token or synthetic proposed message text. No Send may occur during this workload. This verifies the in-memory bound without claiming live ChatGPT provider acceptance.
+
+
+## 🦊 Live-path dependency and skip-rule regression
+
+A disposable Firefox Developer Edition two-extension fixture saves three linked synthetic declarative rules: a `failed` phase pause prerequisite, a `finished` proposal requiring that prerequisite, and a `finished` pause skipped if the prerequisite has been approved. A fresh authenticated finished event initially offers the ungated skip candidate. Dismissing it does not fulfill a prerequisite. A fresh authenticated failed event then offers the prerequisite; only explicit approval marks it completed. A newer fresh finished event now offers the dependent proposal, while suppressing the skipped rule; manual approval appends exactly one paused item and Send remains untouched. Disabling and re-enabling previews clears approval history: the skipped candidate becomes eligible again. This is synthetic authenticated Firefox execution of **manual proposals only**, not live ChatGPT delivery or autonomous conditional recovery.

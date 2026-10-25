@@ -144,3 +144,6 @@ A disposable headless Firefox Developer Edition test lowers the MV3 event-page i
 ### Uncertain message review safety
 
 A possibly submitted item cannot be edited or deleted through ordinary controls or wiped by bulk Clear. The HUD exposes separate, deliberate **Retry** and **Discard** controls; retry only marks the item pending, and never resumes sending automatically. The same restrictions apply to the external extension API.
+
+
+The authenticated rule-review HUD now supports declared **dependencies and skip conditions** using only a bounded, volatile list of explicitly approved rule IDs. Offered or dismissed proposals cannot satisfy dependencies. Changing conversation, modifying saved rules, or re-enabling proposals resets that history; no approval ever authorizes automatic Send. Firefox synthetic provider QA covers these cases, while the real Chat Signals publisher remains a separate acceptance requirement.

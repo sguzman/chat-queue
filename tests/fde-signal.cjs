@@ -53,9 +53,19 @@ function prepareQueue(dir,source){
       const then=event.data.action==='propose'
         ? {type:'propose',text:'Synthetic delayed approval'}
         : {type:'pause'};
+      const rules=event.data.mode==='dependencies'?[
+        {version:1,id:'first-approval',enabled:true,priority:100,
+          when:{phase:'failed'},then:{type:'pause'}},
+        {version:1,id:'dependent',enabled:true,priority:90,
+          when:{phase:'finished',dependsOn:['first-approval']},
+          then:{type:'propose',text:'Synthetic dependent approved text'}},
+        {version:1,id:'skip-until-approved',enabled:true,priority:80,
+          when:{phase:'finished',skipIf:['first-approval']},
+          then:{type:'pause'}}
+      ]:[{version:1,id:'synthetic-changed',enabled:true,
+        priority:10,when:{phase},then}];
       browser.storage.local.set({'chatqueue:conditional-rules:v1':{
-        version:1,rules:[{version:1,id:'synthetic-changed',enabled:true,
-          priority:10,when:{phase},then}]
+        version:1,rules
       }}).then(()=>document.documentElement.dataset.qaRuleMutationDone='yes')
         .catch(()=>document.documentElement.dataset.qaRuleMutationDone='failed');
     });`);
@@ -836,7 +846,59 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('rules-audit-count')}.textContent`),'0');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
-    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review');
+
+    qaStage='conditional-dependency-and-skip-approval';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-dependency-approvals');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')})&&document.documentElement.dataset.qaRuleMutationReady==='yes'&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'dependencies'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',1,401,'observed','fresh','/c/rule-dependency-approvals');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /skip-until-approved/,
+      'Without a manually approved prerequisite, the skipIf candidate should be eligible');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await emit('failed',2,402,'observed','fresh','/c/rule-dependency-approvals');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /first-approval/);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await waitNote('Conditional pause approved');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    await emit('finished',3,403,'observed','fresh','/c/rule-dependency-approvals');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /dependent/,
+      'A successful explicit approval should satisfy dependsOn and suppress skipIf');
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A satisfied dependency can only enqueue; it can never implicitly Send');
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews disabled');
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',4,404,'observed','fresh','/c/rule-dependency-approvals');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-dismiss')}.hidden`),8000);
+    assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+      /skip-until-approved/,
+      'A new opt-in must not inherit approved prerequisites from the previous policy session');
+    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement');
   }catch(error){
     let diagnostics='';
     if(qaStage.startsWith('rapid-')&&driver){
