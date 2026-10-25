@@ -297,6 +297,43 @@ async function main(){
       'Returning to another route must not automatically send its pending prompt');
     // Switch to an unused conversation for the disconnected-provider check,
     // preserving all previous queues without editing or clearing them.
+    stage='manual-pause-does-not-resume';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/manual-pause-123');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic before manual pause','Synthetic after manual pause'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,
+        (index+1)+' queued'),9000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Manually paused')`),7000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Signal: finished')`),10000);
+    await driver.sleep(850);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Manually paused Queue cannot automatically send the next prompt on completion');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===2'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2,
+      'An explicit second Start resumes once; it never duplicates either Send');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
     stage='provider-removed-no-replay';
