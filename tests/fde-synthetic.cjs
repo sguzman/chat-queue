@@ -291,6 +291,32 @@ async function main(){
     await upAfterLowerDrop.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    qaStage='accessible-names-and-live-status';
+    const aria=await driver.executeScript(() => {
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const panel=root.querySelector('.panel');
+      const controls=[...root.querySelectorAll('button,select,textarea,summary,[tabindex]')];
+      const visible=controls.filter(el=>!el.hidden&&el.getClientRects().length>0&&
+        getComputedStyle(el).visibility!=='hidden');
+      const names=visible.map(el=>({
+        kind:el.tagName.toLowerCase(),
+        name:String(el.getAttribute('aria-label')||
+          el.labels?.[0]?.textContent||el.textContent||el.title||'').trim()
+      }));
+      return {region:panel.getAttribute('aria-label'),
+        statusRole:root.getElementById('status').getAttribute('role'),
+        dataLive:root.getElementById('data-note').getAttribute('aria-live'),
+        ruleLive:root.getElementById('rules-note').getAttribute('aria-live'),
+        unlabeled:names.filter(entry=>!entry.name),
+        visibleCount:names.length};
+    });
+    assert.equal(aria.region,'Chat Queue');
+    assert.equal(aria.statusRole,'status','Response updates must be announced semantically');
+    assert.equal(aria.dataLive,'polite');
+    assert.equal(aria.ruleLive,'polite');
+    assert.ok(aria.visibleCount>=10,'Expected visible keyboard-operable HUD controls');
+    assert.deepEqual(aria.unlabeled,[],
+      'Every visible actionable HUD element needs an accessible name');
     qaStage='toggle';
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
