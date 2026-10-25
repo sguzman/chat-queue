@@ -1028,6 +1028,26 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return ${jsEl('count')}?.textContent==='1 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='unassigned-route-previous-tab-recovery-denied';
+    const homeOwner=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get(`http://127.0.0.1:${server.address().port}/`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${jsEl('recovery-find')})`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),
+      '0 queued','An unassigned new tab must not implicitly adopt the earlier home queue');
+    await driver.executeScript("document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('data-note')}.textContent.includes('Recovery requires an assigned conversation URL')`),5000);
+    assert.equal(await driver.executeScript(`return ${jsEl('recovery-confirm')}.hidden`),true,
+      'A home route cannot offer another tab\'s unrelated new-chat messages for recovery');
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.close();
+    await driver.switchTo().window(homeOwner);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'1 queued',
+      'Denied cross-tab home recovery must preserve the original queue');
     qaStage='unassigned-route-variants';
     for(const route of ['/g/g-synthetic','/g/g-synthetic/c','/share/synthetic','/search','/c/synthetic/extra']){
       await driver.get(`http://127.0.0.1:${server.address().port}${route}`);

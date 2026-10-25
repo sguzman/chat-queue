@@ -1187,6 +1187,13 @@
   els['recovery-find'].addEventListener('click',async()=>{
     if(state.blockedRecord||state.running||state.awaiting||state.attempting||state.routing||state.importing)return;
     state.pendingRecovery=null;
+    // A home, shared, search or other unassigned pathname can name several
+    // different chats. Exact pathname equality alone cannot bind old prompts
+    // to the current conversation, even with deliberate human confirmation.
+    if(!contract.assignedConversationRoute(routeKey())){
+      els['data-note'].textContent='Recovery requires an assigned conversation URL';
+      render();return;
+    }
     const key=state.key,generation=routeGeneration,revision=state.revision;
     try{
       const records=await api.storage.local.get(null);
@@ -1209,6 +1216,7 @@
   els['recovery-confirm'].addEventListener('click',async()=>{
     const draft=state.pendingRecovery;
     if(!draft||draft.key!==state.key||storageKey()!==state.key||
+       !contract.assignedConversationRoute(routeKey())||
        draft.revision!==state.revision||state.blockedRecord||state.running||
        state.awaiting||state.attempting||state.routing||state.importing||
        state.pendingSaves>0)return;
