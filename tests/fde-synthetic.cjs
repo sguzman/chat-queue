@@ -1422,7 +1422,9 @@ async function main(){
     // Firefox may instantiate a new document or resume a bfcache document.
     // Both paths must restore the persisted message but never an old Run.
     await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('count')}?.textContent==='1 queued'`),15000);
+      `return ${jsEl('count')}?.textContent==='1 queued' && window.__sendCount===0`),15000);
+    // Firefox can mount an extension content script before this fixture's
+    // inline page counter is initialized on a back-forward restoration.
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Editable after back navigation';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);

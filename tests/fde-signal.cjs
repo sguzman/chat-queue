@@ -1465,7 +1465,10 @@ async function main(){
       'A terminal for an unjournaled new response must not finish older history');
     await driver.executeScript(
       "document.documentElement.dataset.qaRejectAcceptedWrite='no'");
-    await discardButton.click();
+    // Signal completion repaints the shadow rows. Resolve against the
+    // current button rather than a WebDriver element from before the repaint.
+    await driver.executeScript(
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain button[aria-label=\"Discard uncertain submission after review\"]').click()");
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='0 queued'`),10000);
     assert.equal(await driver.executeScript('return window.__sent.length'),1,
