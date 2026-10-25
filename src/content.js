@@ -742,6 +742,14 @@
       ? [...new Set(saved.recoveredSources.filter(key=>typeof key==='string'&&key.startsWith('chatqueue:v1:tab:')))].slice(-32)
       : [];
   }
+  function requestVerifiedProvider(){
+    if(!state.initialized||state.destroyed||state.routing||
+       state.key!==storageKey()||
+       !contract.assignedConversationRoute(routeKey()))return;
+    // One-shot request only; this is not provider evidence or Start authority.
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',
+      action:'sync-provider',route:routeKey()}).catch(()=>{});
+  }
   async function handleRouteChange() {
     if(!state.initialized)return;
     const newKey=storageKey();
@@ -804,6 +812,7 @@
     try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.routing=false;render();host.style.removeProperty('visibility');publish();
+    requestVerifiedProvider();
   }
   // A failed speculative write must invalidate any optimistic token that an
   // external client may have observed before the persistence error.
@@ -1437,7 +1446,7 @@
       if(initialRouteChanged)void handleRouteChange();
       else{
         state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Paused; press Start';
-        render();publish();
+        render();publish();requestVerifiedProvider();
       }
     } catch(error) {
       state.destroyed=true;signalObserver.disconnect();clearInterval(routeWatch);

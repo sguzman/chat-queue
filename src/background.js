@@ -90,6 +90,14 @@
     }
   };
 
+  function syncVerifiedProvider(tabId,route){
+    if(typeof api.runtime.sendMessage!=='function')return;
+    try{
+      const pending=api.runtime.sendMessage(signalContract.PROVIDER_ID,{
+        type:'chat-queue-signal-sync/v1',tabId,route});
+      if(pending&&typeof pending.catch==='function')void pending.catch(()=>{});
+    }catch{/* optional provider absent; no Send authority */}
+  }
   api.runtime.onMessage.addListener((message, sender) => {
     if (message?.type !== 'chat-queue-internal/v1' || !Number.isInteger(sender?.tab?.id)) return;
     const tab = sender.tab;
@@ -104,20 +112,21 @@
         REGISTRATIONS.set(tab.id,++nextRegistration);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
-        // Optional one-shot sync repairs startup ordering when Chat Signals
-        // first published before this Queue content script registered.
-        // No privilege or Send authority is accepted from this request:
-        // actual provider events still arrive through onMessageExternal and
-        // pass sender.id, route, sequence and tab checks.
-        if(signalContract.assignedConversationRoute(message.route)&&
-           typeof api.runtime.sendMessage==='function'){
-          try{
-            const response=api.runtime.sendMessage(signalContract.PROVIDER_ID,{
-              type:'chat-queue-signal-sync/v1',tabId:tab.id,route:message.route});
-            if(response&&typeof response.catch==='function')void response.catch(()=>{});
-          }catch{/* provider absent: remain safely paused */}
-        }
         return {ok:true,tabId:tab.id};
+      });
+    }
+    if(message.action==='sync-provider'){
+      // A verified provider resample is requested only once the receiving
+      // content script has initialized, never inside register(). That way
+      // a valid Signal cannot arrive before the content listener can accept it.
+      if(!signalContract.assignedConversationRoute(message.route)||
+         ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
+        return Promise.resolve({ok:false,error:'route-mismatch'});
+      return currentRoute(sender).then(live=>{
+        if(live!==message.route||ROUTES.get(tab.id)!==message.route||
+           !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
+        syncVerifiedProvider(tab.id,message.route);
+        return {ok:true};
       });
     }
     if (message.action === 'dispatch-check') {

@@ -580,6 +580,9 @@ test('Queue requests exactly one browser-principal Signal resample for assigned 
     url:'https://chatgpt.com/c/synthetic-one'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
     action:'register',route:'/c/synthetic-one'},sender)).ok,true);
+  assert.equal(syncRequests.length,0,'registration alone cannot race uninitialized content');
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'sync-provider',route:'/c/synthetic-one'},sender)).ok,true);
   assert.equal(syncRequests.length,1);
   assert.equal(syncRequests[0].recipient,'chat-signals@sguzman.github');
   assert.deepEqual(JSON.parse(JSON.stringify(syncRequests[0].message)),{
@@ -588,11 +591,15 @@ test('Queue requests exactly one browser-principal Signal resample for assigned 
   const home={tab:{id:352,url:'https://chatgpt.com/'},url:'https://chatgpt.com/'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
     action:'register',route:'/'},home)).ok,true);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'sync-provider',route:'/'},home)).ok,false);
   assert.equal(syncRequests.length,1,
     'home/unassigned routes are not permitted a provider resample');
   const wrong={tab:{id:353,url:'https://chatgpt.com/c/other'},
     url:'https://chatgpt.com/c/other'};
   assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
     action:'register',route:'/c/not-live'},wrong)).ok,false);
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'sync-provider',route:'/c/not-live'},wrong)).ok,false);
   assert.equal(syncRequests.length,1,'route-mismatched registration never syncs');
 });
