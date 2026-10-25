@@ -46,6 +46,20 @@ function createQueue(dest,root){
  const nav="!change.url.startsWith('https://chatgpt.com/')";
  assert.equal(bg.split(nav).length,2);
  bg=bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')");
+ // QA-only: simulate a persisted revocation whose onChanged delivery is
+ // delayed, while an already-authorized private status response is in flight.
+ // The production add-on never accepts this payload field or QA flag.
+ const statusBoundary="      // Status contains private prompts. A storage revocation can commit";
+ assert.equal(bg.split(statusBoundary).length,2);
+ bg=bg.replace(statusBoundary,
+   "      if(message.action==='status'&&message.payload?.qaHold===true){"+
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
+   "await new Promise(resolve=>setTimeout(resolve,2400));}\\n"+
+   statusBoundary);
+ const grantListener="  api.storage.onChanged.addListener((changes,area)=>{";
+ assert.equal(bg.split(grantListener).length,2);
+ bg=bg.replace(grantListener,grantListener+
+   "\\n    if(globalThis.__qaSkipGrantChangeNotice&&area==='local'&&changes[grants.KEY])return;");
  // QA-only: delay one stale tab metadata state before URL inspection.
  const section=bg.indexOf("    if (message.action === 'state') {");
  assert.ok(section>=0);
@@ -69,14 +83,33 @@ function createQueue(dest,root){
        items:[{id:'qa-uncertain-item',text:'Synthetic possibly submitted payload',status:'uncertain'}]
      }}).then(()=>({ok:true}));
    }
+   if(msg?.type==='qa-grants-update-silent'){
+     // Wait for the production external-status handler to reach the delayed
+     // return boundary before committing the synthetic revocation.
+     return new Promise(resolve=>{
+       let tries=0;
+       const poll=()=>{
+         if(globalThis.__qaPrivateStatusHoldEntered===true){
+           globalThis.__qaSkipGrantChangeNotice=true;
+           browser.storage.local.set({[${JSON.stringify(grantsKey)}]:msg.policy})
+             .then(()=>resolve({ok:true}),()=>resolve({ok:false,error:'qa-save-failed'}));
+         }else if(++tries<150)setTimeout(poll,15);
+         else resolve({ok:false,error:'qa-status-not-paused'});
+       };
+       poll();
+     });
+   }
    if(msg?.type!=='qa-grants-update')return;
+   globalThis.__qaSkipGrantChangeNotice=false;
+   globalThis.__qaPrivateStatusHoldEntered=false;
    return browser.storage.local.set({[${JSON.stringify(grantsKey)}]:msg.policy}).then(()=>({ok:true}));
  });`);
  fs.writeFileSync(path.join(dest,'qa-grants-content.js'),`
  window.addEventListener('message',event=>{
-  if(event.source!==window||!['qa-grants-set','qa-seed-uncertain'].includes(event.data?.kind))return;
+  if(event.source!==window||!['qa-grants-set','qa-grants-set-silent','qa-seed-uncertain'].includes(event.data?.kind))return;
   const {nonce,policy,kind}=event.data;
-  browser.runtime.sendMessage(kind==='qa-seed-uncertain'?{type:'qa-seed-uncertain'}:{type:'qa-grants-update',policy})
+  browser.runtime.sendMessage(kind==='qa-seed-uncertain'?{type:'qa-seed-uncertain'}:
+    {type:kind==='qa-grants-set-silent'?'qa-grants-update-silent':'qa-grants-update',policy})
     .then(result=>window.postMessage({kind:'qa-grants-ack',nonce,result},'*'))
     .catch(()=>window.postMessage({kind:'qa-grants-ack',nonce,result:{ok:false}},'*'));
  });
@@ -241,6 +274,37 @@ async function main(){
   let readNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',readNonce,clientId);
   await driver.wait(async()=>await driver.executeScript('return window.__grantResults.some(x=>x.nonce===arguments[0])',readNonce),10000);
+  // Verify the real Firefox event page rechecks persisted privileges even
+  // if its grant-change event is intentionally delayed by the QA background.
+  stage='silent-grant-revocation-of-private-status';
+  const delayedStatusNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-api-request",nonce:arguments[0],request:{type:"chat-queue/v1",action:"status",tabId:arguments[1],payload:{qaHold:true}}},"*")',
+    delayedStatusNonce,tabId);
+  const silentRevokeNonce=++nonce;
+  await driver.executeScript('window.postMessage({kind:"qa-grants-set-silent",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append"]}}},"*")',
+    silentRevokeNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',silentRevokeNonce),9000);
+  const silentAck=await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result',silentRevokeNonce);
+  assert.equal(silentAck.ok,true,'QA must commit revocation after the private response enters its hold');
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',delayedStatusNonce),10000);
+  const blockedPrivate=await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result',delayedStatusNonce);
+  assert.equal(blockedPrivate.error,'authorization-changed',
+    'the stored grant, not only an already-delivered change event, must control disclosure');
+  assert.equal(JSON.stringify(blockedPrivate).includes('Synthetic external enqueue'),false);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  // Restore the prior synthetic scopes before continuing the established
+  // navigation, editing and final real Firefox revocation coverage.
+  const restoreNonce=++nonce;
+  await driver.executeScript('window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',
+    restoreNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',restoreNonce),10000);
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
   // The fallback must detect Firefox URL change events when History API updates the route.
   stage='scoped-rules-revocation';
   const scopedLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
