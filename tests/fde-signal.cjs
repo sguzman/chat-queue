@@ -1429,7 +1429,24 @@ async function main(){
     const discardButton=await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain button[aria-label=\"Discard uncertain submission after review\"]')");
     assert.equal(await discardButton.isEnabled(),true,
-      'The failed accepted-history write must release the awaiting lock for manual resolution');
+      'Manual review must remain available while the uncertain response holds its lease');
+    // A separate tab with the same assigned conversation must NOT acquire a
+    // new Send lease merely because accepted-history persistence failed.
+    const uncertainOwnerWindow=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic competing Send denied after write failure';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,560,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Another tab owns this conversation');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Uncertain accepted-history write must retain cross-tab owner lease');
+    await driver.switchTo().window(uncertainOwnerWindow);
     await driver.executeScript(
       "document.documentElement.dataset.qaRejectAcceptedWrite='no'");
     await discardButton.click();

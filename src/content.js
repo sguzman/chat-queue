@@ -14,7 +14,7 @@
   const uiValid=x=>x?.version===1&&Number.isSafeInteger(x.right)&&x.right>=0&&x.right<=10000&&Number.isSafeInteger(x.bottom)&&x.bottom>=0&&x.bottom<=10000&&typeof x.collapsed==='boolean';
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
-  const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false,
+  const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false, awaitingUncertain: false,
     busySeen: false, attempting: null, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
@@ -245,7 +245,7 @@
       item.id===state.editing&&item.status==='pending'))state.editing=null;
     const rowsState=[state.key,state.revision,state.items,state.items.length,
       state.history,state.history.length,state.editing,state.attempting,
-      state.importing,state.running,state.awaiting,state.blockedRecord];
+      state.importing,state.running,state.awaiting,state.awaitingUncertain,state.blockedRecord];
     if(paintedRows&&paintedRows.every((v,i)=>v===rowsState[i]))return;
     const oldRow=state.editing?[...els.items.children].find(row=>
       row.dataset.itemId===state.editing):null;
@@ -363,11 +363,11 @@
           ctrls.append(button('Retry','Allow manually requested retry',async()=>{
             const reply=await act('resolve',{id:item.id,decision:'retry'},true);
             if(!reply.ok)statusNote(reply.error);
-          },locked||state.running||state.awaiting));
+          },locked||state.running||(state.awaiting&&!state.awaitingUncertain)));
           ctrls.append(button('Discard','Discard uncertain submission after review',async()=>{
             const reply=await act('resolve',{id:item.id,decision:'discard'},true);
             if(!reply.ok)statusNote(reply.error);
-          },locked||state.running||state.awaiting));
+          },locked||state.running||(state.awaiting&&!state.awaitingUncertain)));
         }
         row.append(ctrls);
       }
@@ -691,8 +691,8 @@
     statusNote('Preparing next message');
     let clicked=false;
     // The confirmation/history write can fail AFTER one real Send click.
-    // In that case leave the payload uncertain, but never strand the old
-    // response-wait lock or claim a submitted history row was persisted.
+    // In that case preserve the cross-tab response lease while permitting
+    // explicit uncertain-item review; never claim history was persisted.
     let acceptedHistoryWritePending=false;
     let editor,send,proof,composerForm;
     let humanTouched=false;
@@ -791,10 +791,10 @@
       if(state.key===attemptKey) {
         state.running=false;
         if(acceptedHistoryWritePending){
-          // A rejected post-click persistence result is ambiguous. A durable
-          // uncertain item must remain reviewable without forcing a reload.
-          // Remove only the failed attempt's speculative history row.
-          state.awaiting=false;state.busySeen=false;state.waiting=null;
+          // The remote response may still be generating. Hold the existing
+          // owner lease until its attributable terminal or an explicit review
+          // action, but allow Retry/Discard without reloading this tab.
+          state.awaitingUncertain=true;
           state.history=state.history.filter(entry=>entry.id!==item.id);
         }
         // Pre-click journal is also uncertain if preparation was interrupted;
@@ -822,7 +822,7 @@
   // separately authorize the *next* pending item after cancellation.
   function closeUnfinishedResponse(status){
     if(!state.awaiting)return;
-    state.awaiting=false;state.busySeen=false;state.waiting=null;
+    state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
     if(state.history[0]?.status==='submitted'){
       state.history[0].status=status;
       void save().catch(()=>{});
@@ -847,7 +847,7 @@
       statusNote(attributable?'Response cancelled; press Start to continue':
         'Unattributed response cancellation; press Start to continue');
     } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
-      state.awaiting=false;state.busySeen=false;state.waiting=null;
+      state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
       if(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted') {
         state.history[0].status='finished';void save();
       }
@@ -918,7 +918,7 @@
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
-    state.running=false;state.awaiting=false;state.attempting=null;state.busySeen=false;
+    state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.busySeen=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
@@ -935,7 +935,7 @@
       state.storageFault=true;state.blockedRecord=true;
       state.items=[];state.history=[];state.recoveredSources=[];state.requestHighWatermarks=Object.create(null);
       state.revision=0;state.etag=uid();state.editing=null;
-      state.running=false;state.awaiting=false;state.routing=false;
+      state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.routing=false;
       statusNote('Could not load conversation queue; reload to retry');
       host.style.removeProperty('visibility');
       return;
@@ -1101,7 +1101,8 @@
       if (action==='resolve') {
         // Recovery is never an implicit continuation of an active or
         // in-flight response; a separate Start must follow deliberate review.
-        if(state.running||state.awaiting||state.attempting)
+        if(state.running||state.attempting||
+           (state.awaiting&&!state.awaitingUncertain))
           return {ok:false,error:'pause-before-resolving-uncertain'};
         const item=state.items.find(i=>i.id===payload?.id && i.status==='uncertain');
         if(!item)return {ok:false,error:'not-uncertain'};
@@ -1110,9 +1111,18 @@
           if(payload.decision==='retry')item.status='pending';
           else state.items=state.items.filter(i=>i.id!==item.id);
         });
-        if(result.ok)statusNote(payload.decision==='retry'
-          ? 'Retry marked pending; press Start separately'
-          : 'Uncertain message discarded; queue remains paused');
+        if(result.ok){
+          // The deliberate decision is the only non-provider event allowed to
+          // release a lease held for a failed post-click history write. A
+          // rejected resolution write must keep the lease and review item.
+          if(state.awaitingUncertain){
+            state.awaiting=false;state.awaitingUncertain=false;
+            state.busySeen=false;state.waiting=null;
+          }
+          statusNote(payload.decision==='retry'
+            ? 'Retry marked pending; press Start separately'
+            : 'Uncertain message discarded; queue remains paused');
+        }
         return result;
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
