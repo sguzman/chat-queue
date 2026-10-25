@@ -286,6 +286,41 @@ async function main(){
       `return ${hud('status')}?.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),3,
       'Three guarded Send clicks require three distinct terminal epochs');
+    stage='long-running-provider-epoch-without-automatic-retry';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/long-provider-response');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic long response first item',
+      'Synthetic long response pending item'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,
+        (index+1)+' queued'),9500);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),10500);
+    // The sender has legitimately been generating for >15s. Its absence
+    // of newer events is not evidence that the first response completed;
+    // it also must not cause any queued retry or premature second Send.
+    await driver.sleep(16600);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Long generating response cannot advance, duplicate or retry');
+    assert.equal(await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState"),'generating');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===2'),13000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9500);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2);
     stage='authorized-third-party-control-start';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/authorized-api-123');
     await ready();
