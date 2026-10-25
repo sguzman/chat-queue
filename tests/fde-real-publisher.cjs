@@ -151,8 +151,19 @@ async function main(){
       'A missed initial provider event must recover through a one-shot sync, not Send');
     stage='restored-terminal-does-not-authorize-send';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/restored-history-123');
-    await driver.wait(async()=>await driver.executeScript(
-      "return document.documentElement.dataset.chatSignalsState==='finished'"),12000);
+    try{await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='finished'"),12000);}
+    catch(error){
+      const details=await driver.executeScript(() => ({
+        providerPhase:document.documentElement.dataset.chatSignalsState||null,
+        providerReason:document.documentElement.dataset.chatSignalsReason||null,
+        providerSequence:document.documentElement.dataset.qaPublishedSequence||null,
+        queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
+        queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent?.slice(0,160)||null
+      }));
+      throw Error('Historical provider state not restored: '+JSON.stringify(details)+'; '+error.message);
+    }
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Signal: finished')`),12000);
     await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic restored-epoch queued message';`);
