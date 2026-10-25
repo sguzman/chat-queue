@@ -52,12 +52,18 @@
       signal.confidence!=='unknown'&&
       signal.epoch>baseline.epoch&&signal.sequence>baseline.sequence&&ACTIVE.has(signal.phase));
   }
+  function cancelled(signal,waiting){
+    return Boolean(signal&&waiting&&signal.documentToken===waiting.documentToken&&
+      signal.route===waiting.route&&signal.origin==='fresh'&&
+      signal.confidence==='observed'&&signal.phase==='idle'&&
+      signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
+  }
   function completed(signal,waiting){
     return Boolean(signal&&waiting&&signal.documentToken===waiting.documentToken&&
       signal.route===waiting.route&&signal.origin==='fresh'&&signal.confidence!=='unknown'&&
       signal.phase==='finished'&&signal.epoch===waiting.epoch&&signal.sequence>waiting.sequence);
   }
-  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,assignedConversationRoute,assignedConversationId,parse,advance,ready,newBusy,completed});
+  const api=Object.freeze({TYPE,PROVIDER_ID,PHASES,ACTIVE,validRoute,assignedConversationRoute,assignedConversationId,parse,advance,ready,newBusy,completed,cancelled});
   root.ChatQueueSignal=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -364,11 +364,22 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'A trusted Stop action cannot resume or retry subsequent queued messages');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    // A deliberate second Start must work after cancellation; retaining the
+    // old awaiting flag would strand the next item indefinitely.
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===2'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(
-      `return Boolean(${hud('run')}) && ${hud('count')}.textContent==='1 queued'`),13000);
+      `return Boolean(${hud('run')}) && ${hud('count')}.textContent==='0 queued'`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
-      'Reload after manual cancellation must not revive a pending Send');
+      'Reload after cancellation and deliberate restart must not replay Sends');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
     stage='provider-removed-no-replay';

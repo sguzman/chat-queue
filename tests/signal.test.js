@@ -60,3 +60,15 @@ test('assigned conversation IDs conservatively collide across supported URL form
     '/c/one%2Ftwo','/g//c/one'])
     assert.equal(signal.assignedConversationId(route),null,route);
 });
+
+test('manual Stop idle must be attributable to the awaited exact epoch',()=>{
+  const waiting={documentToken:'a'.repeat(32),route:'/c/synthetic',epoch:5,sequence:17};
+  const idle={version:1,...waiting,sequence:19,phase:'idle',origin:'fresh',
+    confidence:'observed'};
+  assert.equal(signal.cancelled(idle,waiting),true);
+  for(const bad of [
+    {...idle,origin:'restored'},{...idle,confidence:'inferred'},
+    {...idle,epoch:6},{...idle,sequence:17},{...idle,route:'/c/other'},
+    {...idle,documentToken:'f'.repeat(32)},{...idle,phase:'finished'}
+  ])assert.equal(signal.cancelled(bad,waiting),false);
+});

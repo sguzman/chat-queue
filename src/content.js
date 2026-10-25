@@ -690,19 +690,35 @@
       render();
     }
   }
+  // Close a confirmed submission's response wait without putting its
+  // already-clicked text back into the retry queue. A new local Start must
+  // separately authorize the *next* pending item after cancellation.
+  function closeUnfinishedResponse(status){
+    if(!state.awaiting)return;
+    state.awaiting=false;state.busySeen=false;state.waiting=null;
+    if(state.history[0]?.status==='submitted'){
+      state.history[0].status=status;
+      void save().catch(()=>{});
+    }
+  }
   function processSignal() {
     if (state.key && state.key!==storageKey()) {void handleRouteChange();return;}
     const next=state.trusted?.phase || 'unknown';
     const previous=state.signal;state.signal=next;
-    if (state.running && (next==='failed'||next==='limit'||next==='interrupted'||next==='unknown')) {
-      // A temporary connection interruption is not an automatic retry.
-      if(state.awaiting && state.history[0]?.status==='submitted') {
-        state.history[0].status=next==='failed'||next==='limit'?'failed':'interrupted';
-        void save();
-      }
+    if ((state.running||state.awaiting) &&
+        (next==='failed'||next==='limit'||next==='interrupted'||next==='unknown')) {
+      // Never resume from a failed or disconnected provider. The already
+      // clicked item stays in historical records, not a blind retry.
+      closeUnfinishedResponse(next==='failed'||next==='limit'?'failed':'interrupted');
       state.running=false;statusNote(`Paused on ${next}`);
-    } else if(state.running && state.awaiting && next==='idle' && previous!=='idle'){
-      state.running=false;statusNote('Response cancelled; press Start to continue');
+    } else if(state.awaiting && next==='idle' && previous!=='idle'){
+      // Stop is a fresh, same-response-epoch idle transition. Any anomalous
+      // idle also pauses fail-closed rather than keeping the next item stuck.
+      const attributable=contract.cancelled(state.trusted,state.waiting);
+      closeUnfinishedResponse('interrupted');
+      state.running=false;
+      statusNote(attributable?'Response cancelled; press Start to continue':
+        'Unattributed response cancellation; press Start to continue');
     } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
       state.awaiting=false;state.busySeen=false;state.waiting=null;
       if(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted') {
