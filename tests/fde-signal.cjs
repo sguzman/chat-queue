@@ -955,9 +955,17 @@ async function main(){
       `return !${hud('rules-approve')}.hidden`),8000);
     assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
       /Synthetic second action/);
-    await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+        ${hud('rules-approve')}.hidden`),10000);
+    await emit('failed',2,193,'observed','fresh','/c/one-rule-epoch');
+    await driver.sleep(550);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Approving a proposal cannot permit another terminal action in the same response');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
-      'Dismissal and reclassification must never Send a proposal');
+      'Approval, dismissal and phase reclassification must never Send a proposal');
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');
