@@ -966,7 +966,8 @@
                   "title": "Emit auditable outcomes without recording response text",
                   "status": "implemented",
                   "evidence": [
-                    "ChatQueueRules.auditPreview returns bounded fixed-schema metadata without prompt text, eventKey, route or document token. Options keeps last 20 dry-run entries in memory only; scoped external previewRules response adds sanitized audit receipt. Pure, Options and independent Firefox extension QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051586583. No persistent authenticated live outcome journal or active rule sends."
+                    "ChatQueueRules.auditPreview returns bounded fixed-schema metadata without prompt text, eventKey, route or document token. Options keeps last 20 dry-run entries in memory only; scoped external previewRules response adds sanitized audit receipt. Pure, Options and independent Firefox extension QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051586583. No persistent authenticated live outcome journal or active rule sends.",
+                    "Closed-shadow per-conversation review outcomes are now bounded to 20 in-memory fixed-schema entries (rule ID, known phase/action/outcome), never prompt, route, token or response text. Synthetic authenticated two-extension Firefox validates offer/approve/dismiss/expiry, stale-route approval isolation and exact FIFO cap after 22 entries: Actions 40144526167 and 40144757338. Real publisher/authenticated ChatGPT acceptance remains open."
                   ]
                 },
                 {
@@ -986,7 +987,8 @@
                   "status": "implemented",
                   "evidence": [
                     "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js",
-                    "Authenticated synthetic Firefox terminal-error policy review, stale policy-load invalidation and superseded response-epoch offer expiry now pass: Actions 40140727193, 40140873933 and 40143843590. Full live-publisher/recovery acceptance remains open."
+                    "Authenticated synthetic Firefox terminal-error policy review, stale policy-load invalidation and superseded response-epoch offer expiry now pass: Actions 40140727193, 40140873933 and 40143843590. Full live-publisher/recovery acceptance remains open.",
+                    "Firefox synthetic provider adversarial tests cover 22 bounded review outcomes, delayed approval during SPA navigation with no cross-chat audit exposure and no autonomous Send (Actions 40144526167 and 40144757338). Real publisher and complete recovery orchestration remain pending."
                   ]
                 }
               ]
@@ -1096,7 +1098,8 @@
                   "title": "Audit permissions, CSP, storage, private data and supply chain",
                   "status": "implemented",
                   "evidence": [
-                    "scripts/security-audit.mjs runs in npm check and Firefox CI; adversarial fixture tests reject permission creep, network code and remote UI assets. docs/SECURITY-AUDIT.md documents CSP/storage/dependency review and remaining threats. Passing static audit and unit tests: https://github.com/sguzman/chat-queue/actions/runs/40046051894. Full independent privacy/security audit and authenticated delivery acceptance pending."
+                    "scripts/security-audit.mjs runs in npm check and Firefox CI; adversarial fixture tests reject permission creep, network code and remote UI assets. docs/SECURITY-AUDIT.md documents CSP/storage/dependency review and remaining threats. Passing static audit and unit tests: https://github.com/sguzman/chat-queue/actions/runs/40046051894. Full independent privacy/security audit and authenticated delivery acceptance pending.",
+                    "Volatile conditional review audit now excludes prompt text, route, epoch, document token and arbitrary errors. Headless Firefox verifies cross-conversation clearing and bounded retention: Actions 40144526167 and 40144757338. Independent production-site security audit remains open."
                   ]
                 },
                 {
