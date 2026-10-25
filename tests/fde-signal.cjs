@@ -118,7 +118,8 @@ function prepareQueue(dir,source){
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
     .replace('api.storage.local.set({[key]:data})',
-      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data})))")
+      "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
+      "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))))")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -1400,6 +1401,45 @@ async function main(){
       /duration-frozen/,
       'Next response epoch may independently qualify by elapsed duration');
     await driver.executeScript(`return ${hud('rules-dismiss')}.click()`);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+
+    qaStage='post-click-accepted-history-write-failure';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic accepted write must stay uncertain';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,550,'observed','fresh','/c/accepted-journal-fail');
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectAcceptedWrite='yes'");
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,551,'observed','fresh','/c/accepted-journal-fail');
+    await waitNote('Submission record could not be saved; review uncertain message');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+        Boolean(document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain'))`),9000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'A failed accepted-history save must never duplicate the Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain .preview').textContent.includes('Synthetic accepted write must stay uncertain')"),true);
+    const discardButton=await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain button[aria-label=\"Discard uncertain submission after review\"]')");
+    assert.equal(await discardButton.isEnabled(),true,
+      'The failed accepted-history write must release the awaiting lock for manual resolution');
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRejectAcceptedWrite='no'");
+    await discardButton.click();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='0 queued'`),10000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Manual discard never retries an already-clicked message');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='0 queued'`),12000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');

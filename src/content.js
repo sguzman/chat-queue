@@ -690,6 +690,10 @@
     state.attempting=item.id;
     statusNote('Preparing next message');
     let clicked=false;
+    // The confirmation/history write can fail AFTER one real Send click.
+    // In that case leave the payload uncertain, but never strand the old
+    // response-wait lock or claim a submitted history row was persisted.
+    let acceptedHistoryWritePending=false;
     let editor,send,proof,composerForm;
     let humanTouched=false;
     const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
@@ -778,17 +782,28 @@
       state.history=state.history.slice(0,20);
       state.awaiting=true;
       state.busySeen=true;
+      acceptedHistoryWritePending=true;
       await save();
+      acceptedHistoryWritePending=false;
       statusNote('Waiting for confirmed response completion');
       processSignal();
     } catch(error) {
       if(state.key===attemptKey) {
         state.running=false;
+        if(acceptedHistoryWritePending){
+          // A rejected post-click persistence result is ambiguous. A durable
+          // uncertain item must remain reviewable without forcing a reload.
+          // Remove only the failed attempt's speculative history row.
+          state.awaiting=false;state.busySeen=false;state.waiting=null;
+          state.history=state.history.filter(entry=>entry.id!==item.id);
+        }
         // Pre-click journal is also uncertain if preparation was interrupted;
         // conservative manual resolution is required in either case.
         if(!state.items.some(entry=>entry.id===item.id))state.items.unshift(item);
         try{await save();}catch{}
-        statusNote(error.message || 'Dispatch failed');
+        statusNote(acceptedHistoryWritePending
+          ? 'Submission record could not be saved; review uncertain message'
+          : error.message || 'Dispatch failed');
       }
     } finally {
       if(state.inflightProof===proof)state.inflightProof=null;
