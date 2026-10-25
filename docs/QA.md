@@ -312,3 +312,11 @@ A disposable Firefox Developer Edition two-extension fixture uses a QA-only one-
 ## 🦊 Terminal duration freezes on first completion
 
 A native Firefox synthetic publisher regression installs a single conditional finished-phase rule requiring at least 3 seconds of observed busy time. It publishes a fresh busy and an immediate fresh finish; there must be no proposal. After more than 3 seconds have elapsed since that finish, a repeated fresh finish in the same provider document/epoch must **still** have no proposal, because the duration was frozen at the first terminal event. It must create no audit outcome and click no Send. This prevents a delayed/repeated provider notification from retroactively creating timed actions.
+
+## 🦊 Initial-load conversation isolation under delayed Firefox storage
+
+A disposable Firefox Developer Edition synthetic HUD fixture seeds a queue on conversation A, deliberately delays the content script's **first** `storage.local.get`, then changes to conversation B with `history.pushState` before that read completes. When the old snapshot arrives, the HUD must remain hidden while B loads, and neither its Shadow DOM nor its rendered rows may contain A's private message. B opens empty; returning to A restores the stored prompt with no Send. This prevents a boot-time disclosure across routes, not merely a post-initialization navigation issue. [Full Firefox CI passed](https://github.com/sguzman/chat-queue/actions/runs/40148570623).
+
+## 🦊 Initial provider registration races with a route change
+
+The same disposable browser fixture delays and rejects the first background registration for conversation A after the page navigates to B. The content script must retry against B's current pathname instead of permanently failing to mount, without retrying a genuine same-route registration error. Retries are bounded to four attempts, and no Send occurs. The fixture uses a QA-only registration response; the production route validation and the real Chat Signals publisher still require authenticated acceptance. [Full Firefox CI passed](https://github.com/sguzman/chat-queue/actions/runs/40148637766).
