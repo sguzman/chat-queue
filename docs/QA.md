@@ -416,3 +416,15 @@ In [full Firefox run 40201495776](https://github.com/sguzman/chat-queue/actions/
 ## 🛑 Rejected uncertain-resolution write retains Send ownership
 
 [Full native Firefox CI 40228220903](https://github.com/sguzman/chat-queue/actions/runs/40228220903) first performs exactly one synthetic Send, rejects its post-click accepted-history write, and retains the queued message in uncertain state. It then rejects the user's *explicit* Discard save: rollback must restore the uncertain payload, while a newly opened third Firefox tab trying the same assigned conversation remains denied the Send lease. Only after an attributable provider terminal and a later successfully saved explicit Discard does the original queue become empty. No duplicate Send or implicit retry occurs. This confirms synthetic Firefox transaction/lease behavior, not live ChatGPT or power-loss recovery.
+
+## 🔁 Rapid A → B → A conversation route reuse
+
+[Full FDE CI 40230561965](https://github.com/sguzman/chat-queue/actions/runs/40230561965) delays the browser-owned dispatch authorization on a synthetic assigned conversation, navigates to a second route, then returns to the **same pathname** while the old promise is still pending. An attempt now owns a fresh local token and the route-generation snapshot; asynchronous continuations, busy attribution, error cleanup and final clearing all verify that original generation. The restored queue remains pending, no Send occurs, and a stale callback cannot overwrite the latest queue status. This closes the synthetic pathname-ABA race without claiming real ChatGPT conversation identity acceptance.
+
+## ⏸️ Pause → Start cannot reinstate an unresolved handoff
+
+[Full FDE CI 40230917930](https://github.com/sguzman/chat-queue/actions/runs/40230917930) holds a verified synthetic `dispatch-check` promise while the user explicitly pauses and immediately tries Start again. Start fails with `dispatch-in-progress` until the old attempt unwinds. The old browser authorization never triggers Send and the original queued prompt is retained. The test does not substitute for authenticated React/site interaction.
+
+## 🧾 Failed terminal-status persistence cannot fabricate a saved completion
+
+[Full FDE CI 40231996093](https://github.com/sguzman/chat-queue/actions/runs/40231996093) makes a real temporary Firefox Queue add-on perform one synthetic Send, accept its generating phase, then rejects the terminal `finished` history write. The HUD restores the previous `submitted` status rather than leaving an unsaved `finished` label. A subsequent page reload confirms the previously committed history status, without another Send. Rejection rollback is scoped to the exact conversation route generation, history ID and optimistic revision; it cannot modify a newer route or edit. The intermittent synthetic generating-duration-rule test did **not** fail on this run. Its QA fixture now records the timer's exact decision gate if that separate issue recurs; no production scheduling or Send authorization condition was relaxed.
