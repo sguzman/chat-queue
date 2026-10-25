@@ -966,9 +966,10 @@
                   "id": "M6-08",
                   "emoji": "🔁",
                   "title": "Reject cycles, unbounded loops and silent auto-retry",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Preview-only type system excludes recursive actions and no auto-retry is wired; full cycle/retry policies pending: src/rules.js"
+                    "Preview-only type system excludes recursive actions and no auto-retry is wired; full cycle/retry policies pending: src/rules.js",
+                    "Typed declarative policy normalizer accepts only manual propose/pause actions, with <=32 rules, <=8 bounded links per rule, bounded timing, no executable or recursive fields and graph-cycle rejection. Adversarial pure tests explicitly deny retry, send, dispatch, repeat, self/cross-linked cycles and over-budget constraints; complete static and Firefox workflow green https://github.com/sguzman/chat-queue/actions/runs/40203059652. Actual pinned Chat Signals publisher success/failure review in disposable Firefox proves approval does not automatically Send, requires separate Start, and failed/interrupted/limit actions never retry: https://github.com/sguzman/chat-queue/actions/runs/40202380281. Same-response reclassification cannot reopen proposals, https://github.com/sguzman/chat-queue/actions/runs/40202859962. No live ChatGPT acceptance implied."
                   ]
                 },
                 {
