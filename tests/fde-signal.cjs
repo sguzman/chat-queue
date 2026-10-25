@@ -431,7 +431,8 @@ async function main(){
     await postClickEditor.sendKeys('X',Key.BACK_SPACE);
     assert.ok(await driver.executeScript('return window.__qaPostClickTrusted')>0,
       'The Firefox input event after the Queue click must be browser-trusted');
-    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText"),'');
+    assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').innerText.trim()"),'',
+      'The human typed and deleted before the provider produced busy evidence');
     await emit('generating',1,581,'observed','fresh','/c/post-click-user');
     await emit('finished',1,582,'observed','fresh','/c/post-click-user');
     await waitNote('Human interaction during submission verification; manual review required');
