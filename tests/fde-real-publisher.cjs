@@ -314,6 +314,10 @@ async function main(){
       'return window.__sendCount===1'),12000);
     await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    // Pausing during initial post-click verification is intentionally
+    // ambiguous. Exercise the separate, confirmed-awaiting response case.
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),9500);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Manually paused')`),7000);
