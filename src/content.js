@@ -711,9 +711,16 @@
     if (!freshProvider() || !contract.ready(state.trusted,routeKey())) return;
     const item=state.items.find(e=>e.status==='pending');
     if (!item) return;
-    const attemptKey=state.key;
+    const attemptKey=state.key,attemptGeneration=routeGeneration;
+    const attemptToken=uid();
     const baseline=state.trusted;
-    state.attempting=item.id;
+    state.attempting=attemptToken;
+    // A -> B -> A can restore the exact pathname while an older Firefox
+    // authorization promise is still pending. Path equality alone cannot
+    // authorize that old attempt or allow it to clear a newer attempt.
+    const sameAttempt=()=>state.attempting===attemptToken&&
+      routeGeneration===attemptGeneration&&!state.routing&&!state.destroyed&&
+      state.key===attemptKey&&storageKey()===attemptKey;
     statusNote('Preparing next message');
     let clicked=false;
     // The confirmation/history write can fail AFTER one real Send click.
@@ -725,7 +732,7 @@
     let humanTouched=false;
     const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
     try {
-      if (state.key!==attemptKey||storageKey()!==attemptKey)
+      if(!sameAttempt())
         throw new Error('Conversation changed before composer handoff');
       // Reserve the exact-route owner before changing the page composer.
       // Competing tabs fail while their drafts remain completely untouched.
@@ -735,15 +742,14 @@
       if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
         ? 'Another tab owns this conversation; no Send attempted'
         : 'Signal authority lost; no Send attempted');
-      if(!state.running||state.destroyed||state.key!==attemptKey||storageKey()!==attemptKey)
+      if(!state.running||!sameAttempt())
         throw new Error('Dispatch context changed before composer handoff');
       const found=findComposer();
       // Journal uncertainty BEFORE exposing queue text in the page composer.
       // A human click during async preflight must not send unjournaled text.
       item.status='uncertain';
       await save();
-      if(!state.running||state.destroyed||state.storageFault||state.pendingSaves>0||
-         state.key!==attemptKey||storageKey()!==attemptKey)
+      if(!state.running||!sameAttempt()||state.storageFault||state.pendingSaves>0)
         throw new Error('Dispatch changed during uncertainty journal');
       // Another browser/user input may have appeared while storage committed.
       const current=findComposer();
@@ -764,7 +770,7 @@
         action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
-      if (!state.running || state.destroyed || state.key!==attemptKey ||storageKey()!==attemptKey ||
+      if (!state.running || !sameAttempt() ||
           state.storageFault || state.pendingSaves>0 || humanTouched ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
           canonicalComposerText(editorValue(editor))!==canonicalComposerText(item.text))
@@ -778,7 +784,7 @@
          findSend(form)!==send)
         throw new Error('Composer changed before Send; no send attempted');
       // Keep authenticated busy evidence if the response ends before polling.
-      proof={key:attemptKey,baseline,editor,busy:null};
+      proof={key:attemptKey,generation:attemptGeneration,baseline,editor,busy:null};
       state.inflightProof=proof;
       // This initiates exactly one send attempt. We never click again after uncertainty.
       send.click(); clicked=true;
@@ -793,7 +799,7 @@
           throw new Error('Human interaction during submission verification; manual review required');
         if(composerForm && [...composerForm.querySelectorAll('input[type="file"]')].some(input=>input.files?.length))
           throw new Error('Composer attachment during submission verification; manual review required');
-        if (state.destroyed || !state.running || state.key!==attemptKey ||storageKey()!==attemptKey || !editor.isConnected) break;
+        if (!state.running || !sameAttempt() || !editor.isConnected) break;
         const busy=proof.busy || (contract.newBusy(state.trusted,baseline)?state.trusted:null);
         if (busy && !editorValue(editor).trim()) {
           state.waiting={documentToken:baseline.documentToken,route:baseline.route,
@@ -801,7 +807,7 @@
           accepted=true;break;
         }
       }
-      if(state.key!==attemptKey||storageKey()!==attemptKey)throw new Error('Conversation changed during submission');
+      if(!sameAttempt())throw new Error('Conversation changed during submission');
       if (!accepted) throw new Error('Submission not confirmed; manual review required');
       // Persist removal first; do not consider another item until storage commits.
       // Snapshot BEFORE the bounded 20-entry insert: a rejected write must
@@ -818,7 +824,7 @@
       statusNote('Waiting for confirmed response completion');
       processSignal();
     } catch(error) {
-      if(state.key===attemptKey) {
+      if(sameAttempt()) {
         state.running=false;
         if(acceptedHistoryWritePending){
           // The remote response may still be generating. Hold the existing
@@ -843,7 +849,7 @@
       }
       if(send)send.removeEventListener('click',onHumanInput,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
-      state.attempting=null;
+      if(state.attempting===attemptToken)state.attempting=null;
       render();
     }
   }
@@ -1563,8 +1569,9 @@
       // The trusted busy transition may precede React clearing the draft.
       // Recording its epoch does not itself confirm Send: confirmation below
       // still requires the composer to be empty and the matching context.
-      if(proof&&proof.key===state.key&&contract.newBusy(next,proof.baseline)&&
-         proof.editor.isConnected&&!proof.busy)proof.busy=next;
+      if(proof&&proof.key===state.key&&proof.generation===routeGeneration&&
+         contract.newBusy(next,proof.baseline)&&proof.editor.isConnected&&
+         !proof.busy)proof.busy=next;
       recordRuleClock(next);
       processSignal();
       considerConditionalPreview(next);

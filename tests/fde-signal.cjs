@@ -182,6 +182,8 @@ function prepareQueue(dir,source){
   assert.equal(bg.split(delayedAuth).length,2);
   bg=bg.replace(delayedAuth,
     "      return currentRoute(sender).then(async live=>{\n"+
+    "        if(message.route==='/c/route-aba')"+
+    "await new Promise(resolve=>setTimeout(resolve,2100));\n"+
     "        if(message.route==='/c/enqueue-inflight')"+
     "await new Promise(resolve=>setTimeout(resolve,2300));\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
@@ -572,6 +574,36 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
       'The source conversation must retain its uncertain pre-Send journal');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    qaStage='rapid-aba-route-must-invalidate-old-authorization';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/route-aba');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic ABA route recovery prompt';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,38,'observed','fresh','/c/route-aba');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Preparing next message');
+    // Return to the SAME key before the delayed browser-owned route lookup
+    // responds. The first attempt has been revoked even if its key matches.
+    await driver.executeScript("history.pushState({},'', '/c/route-aba-interlude')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='0 queued'`),10000);
+    await driver.executeScript("history.pushState({},'', '/c/route-aba')");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued' &&
+       ${hud('status')}.textContent.includes('Conversation changed; manually start queue')`),10000);
+    await driver.sleep(2400);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Old authorized attempt after ABA navigation must never Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),0,
+      'A pre-journal canceled attempt cannot mark a new generation uncertain');
+    assert.match(await driver.executeScript(`return ${hud('status')}.textContent`),
+      /Conversation changed; manually start queue/,
+      'Old promise rejection must not overwrite the restored queue status');
     qaStage='stale-provider-ready-timer-does-not-resume';
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-stale');
