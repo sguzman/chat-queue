@@ -479,7 +479,7 @@ async function main(){
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
     assert.equal(await driver.executeScript(
       "return document.querySelector('#qa-post-click-file').files.length"),1,
-      'The user's selected attachment must remain untouched');
+      "The user-selected attachment must remain untouched");
     await driver.switchTo().window(priorTrustedRaceTab);
 
     qaStage='trusted-user-edit-race';
