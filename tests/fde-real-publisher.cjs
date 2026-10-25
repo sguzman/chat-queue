@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
-const {Builder}=require('selenium-webdriver');
+const {Builder,By}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 const qid='chat-queue@sguzman.github',sid='chat-signals@sguzman.github';
 const origin=String.raw`if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;`;
@@ -234,24 +234,44 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     const projectRoute='/g/g-p-synthetic123/c/project-chat-123';
-    await driver.get('http://127.0.0.1:'+server.address().port+projectRoute);
-    await ready();
-    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued',
-      'A different project conversation cannot see or send the previous queue');
-    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    const priorSendClicks=await driver.executeScript('return window.__sendCount');
+    // Model a React/History API route transition inside the SAME document.
+    // A trusted link click settles pushState after 90ms; neither add-on may
+    // confuse the old document's queue with the new project's scoped route.
+    await driver.executeScript(route=>{
+      const link=document.createElement('a');
+      link.id='qa-project-navigation';link.href=route;
+      link.textContent='Synthetic project destination';
+      link.addEventListener('click',event=>{
+        event.preventDefault();
+        setTimeout(()=>{
+          history.pushState({},'',route);
+          document.getElementById('response-turns').replaceChildren();
+        },90);
+      });
+      document.body.append(link);
+    },projectRoute);
+    await (await driver.findElement(By.id('qa-project-navigation'))).click();
+    await driver.wait(async()=>await driver.executeScript(
+      `return location.pathname===arguments[0] &&
+        ${hud('count')}?.textContent==='0 queued' &&
+        ${hud('status')}?.textContent.includes('Signal: idle') &&
+        !${hud('status')}.textContent.includes('(unverified)')`,projectRoute),16000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),priorSendClicks,
+      'A SPA route transition must never send the old queued item');
     await driver.executeScript(`const d=${hud('draft')};d.value='Single scoped project prompt';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      'return window.__sendCount===1'),12000);
+      'return window.__sendCount===arguments[0]',priorSendClicks+1),12000);
     await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
-    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    assert.equal(await driver.executeScript('return window.__sendCount'),priorSendClicks+1);
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     await ready();
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued',
