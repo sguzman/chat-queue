@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 60/96 verified (62%) · ██████░░░░ · 33 implemented awaiting acceptance.**
+**Overall: 61/96 verified (63%) · ██████░░░░ · 32 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -183,7 +183,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M6-02` ✅ Support successful completed-response branches _(implemented; acceptance pending)_
 - [~] `M6-03` ⚠️ Support failure/interruption/limit branches and recoveries _(implemented; acceptance pending)_
 - [~] `M6-04` ⏰ Support bounded deadlines and state duration predicates _(implemented; acceptance pending)_
-- [~] `M6-05` 🔗 Support dependencies, explicit priorities and skip conditions _(implemented; acceptance pending)_
+- [x] `M6-05` 🔗 Support dependencies, explicit priorities and skip conditions
 - [x] `M6-06` 📝 Offer visual rule editor and non-destructive dry run
 
 **F13 · Rule execution**
@@ -197,7 +197,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M6-11` 🔌 Expose rule CRUD, evaluation and notifications in a versioned API
 - [~] `M6-12` 🧪 Cover success/error/limit/recovery and stale-state adversarial cases _(implemented; acceptance pending)_
 
-**M6 acceptance:** 3/12 verified (25%) · ██░░░░░░░░ · 9 implemented but not accepted.
+**M6 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 8 implemented but not accepted.
 
 ### 🦊 M7 — Firefox QA & release
 

@@ -899,16 +899,18 @@
                   "status": "implemented",
                   "evidence": [
                     "Pure rules engine supports minDurationMs/maxDurationMs, explicit bounded synthetic stateDurationMs input, negative range/type tests; CI https://github.com/sguzman/chat-queue/actions/runs/40039969389 (static-and-unit only; full FDE run was blocked by unrelated viewport test).",
-                    "Preview-only options form, scoped rules API and Firefox fixtures: real FDE acceptance pending; no timers, authenticated state clock, automatic dispatch, or deadline scheduler."
+                    "Preview-only options form, scoped rules API and Firefox fixtures: real FDE acceptance pending; no timers, authenticated state clock, automatic dispatch, or deadline scheduler.",
+                    "Native disposable Firefox tests now derive bounded monotonic busy-to-terminal duration evidence from synthetic browser-authenticated provider transitions; restored terminals and no busy proof reject timed matches, duplicate terminal does not retrigger a preview (Actions 40146730072). Deadline scheduling and real provider/live ChatGPT acceptance remain pending."
                   ]
                 },
                 {
                   "id": "M6-05",
                   "emoji": "🔗",
                   "title": "Support dependencies, explicit priorities and skip conditions",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/rules.js now validates up to eight bounded dependsOn/skipIf references per rule, denies dangling/cyclic/contradictory conditions, and uses caller-supplied synthetic completedRuleIds. Saved rule editor and external preview API expose dry-run behavior. Pure tests and native Firefox Options QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051268536. No authenticated provider or live conditional execution."
+                    "src/rules.js now validates up to eight bounded dependsOn/skipIf references per rule, denies dangling/cyclic/contradictory conditions, and uses caller-supplied synthetic completedRuleIds. Saved rule editor and external preview API expose dry-run behavior. Pure tests and native Firefox Options QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051268536. No authenticated provider or live conditional execution.",
+                    "Full bounded dependency/priority/skip acceptance: pure rules unit tests reject cycles, unknown links, contradictory links and validate deterministic priority; real disposable Firefox Developer Edition with an independently browser-attested synthetic provider verifies approval-only prerequisites, skip suppression, fresh re-opt-in resets and non-automatic Send (Actions 40146208533). Rejected queue writes cannot credit a prerequisite; only a later explicitly approved durable append unlocks dependent rules (Actions 40146988123). This verifies manual proposal-policy dependencies, NOT real Chat Signals publishing or authenticated ChatGPT Send."
                   ]
                 },
                 {
@@ -937,7 +939,8 @@
                   "title": "Evaluate conditions deterministically once per signal epoch",
                   "status": "implemented",
                   "evidence": [
-                    "Pure evaluator suppresses repeat phase/epoch keys; once-per-whole-response policy needs integration: src/rules.js"
+                    "Pure evaluator suppresses repeat phase/epoch keys; once-per-whole-response policy needs integration: src/rules.js",
+                    "Same-response provider document/epoch phase proposals are suppressed after a matching event; deterministic rule order and approved-ID context operate in native Firefox synthetic-provider QA (Actions 40146208533, 40146730072). Complete once-per-response and live authenticated provider acceptance remain pending."
                   ]
                 },
                 {
@@ -957,7 +960,8 @@
                   "evidence": [
                     "Every proposal returns approvalRequired, but user approval/execution model remains absent: src/rules.js",
                     "Native disposable FDE verifies per-conversation opt-in, page-DOM spoof rejection, local approval, automatic next-Send preemption while review is pending, and no auto-resume; pause/approval policy remains unaccepted against real authenticated ChatGPT (Actions 40139342546).",
-                    "Pending opt-in conditional proposals block even explicit Start and manual approval never Sends; policy library changes revoke previews and superseding provider response expires an old approval: Actions 40140595102, 40140727193, 40140873933. Authenticated real publisher acceptance remains open."
+                    "Pending opt-in conditional proposals block even explicit Start and manual approval never Sends; policy library changes revoke previews and superseding provider response expires an old approval: Actions 40140595102, 40140727193, 40140873933. Authenticated real publisher acceptance remains open.",
+                    "Per-session opt-in cancellation now rejects obsolete asynchronous library reads without revoking later consent (Actions 40146486501). Synthetic browser-stamped approvals populate prerequisite history only on durable success (Actions 40146208533, 40146988123), never granting automatic Send."
                   ]
                 },
                 {
@@ -988,7 +992,8 @@
                   "evidence": [
                     "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js",
                     "Authenticated synthetic Firefox terminal-error policy review, stale policy-load invalidation and superseded response-epoch offer expiry now pass: Actions 40140727193, 40140873933 and 40143843590. Full live-publisher/recovery acceptance remains open.",
-                    "Firefox synthetic provider adversarial tests cover 22 bounded review outcomes, delayed approval during SPA navigation with no cross-chat audit exposure and no autonomous Send (Actions 40144526167 and 40144757338). Real publisher and complete recovery orchestration remain pending."
+                    "Firefox synthetic provider adversarial tests cover 22 bounded review outcomes, delayed approval during SPA navigation with no cross-chat audit exposure and no autonomous Send (Actions 40144526167 and 40144757338). Real publisher and complete recovery orchestration remain pending.",
+                    "Native Firefox synthetic two-add-on suite covers bounded approved dependency/skip chains and storage-rejection rollback without Send (Actions 40146208533, 40146988123), plus monotonic duration evidence and restoration boundaries (Actions 40146730072). Real Chat Signals integration and live recovery cases remain pending."
                   ]
                 }
               ]
