@@ -204,8 +204,8 @@ async function main(){
       throw new Error('Verified source idle missing: '+JSON.stringify(diagnostic)+'; '+error.message);
     }
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
-    stage='two-message-serial-send';
-    for(const [i,text] of ['Synthetic first message','Synthetic second message'].entries()){
+    stage='three-epochs-no-stale-terminal-advancement';
+    for(const [i,text] of ['Synthetic first message','Synthetic second message','Synthetic third message'].entries()){
       await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
       await driver.executeScript(`return ${hud('add')}.click()`);
       await driver.wait(async()=>await driver.executeScript(
@@ -216,15 +216,32 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript('return window.__sendCount===1'),11000);
     await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.sleep(900);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Second message cannot Send while first response remains active');
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript('return window.__sendCount===2'),12000);
     await driver.wait(async()=>await driver.executeScript(
       "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    // First reply's Copy control remains mounted, but belongs to an
+    // earlier epoch. Its presence cannot authorize a third Send.
+    await driver.sleep(900);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2,
+      'Stale first-reply Copy cannot finish the second response epoch');
+    assert.equal(await driver.executeScript(
+      'return document.documentElement.dataset.chatSignalsState'),'generating');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript('return window.__sendCount===3'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),9000);
+    await driver.sleep(900);
+    assert.equal(await driver.executeScript('return window.__sendCount'),3,
+      'Two earlier Copy controls cannot finish the third response');
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Queue completed')`),13000);
-    assert.equal(await driver.executeScript('return window.__sendCount'),2,
-      'Exactly two synthetic Send clicks and no duplicate retries');
+    assert.equal(await driver.executeScript('return window.__sendCount'),3,
+      'Three guarded Send clicks require three distinct terminal epochs');
     stage='scoped-project-route-isolation';
     // An unsubmitted prompt from the prior chat must remain local when
     // navigating to a project conversation with an independently attested
