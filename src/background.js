@@ -330,11 +330,20 @@
       const reply=await api.tabs.sendMessage(message.tabId, {
         type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null, requester
       });
-      // Status contains private prompts. An ACL revocation during the content
-      // script's asynchronous response must prevent that content from leaving.
-      // Mutations already forwarded cannot be undone; return their true result.
-      if(message.action==='status' && grantRevision!==authorizedAt)
-        return {ok:false,error:'authorization-changed'};
+      // Status contains private prompts. A storage revocation can commit
+      // before its onChanged notification arrives in this event page. A
+      // revision-only test would then leak a delayed private response.
+      // Re-read the durable grant immediately before returning it; errors
+      // also fail closed. Mutations already forwarded return their true result.
+      if(message.action==='status'){
+        if(grantRevision!==authorizedAt)
+          return {ok:false,error:'authorization-changed'};
+        let current;
+        try{current=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+        catch{return {ok:false,error:'authorization-changed'};}
+        if(grantRevision!==authorizedAt||!grants.has(current,requester,'read'))
+          return {ok:false,error:'authorization-changed'};
+      }
       return reply;
     } catch {
       TABS.delete(message.tabId);
