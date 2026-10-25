@@ -1426,15 +1426,48 @@ async function main(){
     // Both paths must restore the persisted message but never an old Run.
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('count')}?.textContent==='1 queued' && window.__sendCount===0`),15000);
-    // Firefox can restore a bfcache page and then reload it after the
-    // trusted pageshow. The preceding wait checks both the current HUD and
-    // initialized page counter; do not sample the counter in a second,
-    // potentially mid-reload document before continuing.
+    // A bfcache pageshow may schedule a forced fresh reload just AFTER the
+    // HUD first appears. Do not edit a transient restored document. Require
+    // the same complete document to retain its queue across two real WebDriver
+    // samples separated by a browser scheduling interval.
+    const pageSnapshot=()=>driver.executeScript(() => ({
+      origin:performance.timeOrigin,
+      ready:document.readyState==='complete',
+      count:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent||null,
+      sends:window.__sendCount
+    }));
+    await driver.wait(async()=>{
+      try{
+        const first=await pageSnapshot();
+        if(!first.ready||first.count!=='1 queued'||first.sends!==0)return false;
+        await driver.sleep(650);
+        const second=await pageSnapshot();
+        return second.ready&&second.count==='1 queued'&&second.sends===0&&
+          second.origin===first.origin;
+      }catch{return false;}
+    },16000,'Firefox restored page did not settle before queue editing');
     await driver.executeScript(`const d=${jsEl('draft')};d.value='Editable after back navigation';`);
     await driver.executeScript(`return ${jsEl('add')}.click()`);
-    await driver.wait(async()=>await driver.executeScript(
-      `return ${jsEl('count')}?.textContent==='2 queued' && window.__sendCount===0`),9000,
-      'Back-navigation cannot resurrect a prior Send grant');
+    try{
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${jsEl('count')}?.textContent==='2 queued' && window.__sendCount===0`),11000,
+        'Back-navigation cannot resurrect a prior Send grant');
+    }catch(error){
+      let snapshot=null;
+      try{snapshot=await driver.executeScript(() => ({
+        href:location.href,ready:document.readyState,origin:performance.timeOrigin,
+        sends:window.__sendCount??null,
+        count:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('count')?.textContent||null,
+        note:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent||null,
+        draft:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('draft')?.value||null
+      }));}catch{}
+      throw new Error('Back-navigation delivery diagnostic '+JSON.stringify(snapshot)+
+        ': '+error.message);
+    }
 
     qaStage='teardown';
     await driver.uninstallAddon(id);
