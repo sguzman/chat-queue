@@ -892,10 +892,11 @@
                   "id": "M6-02",
                   "emoji": "✅",
                   "title": "Support successful completed-response branches",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Preview-only evaluator matches a fresh finished response; no conditional dispatch acceptance: src/rules.js and tests/rules.test.js",
-                    "Browser-authenticated synthetic Firefox v1 finished event now creates an opt-in success proposal; explicit local approval queues only a paused pending item, with zero automatic Send (Actions 40138970399 and 40139342546). Real Chat Signals publisher and live ChatGPT acceptance remain pending."
+                    "Browser-authenticated synthetic Firefox v1 finished event now creates an opt-in success proposal; explicit local approval queues only a paused pending item, with zero automatic Send (Actions 40138970399 and 40139342546). Real Chat Signals publisher and live ChatGPT acceptance remain pending.",
+                    "Native Firefox Developer Edition installs actual Chat Signals publisher and Queue. With a QA-only persisted rule library, the user explicitly enables previews; a fresh completed source response offers a typed conditional text proposal, never enqueues before Approve, and after approval never clicks Send until a distinct local Start. Full static and Firefox CI pass https://github.com/sguzman/chat-queue/actions/runs/40201835724. Synthetic-site acceptance only; real authenticated chat behavior remains gated."
                   ]
                 },
                 {
@@ -985,10 +986,11 @@
                   "id": "M6-10",
                   "emoji": "📬",
                   "title": "Emit auditable outcomes without recording response text",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "ChatQueueRules.auditPreview returns bounded fixed-schema metadata without prompt text, eventKey, route or document token. Options keeps last 20 dry-run entries in memory only; scoped external previewRules response adds sanitized audit receipt. Pure, Options and independent Firefox extension QA passed: https://github.com/sguzman/chat-queue/actions/runs/40051586583. No persistent authenticated live outcome journal or active rule sends.",
-                    "Closed-shadow per-conversation review outcomes are now bounded to 20 in-memory fixed-schema entries (rule ID, known phase/action/outcome), never prompt, route, token or response text. Synthetic authenticated two-extension Firefox validates offer/approve/dismiss/expiry, stale-route approval isolation and exact FIFO cap after 22 entries: Actions 40144526167 and 40144757338. Real publisher/authenticated ChatGPT acceptance remains open."
+                    "Closed-shadow per-conversation review outcomes are now bounded to 20 in-memory fixed-schema entries (rule ID, known phase/action/outcome), never prompt, route, token or response text. Synthetic authenticated two-extension Firefox validates offer/approve/dismiss/expiry, stale-route approval isolation and exact FIFO cap after 22 entries: Actions 40144526167 and 40144757338. Real publisher/authenticated ChatGPT acceptance remains open.",
+                    "Actual Firefox native provider success/failure proposals produce bounded audit outcomes with rule ID, phase and action but no proposed message text. Test asserts that audit excludes the proposed prompt while retaining metadata and that manual approval records outcome: https://github.com/sguzman/chat-queue/actions/runs/40201835724. Prior synthetic test suite covers route resets, bounded retention and stale offer invalidation; no transcript data is persisted in rule audit."
                   ]
                 },
                 {
