@@ -353,6 +353,13 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),1);
     await driver.uninstallAddon(cid);
     stage='scoped-project-route-isolation';
+    // The preceding controlled-API and long-response scenarios navigate to
+    // other chats. Set an explicit known starting route instead of inheriting
+    // whichever route a previous case left selected.
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
+    await ready();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='0 queued'`),9000);
     // An unsubmitted prompt from the prior chat must remain local when
     // navigating to a project conversation with an independently attested
     // provider route and document.
