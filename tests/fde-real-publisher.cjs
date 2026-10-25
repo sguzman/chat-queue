@@ -39,7 +39,7 @@ function stageQueue(dir,root){
     "void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
     JSON.stringify({version:1,rules:[seedRule]})+
     "}).then(()=>document.documentElement.dataset.qaDeadlineSeeded='yes');"+
-    "}\\n"+
+    "}\n"+
     "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
   fs.writeFileSync(cp,qaQueueContent);
   const bp=path.join(dir,'src/background.js');
