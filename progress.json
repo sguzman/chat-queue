@@ -493,9 +493,10 @@
                   "id": "M3-05",
                   "emoji": "⏳",
                   "title": "Distinguish historical restoration from fresh terminal event",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "Restored historical completion is ineligible for initial send or automatic advancement: src/signal.js and tests/signal.test.js; real provider acceptance pending."
+                    "Restored historical completion is ineligible for initial send or automatic advancement: src/signal.js and tests/signal.test.js; real provider acceptance pending.",
+                    "True persisted history source acceptance, not seeded fixture storage: disposable FDE installs real pinned Chat Signals publisher + real Chat Queue; a synthetic response is generated and completed, provider persists it, the same tab reloads, restored terminal is observed, Queue refuses to Start from restored authority, then a genuinely fresh response epoch permits one guarded Send. Full Firefox + static jobs pass https://github.com/sguzman/chat-queue/actions/runs/40197044421. Authenticated production ChatGPT remains a separate gate."
                   ]
                 },
                 {
