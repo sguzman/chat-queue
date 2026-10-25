@@ -395,7 +395,7 @@
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
-    state.waiting=null;state.awaiting=false;state.busySeen=false;
+    state.waiting=null;state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
     state.note='Signal registry restarted; manually resume after reconnect';
