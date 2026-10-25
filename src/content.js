@@ -1174,6 +1174,9 @@
       }
       if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
+        // Pause during a delayed dispatch-check is not a new grant. The
+        // earlier attempt must fully unwind before another Start can run.
+        if(state.attempting)return {ok:false,error:'dispatch-in-progress'};
         // A pending conditional offer explicitly paused the scheduler.
         // No UI or privileged API Start may skip its required review.
         if(state.ruleOffer)return {ok:false,error:'review-conditional-proposal'};

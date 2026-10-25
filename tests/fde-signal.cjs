@@ -1620,9 +1620,13 @@ async function main(){
       'No new Send is authorized during the attempted simultaneous write');
     await driver.executeScript(`return ${hud('run')}.click()`);
     await waitNote('Manually paused');
+    // A second explicit Start cannot revive the outstanding old async
+    // authorization while the user believes the queue was cancelled.
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('dispatch-in-progress');
     await driver.sleep(2550);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
-      'Delayed dispatch authorization after Pause cannot trigger Send');
+      'Pause then rejected Start cannot revive delayed dispatch authorization');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
 
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
