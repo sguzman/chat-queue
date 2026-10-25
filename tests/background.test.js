@@ -432,6 +432,16 @@ test('project-route alias navigation preserves unresolved conversation ownership
   assert.equal((await register(owner,'/g/p/c/alias-lease')).ok,true);
   assert.equal((await signal(projectSender,'/g/p/c/alias-lease','c')).ok,true);
   assert.equal((await check(projectSender,'/g/p/c/alias-lease','c')).ok,true);
+  const third={tab:{id:75,url:oldUrl},url:oldUrl};
+  assert.equal((await register(third,'/c/alias-lease')).ok,true);
+  assert.equal((await signal(third,'/c/alias-lease','d')).ok,true);
+  // Invalidate the owner again without completing its new registration.
+  // Closing such a tab must release its lease, even with ROUTES absent.
+  listeners.updated(73,{url:oldUrl});
+  assert.equal((await check(third,'/c/alias-lease','d')).error,'conversation-owned-by-another-tab');
+  listeners.removed(73);
+  assert.equal((await check(third,'/c/alias-lease','d')).ok,true,
+    'tab closure must clear retained lease even when the registry is absent');
 });
 
 test('rules-scoped per-client libraries are revisioned, durable and concurrent-writer safe',async()=>{
