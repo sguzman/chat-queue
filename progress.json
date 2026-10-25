@@ -526,9 +526,10 @@
                   "id": "M3-07",
                   "emoji": "▶️",
                   "title": "Run only after deliberate user Start or permitted API authorization",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "HUD Start and runtime API; Firefox QA pending"
+                    "HUD Start and runtime API; Firefox QA pending",
+                    "Disposable Firefox Developer Edition installs actual Chat Signals publisher, Queue and third QA extension with a durable, explicitly granted control scope in isolated test profile. No queued Send occurs before the external caller requests start from its Firefox-authenticated sender.id; then a single synthetic Send and confirmed response complete. Full static+Firefox jobs pass https://github.com/sguzman/chat-queue/actions/runs/40201495776. Unauthorized scope denial remains separately covered by tests/fde-api.cjs. Real user account not exercised."
                   ]
                 },
                 {
@@ -574,10 +575,11 @@
                   "id": "M3-12",
                   "emoji": "🧪",
                   "title": "Test old completion, missed signals, rerenders and long responses",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Unit negative cases for restored completion, old epoch, wrong route/document and forged sender: tests/signal.test.js and tests/background.test.js; long-response/FDE cases pending.",
-                    "Native FDE synthetic provider regression with a shortened freshness horizon and delayed dispatch timer verifies stale ready authority pauses instead of later resuming on a fresh terminal without a new Start: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Genuine long-response and live provider acceptance remain open."
+                    "Native FDE synthetic provider regression with a shortened freshness horizon and delayed dispatch timer verifies stale ready authority pauses instead of later resuming on a fresh terminal without a new Start: https://github.com/sguzman/chat-queue/actions/runs/40153888908. Genuine long-response and live provider acceptance remain open.",
+                    "Full actual-provider Firefox regression holds a legitimate generating response for over 16 seconds without phantom terminal advancement or duplicate retries, then completes and sends only the next queued item after distinct fresh terminal proof: https://github.com/sguzman/chat-queue/actions/runs/40201495776. Synthetic and real-provider tests additionally cover stale Copy, forged old completion, missing initial idle recovered through one-shot sync, route changes and DOM rerenders: https://github.com/sguzman/chat-queue/actions/runs/40198224114 and https://github.com/sguzman/chat-queue/actions/runs/40197044421. Authenticated production-site long responses remain open as broader release gate."
                   ]
                 }
               ]
