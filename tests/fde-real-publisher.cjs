@@ -51,7 +51,7 @@ function stageQueue(dir,root){
   // per-conversation click on the real Queue preview opt-in control.
   bg=patch(bg,"  const RULE_PREFIX='chatqueue:external-rules:v1:';",
     "  void api.storage.local.set({'chatqueue:conditional-rules:v1':"+
-    JSON.stringify({"version":1,"rules":[{"version":1,"id":"qa-real-complete","enabled":true,"priority":60,"when":{"phase":"finished"},"then":{"type":"propose","text":"Synthetic approved reply"}},{"version":1,"id":"qa-real-failure","enabled":true,"priority":50,"when":{"phase":"failed"},"then":{"type":"pause"}}]})+"});\n"+
+    JSON.stringify({"version":1,"rules":[{"version":1,"id":"qa-real-complete","enabled":true,"priority":60,"when":{"phase":"finished"},"then":{"type":"propose","text":"Synthetic approved reply"}},{"version":1,"id":"qa-real-failure","enabled":true,"priority":50,"when":{"phase":"failed"},"then":{"type":"pause"}},{"version":1,"id":"qa-real-limit","enabled":true,"priority":40,"when":{"phase":"limit"},"then":{"type":"pause"}},{"version":1,"id":"qa-real-interrupt","enabled":true,"priority":30,"when":{"phase":"interrupted"},"then":{"type":"pause"}}]})+"});\n"+
     "  const RULE_PREFIX='chatqueue:external-rules:v1:';");
   fs.writeFileSync(bp,bg);
 }
@@ -424,6 +424,38 @@ async function main(){
       `return ${hud('status')}.textContent.includes('Conditional pause approved')`),9000);
     assert.equal(await driver.executeScript('return window.__sendCount'),1);
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    for(const [phase,notice,ruleId] of [
+      ['limit','You have reached the maximum conversation length.','qa-real-limit'],
+      ['interrupted','Connection interrupted. Waiting for the complete answer.','qa-real-interrupt']
+    ]){
+      stage='real-provider-'+phase+'-conditional-review';
+      await driver.get('http://127.0.0.1:'+server.address().port+'/c/conditional-real-'+phase);
+      await ready();
+      await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes('Conditional previews enabled')`),9500);
+      await driver.executeScript("document.querySelector('[data-testid=send-button]').click()");
+      await driver.wait(async()=>await driver.executeScript(
+        "return document.documentElement.dataset.chatSignalsState==='generating'"),9500);
+      await driver.executeScript(text=>{
+        const alert=document.createElement('div');
+        alert.setAttribute('role','alert');alert.textContent=text;
+        document.querySelector('main').prepend(alert);
+      },notice);
+      await driver.wait(async()=>await driver.executeScript(
+        `return !${hud('rules-approve')}.hidden`),10000);
+      assert.match(await driver.executeScript(`return ${hud('rules-note')}.textContent`),
+        new RegExp(ruleId));
+      assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+        new RegExp('offered · '+ruleId+' · '+phase+' · pause'));
+      assert.equal(await driver.executeScript('return window.__sendCount'),1);
+      await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes('Conditional pause approved')`),9500);
+      assert.equal(await driver.executeScript('return window.__sendCount'),1,
+        'Conditional review cannot send another prompt without separate Start');
+      assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    }
     stage='scoped-project-route-isolation';
     // The preceding controlled-API and long-response scenarios navigate to
     // other chats. Set an explicit known starting route instead of inheriting
