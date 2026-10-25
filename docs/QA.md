@@ -320,3 +320,7 @@ A disposable Firefox Developer Edition synthetic HUD fixture seeds a queue on co
 ## 🦊 Initial provider registration races with a route change
 
 The same disposable browser fixture delays and rejects the first background registration for conversation A after the page navigates to B. The content script must retry against B's current pathname instead of permanently failing to mount, without retrying a genuine same-route registration error. Retries are bounded to four attempts, and no Send occurs. The fixture uses a QA-only registration response; the production route validation and the real Chat Signals publisher still require authenticated acceptance. [Full Firefox CI passed](https://github.com/sguzman/chat-queue/actions/runs/40148637766).
+
+## 🧾 History deletion cannot overlap an uncommitted queue Add
+
+The disposable Firefox Developer Edition fixture seeds one historical submission, starts an Add whose extension-local storage write rejects after a delay, and clicks **Forget history** twice while that write is pending. History deletion must remain unarmed and unexecuted, the rejected Add must roll back to zero queued items, and the original historical record must remain after a full reload. The test verifies zero Send attempts. Both static and Firefox browser jobs passed [run 40149040013](https://github.com/sguzman/chat-queue/actions/runs/40149040013). This is a synthetic storage-failure/concurrency check, not evidence of authenticated ChatGPT delivery.
