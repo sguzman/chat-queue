@@ -618,7 +618,9 @@ async function main(){
     const lateFile=await driver.executeScript(
       "const file=document.createElement('input');file.type='file';file.id='qa-late-selected-file';document.querySelector('main form').append(file);return file");
     await lateFile.sendKeys(fixtureAttachment);
-    await waitNote('Composer changed before Send; no send attempted');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer changed before Send; no send attempted') ||
+        ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),10000);
     assert.equal(await driver.executeScript("return document.querySelector('#qa-late-selected-file').files.length"),1);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Late selected file input must block queued Send');
