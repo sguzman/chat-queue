@@ -490,6 +490,63 @@ test('silent durable Discover revocation denies delayed event-port ready metadat
     'a revoked peer cannot see even registered tab metadata via ready');
 });
 
+test('durable uncertain journal blocks other tabs after volatile owner loss',async()=>{
+  const {listeners,state}=create();
+  const url='https://chatgpt.com/c/durable-race';
+  const sender={tab:{id:291,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/durable-race'},sender)).ok,true);
+  const source={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:291,
+    signal:{version:1,route:'/c/durable-race',documentToken:'f'.repeat(32),
+      epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}
+  },source)).ok,true);
+  const check=itemId=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/durable-race',documentToken:'f'.repeat(32),
+    epoch:0,sequence:1,itemId},sender);
+  // There is deliberately no volatile owner in this fresh background VM.
+  const orphan='chatqueue:v1:tab:290:/g/project/c/durable-race';
+  state[orphan]={version:1,items:[
+    {id:'possibly-clicked',text:'synthetic private orphan',status:'uncertain'}],
+    history:[]};
+  assert.equal((await check('new-item')).error,'unresolved-saved-send',
+    'a project alias from an earlier tab blocks a new same-ID Send');
+  assert.equal(JSON.stringify(await check('new-item')).includes('synthetic private orphan'),false);
+  delete state[orphan];
+  const own='chatqueue:v1:tab:291:/c/durable-race';
+  state[own]={version:1,items:[
+    {id:'current',text:'synthetic current journal',status:'uncertain'}],
+    history:[]};
+  assert.equal((await check('different')).error,'unresolved-saved-send',
+    'another unresolved item in this tab is not the current handoff');
+  assert.equal((await check('current')).ok,true,
+    'same item's second pre-click check must accept its own durable journal');
+  state[own].items=[];
+  assert.equal((await check('current')).ok,true,
+    'removing the reviewed durable obstruction permits a fresh check');
+});
+
+test('durable journal read failure cannot authorize a new Send',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/storage-fail-closed';
+  const sender={tab:{id:292,url},url};
+  await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/storage-fail-closed'},sender);
+  await listeners.external({type:'chat-queue-signal/v1',tabId:292,
+    signal:{version:1,route:'/c/storage-fail-closed',documentToken:'a'.repeat(32),
+      epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}
+  },{id:'chat-signals@sguzman.github'});
+  const original=context.browser.storage.local.get;
+  context.browser.storage.local.get=key=>key===null
+    ?Promise.reject(new Error('synthetic journal read failure')):original(key);
+  const check=()=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/storage-fail-closed',
+    documentToken:'a'.repeat(32),epoch:0,sequence:1,itemId:'item'},sender);
+  assert.equal((await check()).error,'journal-storage-unavailable');
+  context.browser.storage.local.get=original;
+  assert.equal((await check()).ok,true);
+});
+
 test('one exact conversation route has at most one live dispatch owner',async()=>{
   const {listeners}=create();
   const senders=[17,18].map(id=>({tab:{id,url:'https://chatgpt.com/c/shared'},url:'https://chatgpt.com/c/shared'}));
