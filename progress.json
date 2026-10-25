@@ -903,10 +903,11 @@
                   "id": "M6-03",
                   "emoji": "⚠️",
                   "title": "Support failure/interruption/limit branches and recoveries",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Preview-only failure, interruption and limit phase selection. Recovery orchestration is not implemented: src/rules.js",
-                    "Firefox Developer Edition native two-extension regression exercises fresh and restored authenticated failed/interrupted/limit phase pause proposals, explicit local approval, no automatic Send and duplicate terminal suppression; Actions 40143843590. Recovery orchestration and real provider remain unaccepted."
+                    "Firefox Developer Edition native two-extension regression exercises fresh and restored authenticated failed/interrupted/limit phase pause proposals, explicit local approval, no automatic Send and duplicate terminal suppression; Actions 40143843590. Recovery orchestration and real provider remain unaccepted.",
+                    "The pinned real Chat Signals publisher drove opt-in, manually approved failed/interrupted/limit response-phase pause branches in disposable Firefox, with zero automatic Send or retry: full runs https://github.com/sguzman/chat-queue/actions/runs/40202380281 and https://github.com/sguzman/chat-queue/actions/runs/40201835724. Recovery is deliberately manual and fail-closed: after a failed queued response, a distinct trusted user submission must produce a fresh completed provider epoch; only a subsequent explicit Queue Start may dispatch the next pending item, never retrying the failed item. Full two-addon browser QA https://github.com/sguzman/chat-queue/actions/runs/40204034829. Conversation limits are never bypassed automatically; new-route handling remains user-controlled. Authenticated production ChatGPT and network recovery still require release acceptance."
                   ]
                 },
                 {
@@ -1010,12 +1011,13 @@
                   "id": "M6-12",
                   "emoji": "🧪",
                   "title": "Cover success/error/limit/recovery and stale-state adversarial cases",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Unit tests cover restored, unknown, success, failed, interrupted, limit, repeated keys and malicious field rejection; live FDE state injection pending: tests/rules.test.js",
                     "Authenticated synthetic Firefox terminal-error policy review, stale policy-load invalidation and superseded response-epoch offer expiry now pass: Actions 40140727193, 40140873933 and 40143843590. Full live-publisher/recovery acceptance remains open.",
                     "Firefox synthetic provider adversarial tests cover 22 bounded review outcomes, delayed approval during SPA navigation with no cross-chat audit exposure and no autonomous Send (Actions 40144526167 and 40144757338). Real publisher and complete recovery orchestration remain pending.",
-                    "Native Firefox synthetic two-add-on suite covers bounded approved dependency/skip chains and storage-rejection rollback without Send (Actions 40146208533, 40146988123), plus monotonic duration evidence and restoration boundaries (Actions 40146730072). Real Chat Signals integration and live recovery cases remain pending."
+                    "Native Firefox synthetic two-add-on suite covers bounded approved dependency/skip chains and storage-rejection rollback without Send (Actions 40146208533, 40146988123), plus monotonic duration evidence and restoration boundaries (Actions 40146730072). Real Chat Signals integration and live recovery cases remain pending.",
+                    "Comprehensive native Firefox tests cover real pinned Chat Signals success, stream failure, connection interruption, limit, manual approval-only recovery and failure no-retry behavior (https://github.com/sguzman/chat-queue/actions/runs/40201835724, https://github.com/sguzman/chat-queue/actions/runs/40202380281, https://github.com/sguzman/chat-queue/actions/runs/40204034829). Synthetic browser-authenticated adversarial checks reject unknown/restored signals, duplicate or reclassified same-epoch action, stale proposal approval after SPA route changes, failed storage-dependent approvals, malformed/cyclic policies and response-duration re-entry (https://github.com/sguzman/chat-queue/actions/runs/40202859962 and https://github.com/sguzman/chat-queue/actions/runs/40203059652). All actions remain explicit local review, with no autonomous Send or retry. Live ChatGPT site acceptance is separate."
                   ]
                 }
               ]
