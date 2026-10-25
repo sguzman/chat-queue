@@ -754,7 +754,11 @@
         epoch:baseline.epoch,sequence:baseline.sequence,itemId:item.id});
       if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
         ? 'Another tab owns this conversation; no Send attempted'
-        : 'Signal authority lost; no Send attempted');
+        : ownership?.error==='unresolved-saved-send'
+          ? 'Unresolved saved submission in this conversation; review before sending'
+          : ownership?.error==='journal-storage-unavailable'
+            ? 'Saved submission journal unavailable; no Send attempted'
+            : 'Signal authority lost; no Send attempted');
       if(!state.running||!sameAttempt())
         throw new Error('Dispatch context changed before composer handoff');
       const found=findComposer();
