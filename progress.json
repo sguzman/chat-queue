@@ -914,12 +914,13 @@
                   "id": "M6-04",
                   "emoji": "⏰",
                   "title": "Support bounded deadlines and state duration predicates",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Pure rules engine supports minDurationMs/maxDurationMs, explicit bounded synthetic stateDurationMs input, negative range/type tests; CI https://github.com/sguzman/chat-queue/actions/runs/40039969389 (static-and-unit only; full FDE run was blocked by unrelated viewport test).",
                     "Preview-only options form, scoped rules API and Firefox fixtures: real FDE acceptance pending; no timers, authenticated state clock, automatic dispatch, or deadline scheduler.",
                     "Native disposable Firefox tests now derive bounded monotonic busy-to-terminal duration evidence from synthetic browser-authenticated provider transitions; restored terminals and no busy proof reject timed matches, duplicate terminal does not retrigger a preview (Actions 40146730072). Deadline scheduling and real provider/live ChatGPT acceptance remain pending.",
-                    "Native disposable Firefox synthetic-provider regressions freeze the first terminal duration, refuse same-epoch terminal-to-busy clock reopening, preserve valid new-epoch durations, and prevent a restored terminal from supplying fabricated duration evidence. CI https://github.com/sguzman/chat-queue/actions/runs/40149476705 and https://github.com/sguzman/chat-queue/actions/runs/40149693215. Real authenticated Chat Signals publication and production timer acceptance remain pending."
+                    "Native disposable Firefox synthetic-provider regressions freeze the first terminal duration, refuse same-epoch terminal-to-busy clock reopening, preserve valid new-epoch durations, and prevent a restored terminal from supplying fabricated duration evidence. CI https://github.com/sguzman/chat-queue/actions/runs/40149476705 and https://github.com/sguzman/chat-queue/actions/runs/40149693215. Real authenticated Chat Signals publication and production timer acceptance remain pending.",
+                    "Actual pinned independent Chat Signals publisher + Chat Queue in disposable Firefox Developer Edition: first fresh busy-to-terminal monotonic duration filter offers bounded approved-text proposal with 3500ms approval expiry; late approval and throttled expiry fail closed without Queue Send. Separate authenticated generating-phase threshold at 1200ms offers manual pause only, requires Approve, and real provider completion cannot restart it. Both static and full Firefox jobs successful: https://github.com/sguzman/chat-queue/actions/runs/40207758293. Pure tests bound min/max duration and approval deadlines and restored/closed epoch provenance. No remote model timeout inference, scheduled automatic retries, or authenticated chatgpt.com acceptance is claimed."
                   ]
                 },
                 {
