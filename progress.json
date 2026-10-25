@@ -902,7 +902,8 @@
                   "evidence": [
                     "Pure rules engine supports minDurationMs/maxDurationMs, explicit bounded synthetic stateDurationMs input, negative range/type tests; CI https://github.com/sguzman/chat-queue/actions/runs/40039969389 (static-and-unit only; full FDE run was blocked by unrelated viewport test).",
                     "Preview-only options form, scoped rules API and Firefox fixtures: real FDE acceptance pending; no timers, authenticated state clock, automatic dispatch, or deadline scheduler.",
-                    "Native disposable Firefox tests now derive bounded monotonic busy-to-terminal duration evidence from synthetic browser-authenticated provider transitions; restored terminals and no busy proof reject timed matches, duplicate terminal does not retrigger a preview (Actions 40146730072). Deadline scheduling and real provider/live ChatGPT acceptance remain pending."
+                    "Native disposable Firefox tests now derive bounded monotonic busy-to-terminal duration evidence from synthetic browser-authenticated provider transitions; restored terminals and no busy proof reject timed matches, duplicate terminal does not retrigger a preview (Actions 40146730072). Deadline scheduling and real provider/live ChatGPT acceptance remain pending.",
+                    "Native disposable Firefox synthetic-provider regressions freeze the first terminal duration, refuse same-epoch terminal-to-busy clock reopening, preserve valid new-epoch durations, and prevent a restored terminal from supplying fabricated duration evidence. CI https://github.com/sguzman/chat-queue/actions/runs/40149476705 and https://github.com/sguzman/chat-queue/actions/runs/40149693215. Real authenticated Chat Signals publication and production timer acceptance remain pending."
                   ]
                 },
                 {

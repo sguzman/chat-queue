@@ -324,3 +324,9 @@ The same disposable browser fixture delays and rejects the first background regi
 ## 🧾 History deletion cannot overlap an uncommitted queue Add
 
 The disposable Firefox Developer Edition fixture seeds one historical submission, starts an Add whose extension-local storage write rejects after a delay, and clicks **Forget history** twice while that write is pending. History deletion must remain unarmed and unexecuted, the rejected Add must roll back to zero queued items, and the original historical record must remain after a full reload. The test verifies zero Send attempts. Both static and Firefox browser jobs passed [run 40149040013](https://github.com/sguzman/chat-queue/actions/runs/40149040013). This is a synthetic storage-failure/concurrency check, not evidence of authenticated ChatGPT delivery.
+
+## 🦊 Restored terminal cannot reopen duration evidence
+
+The disposable Firefox Developer Edition two-extension fixture uses browser-authenticated synthetic Chat Signals events to test two duration boundaries. First, a response that reaches a fresh terminal phase before the minimum threshold cannot be made eligible by reopening busy on that **same** response epoch, even after several more seconds pass. A genuinely newer busy-to-terminal epoch remains eligible if its own monotonic duration passes the threshold. [Full CI run 40149476705](https://github.com/sguzman/chat-queue/actions/runs/40149476705) passed both jobs.
+
+Second, a historically **restored** terminal response closes its epoch for timing purposes, even though the restored event itself cannot trigger a proposal. An attempted fresh busy-to-terminal sequence on that closed epoch must match only the untimed fallback rather than manufacturing a duration-qualified review. [Full CI run 40149693215](https://github.com/sguzman/chat-queue/actions/runs/40149693215) passed both jobs. Both fixtures require manual review, click no Send, and do not claim that the real Chat Signals publisher exists.

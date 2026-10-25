@@ -35,6 +35,12 @@ After reloading Options, rule definitions return; simulated event replay history
 
 Synthetic Firefox Developer Edition QA verifies save → reload → edit → reload → two-step clear → reload without queue action ([accepted browser run](https://github.com/sguzman/chat-queue/actions/runs/40038729574)). A future, separate acceptance gate must cover concurrent Options windows and storage errors before rule execution is even considered.
 
+## 🛡️ Authenticated synthetic duration lifecycle
+
+The Queue HUD's opt-in manual proposals now keep a document-monotonic busy-to-first-terminal clock for each Firefox-authenticated Signal response epoch. The first fresh terminal freezes the measured duration. A volatile closed-epoch marker forbids restarting that duration after terminal-to-busy re-entry, and a restored terminal also closes its historical epoch without supplying fresh timing evidence. New response epochs may establish independent durations. All proposals still require separate user approval and never Send automatically.
+
+The native two-extension Firefox regressions cover same-epoch re-entry, a new genuinely timed epoch, and restored-terminal fallback: [accepted run 40149476705](https://github.com/sguzman/chat-queue/actions/runs/40149476705) and [accepted run 40149693215](https://github.com/sguzman/chat-queue/actions/runs/40149693215). The provider is synthetic; live Chat Signals publication, real-site delivery, and all broader acceptance gates remain open.
+
 ## ⏱️ Optional duration-filter previews
 
 A rule may specify `when.minDurationMs` and/or `when.maxDurationMs`, bounded integer values from 0 to 3,600,000 (one hour), with minimum no greater than maximum. The preview function accepts an optional fourth argument, `{stateDurationMs: integer}`, supplied explicitly by the caller. A time-filtered rule **does not match** without duration evidence; boundary values match. Untimed rules retain their prior behavior. Invalid types, unknown fields and inconsistent ranges fail closed.
