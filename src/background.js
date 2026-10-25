@@ -19,6 +19,10 @@
   // from becoming current when a tab re-registers the same conversation.
   const REGISTRATIONS = new Map();
   let nextRegistration=0;
+  // An earlier asynchronous tabs.get() must not reinstate a superseded
+  // registration after a newer document or route has registered this tab.
+  const REGISTER_ATTEMPTS = new Map();
+  let nextRegisterAttempt=0;
   // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
@@ -104,8 +108,12 @@
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
+      const attempt=++nextRegisterAttempt;
+      REGISTER_ATTEMPTS.set(tab.id,{attempt,route:message.route});
       return currentRoute(sender).then(live=>{
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
+        if(REGISTER_ATTEMPTS.get(tab.id)?.attempt!==attempt)
+          return {ok:false,error:'stale-registration'};
         // Rebinding invalidates old provider authority but cannot open an
         // unconfirmed Send to another tab, including across /c/ and /g/.../c/
         // aliases for the SAME conversation ID. Release unrelated owners.
@@ -365,6 +373,9 @@
     // preserving its unresolved owner. Tab close or origin exit must still
     // relinquish that orphan even without another content registration.
     releaseOwner(tabId,keepConversationId);
+    // Also revoke a registration still awaiting the browser-owned URL read:
+    // a later A->B->A must not resurrect the old callback.
+    REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
     ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
@@ -372,9 +383,9 @@
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
   api.tabs.onUpdated.addListener((tabId, change) => {
     if (change.url && !change.url.startsWith('https://chatgpt.com/')) invalidate(tabId);
-    else if(change.url && ROUTES.has(tabId)){
+    else if(change.url && (ROUTES.has(tabId)||REGISTER_ATTEMPTS.has(tabId))){
       try {const nextRoute=new URL(change.url).pathname;
-        if(nextRoute!==ROUTES.get(tabId)){
+        if(nextRoute!==(ROUTES.get(tabId)||REGISTER_ATTEMPTS.get(tabId)?.route)){
         // An exact route change invalidates the provider epoch and registry.
         // It must NOT free a still-unresolved Send when both assigned route
         // shapes identify the same conversation. Release on different ID.
