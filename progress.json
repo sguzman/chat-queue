@@ -534,9 +534,10 @@
                   "id": "M3-08",
                   "emoji": "⏭️",
                   "title": "Advance only after attributable confirmed response completion",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "busy-seen + finished provisional; epoch handshake pending"
+                    "busy-seen + finished provisional; epoch handshake pending",
+                    "Real two-extension Firefox Developer Edition acceptance: actual Chat Signals publisher and Queue execute three queued synthetic prompts, each only after its own fresh generating-to-finished response epoch; prior responses' mounted Copy controls cannot advance a newer epoch and exactly three Send clicks occur. Both CI jobs passed: https://github.com/sguzman/chat-queue/actions/runs/40198224114. Synthetic-site protocol verified; authenticated ChatGPT remains open."
                   ]
                 },
                 {

@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 64/96 verified (66%) · ██████░░░░ · 29 implemented awaiting acceptance.**
+**Overall: 65/96 verified (67%) · ██████░░░░ · 28 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -113,13 +113,13 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 **Scheduler**
 
 - [~] `M3-07` ▶️ Run only after deliberate user Start or permitted API authorization _(implemented; acceptance pending)_
-- [~] `M3-08` ⏭️ Advance only after attributable confirmed response completion _(implemented; acceptance pending)_
+- [x] `M3-08` ⏭️ Advance only after attributable confirmed response completion
 - [x] `M3-09` 🔎 Block dispatch in submitted, generating and verifying states
 - [~] `M3-10` 🔌 Pause on interruption, failed, limit or unknown state _(implemented; acceptance pending)_
 - [~] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart _(implemented; acceptance pending)_
 - [~] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses _(implemented; acceptance pending)_
 
-**M3 acceptance:** 6/12 verified (50%) · █████░░░░░ · 6 implemented but not accepted.
+**M3 acceptance:** 7/12 verified (58%) · █████░░░░░ · 5 implemented but not accepted.
 
 ### 📮 M4 — Safe message delivery
 
