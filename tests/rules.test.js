@@ -168,3 +168,29 @@ test('dry-run audit contains outcome but never leaks proposed text, route or doc
   assert.equal(rejected.reason,'rejected');
   assert.equal(JSON.stringify(rejected).includes('unexpected prompt'),false);
 });
+
+test('prohibit any autonomous retry, dispatch, recursion or unbounded rule budget',()=>{
+  const base=r('manual-only','failed');
+  for(const forbidden of [
+    {type:'retry'},{type:'send',text:'Synthetic automatic Send'},
+    {type:'dispatch'},{type:'repeat',text:'Loop'},
+    {type:'propose',text:'Synthetic',retry:true},
+    {type:'pause',onTimeout:'retry'}
+  ])assert.equal(rules.normalize([{...base,then:forbidden}]).error,'invalid-rule',
+    'Only explicit-approval propose and pause may appear in rule definitions');
+  for(const when of [
+    {phase:'failed',maxTimes:1000},
+    {phase:'failed',onTimeout:{type:'retry'}},
+    {phase:'failed',minDurationMs:-1},
+    {phase:'failed',maxDurationMs:3600001}
+  ])assert.equal(rules.normalize([{...base,when}]).error,'invalid-rule');
+  assert.equal(rules.normalize(Array.from({length:33},(_,i)=>
+    r('loop-'+i,'finished'))).error,'invalid-rule-count');
+  const a={...r('loop-a','failed'),when:{phase:'failed',dependsOn:['loop-b']}};
+  const b={...r('loop-b','finished'),when:{phase:'finished',dependsOn:['loop-a']}};
+  assert.equal(rules.normalize([a,b]).error,'invalid-dependency',
+    'Cycles are rejected before policy evaluation or any browser write');
+  const decision=rules.evaluate([base],e('failed'));
+  assert.equal(decision.decision.action.type,'propose');
+  assert.equal(decision.decision.approvalRequired,true);
+});
