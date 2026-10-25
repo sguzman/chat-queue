@@ -121,11 +121,12 @@ function prepareQueue(dir,source){
     // evaluation one millisecond short, then make the scheduling clock read
     // exactly equal to the rule minimum. Old strict-greater-than logic
     // dropped the timer forever in this case; the next tick must recover.
-    .replace("  function ruleDuration(signal){",
-      "  function ruleDuration(signal){"+
-      "if(routeKey()==='/c/active-generation-deadline'&&"+
-      "document.documentElement.dataset.qaForceTimerRounding==='return-equality'){"+
-      "document.documentElement.dataset.qaForceTimerRounding='done';return 1200;}")
+    .replace("    const duration=ruleDuration(signal);\n    if(duration===undefined)return;",
+      "    const observed=ruleDuration(signal);"+
+      "const duration=(routeKey()==='/c/active-generation-deadline'&&"+
+      "document.documentElement.dataset.qaForceTimerRounding==='return-equality')?"+
+      "(document.documentElement.dataset.qaForceTimerRounding='done',1200):observed;\n"+
+      "    if(duration===undefined)return;")
     .replace("    const duration=ruleDuration(signal);\n    const result=rulesEngine.evaluate(state.ruleLibrary,signal,state.ruleSeen,",
       "    let duration=ruleDuration(signal);"+
       "if(routeKey()==='/c/active-generation-deadline'&&"+
