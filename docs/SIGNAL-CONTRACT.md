@@ -1,10 +1,10 @@
 # 📡 Authenticated signal consumer contract (candidate v1)
 
-**Status: consumer implemented; producer absent; no unattended sending.** Chat Signals 0.3.13 does not expose this event protocol. Do not claim integration acceptance from current Node tests.
+**Status (2026-10-25): consumer and independent publisher implemented; synthetic Firefox transport accepted, authenticated ChatGPT still unaccepted.** Chat Signals v0.3.13 (`102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`) does not expose this event protocol, but the separate publisher commit `d17117047f5e582591e514240c008b166bf96d8a` does. CI installs both versions independently to protect legacy coexistence and verify real publisher transport. Do not mistake synthetic-site acceptance for safe unattended sending.
 
 ## Transport and trust
 
-Chat Signals must send an external Firefox extension message to `chat-queue@sguzman.github` from its own extension principal (not via a page-script event). Chat Queue's background verifies the browser-supplied `sender.id` is exactly `chat-signals@sguzman.github`; a caller-supplied extension ID is ignored. Chat Queue routes a validated message to its already registered matching tab, which independently verifies its exact current pathname. This contract must be reviewed with the provider before Chat Signals work is authorized.
+Chat Signals must send an external Firefox extension message to `chat-queue@sguzman.github` from its own extension principal (not via a page-script event). Chat Queue's background verifies the browser-supplied `sender.id` is exactly `chat-signals@sguzman.github`; a caller-supplied extension ID is ignored. Chat Queue routes a validated message to its already registered matching tab, which independently verifies its exact current pathname. The browser-attested source implementation is reviewed through independently pinned Firefox integration fixtures; the page cannot forge the provider extension principal.
 
 Envelope (all examples here are synthetic):
 
@@ -40,7 +40,7 @@ Before attempting Send, the queue records the item as `uncertain` in extension s
 
 ## Outstanding gates
 
-The provider has not implemented the external event stream. Pending integration work must prove actual Firefox extension-to-extension event delivery, provider event provenance and sequencing, mutation/race safety, connection recovery, rapid terminal events, provider absence, event-page suspension, and the authenticated ChatGPT composer path. No existing browser profile or other repository is changed by this candidate receiver. The provider-side implementation plan and integration QA phases are documented in [SIGNAL-PUBLISHER-HANDOFF.md](SIGNAL-PUBLISHER-HANDOFF.md); this document is a handoff, not authorization to edit the separate Chat Signals repository.
+The actual publisher and consumer have passed synthetic Firefox extension-to-extension delivery, provenance, epoch sequencing, route isolation, failure and recovery scenarios, including the complete [run 40214190414](https://github.com/sguzman/chat-queue/actions/runs/40214190414). **Remaining acceptance** requires authenticated ChatGPT React/ProseMirror submission, network and error recovery, real-site navigation identity, concurrent user interaction and independently reviewed production privacy/security. These gates cannot be replaced by synthetic fixtures or static tests. See [SIGNAL-PUBLISHER-HANDOFF.md](SIGNAL-PUBLISHER-HANDOFF.md) for the historical handoff plan. No personal browser profile or other repository is changed by this documentation update.
 
 ## 🦊 Real publisher evidence — initial transport
 

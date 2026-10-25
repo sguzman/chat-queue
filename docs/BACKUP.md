@@ -24,7 +24,7 @@ Import confirmation is **one-use**: its staged record is consumed before any asy
 
 The implementation has unit tests for the version, size, status and content contract. Headless Firefox Developer Edition confirms native local-file selection, staged confirmation, persistence, byte-for-byte JSON download content, preserved uncertainty, and two-click history deletion after reload. [Accepted Firefox run](https://github.com/sguzman/chat-queue/actions/runs/40044676209).
 
-This is synthetic-page Firefox acceptance. It is not authenticated ChatGPT upload/send acceptance, does not provide automatic recovery across browser profile deletion or tab-ID changes, and does not substitute for the missing authenticated Chat Signals publisher.
+This is synthetic-page Firefox acceptance. It is not authenticated ChatGPT upload/send acceptance, does not provide automatic recovery across browser profile deletion or tab-ID changes, and does not establish real-site reliability even though an independently pinned Chat Signals publisher is now tested in disposable Firefox.
 
 ## Recover queues from a previous Firefox tab ID
 

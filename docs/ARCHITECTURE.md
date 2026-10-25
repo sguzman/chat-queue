@@ -10,7 +10,7 @@
 ChatGPT page UI
   ├── Chat Signals content script (independent observer)
   │     ├── current state attribute on documentElement (display only)
-  │     └── future authenticated extension-to-extension v1 events (not yet produced)
+  │     └── authenticated v1 events through its own Firefox background
   └── Chat Queue content script (Shadow DOM HUD + active-tab executor)
         ├── queue model/order and scoped durable queue state
         ├── read-only Signal subscription (no transcript reads)
@@ -27,18 +27,17 @@ Firefox Developer Edition is the primary implementation/QA target. Use `backgrou
 
 Chat Signals **currently** (v0.3.13, inspected 2026-10-23) exposes `data-chat-signals-state` on `document.documentElement`. This is a useful prototype compatibility hook, **not an authenticated production API**. Site code can alter the page DOM. A phase-only reading does not identify which response epoch finished, nor establish that the executor's last attempted Send produced that response. Some terminal states may be historical restoration from a previous extension session. Consequently phase-based scheduling is provisional and must not pass the G2/G3 acceptance gate.
 
-An authenticated, versioned **consumer** now exists in Chat Queue's background, documented in [SIGNAL-CONTRACT.md](SIGNAL-CONTRACT.md). The corresponding Chat Signals **publisher is not implemented** and requires separately authorized coordination. The candidate envelope contains:
+An authenticated, versioned **consumer** exists in Chat Queue's background, documented in [SIGNAL-CONTRACT.md](SIGNAL-CONTRACT.md). An independent Chat Signals publisher is also implemented at the pinned provider integration commit `d17117047f5e582591e514240c008b166bf96d8a`; their real two-add-on Firefox transport has passed synthetic-site acceptance, including [run 40214190414](https://github.com/sguzman/chat-queue/actions/runs/40214190414). The older v0.3.13 coexistence reference (`102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`) still lacks that publisher. The actual v1 envelope contains:
 
-- provider name and schema/version; authenticated Firefox extension sender identity
-- stable scoped conversation identity / document instance token; event sequence
-- response epoch and phase, `fresh`/`restored`, read flag, and evidence confidence
-- terminal reason and transition semantic; no transcript text
+- fixed protocol type and version; sender identity authenticated by Firefox rather than self-reported
+- exact bounded conversation pathname, document instance token and monotonic sequence
+- response epoch and phase, `fresh`/`restored` origin and evidence confidence; no transcript text
 
-The consumer rejects mismatched routes, stale sequences, old completion, unknown versions, and missing providers. Until the independent publisher is implemented and tested, **all automatic sends remain blocked**. Page-controlled `data-*` values can only update the HUD's unverified observation.
+The consumer rejects mismatched routes, stale sequences, old completion, unknown versions, and missing providers. The real publisher's Firefox transport has passed disposable synthetic-site QA, but **authenticated ChatGPT Send/completion, React editor compatibility and recovery remain unaccepted**. Page-controlled `data-*` values can only update the HUD's unverified observation and never authorize Send. Do not install or treat this experimental executor as accepted for unattended use in a personal profile.
 
 ## Queue storage and lifecycle
 
-The prototype persists bounded prompt text inside `browser.storage.local`, keyed by Firefox tab ID and current page path. It never uses cloud sync. This permits ordinary tab reload recovery. For a changed tab ID, a user can explicitly discover and confirm copying compatible older records with the **exact same conversation pathname**, leaving sources intact and marking all copied items uncertain. This is not automatic browser-restart recovery and does not unify live queues from multiple tabs. A future storage schema must separate stable conversation scope from transient tab ownership while preserving the current single-owner route lease and attempt journals; migration requires explicit review, never a silent merge of similarly named chats.
+The prototype persists bounded prompt text inside `browser.storage.local`, keyed by Firefox tab ID and current page path. It never uses cloud sync. This permits ordinary tab reload recovery. For a changed tab ID, a user can explicitly discover and confirm copying compatible older records only on **supported assigned conversation pathnames**, leaving sources intact and marking all copied items uncertain. Unassigned home, search and shared routes cannot qualify for recovery solely because their pathname matches. This is not automatic browser-restart recovery and does not unify live queues from multiple tabs. A future storage schema must separate stable conversation scope from transient tab ownership while preserving the current single-owner route lease and attempt journals; migration requires explicit review, never a silent merge of similarly named chats.
 
 **Unassigned/new-chat route hazard:** a tab pathname such as `/` can represent more than one distinct not-yet-saved chat in ChatGPT. Exact pathname equality is therefore necessary but not sufficient for stable conversation identity. Do not treat tab+pathname as fully accepted for M2-08 or authorize unattended dispatch in an unassigned new-chat context. Authenticated Firefox acceptance must establish a stable site conversation identifier (including project chat URLs), navigation/migration rules and noncollision across simultaneous unnamed chats before the stable-identity milestone can be verified.
 
