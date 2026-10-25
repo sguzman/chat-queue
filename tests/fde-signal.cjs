@@ -123,6 +123,25 @@ function prepareQueue(dir,source){
       "    document.documentElement.dataset.qaActiveDeadlineArmed=String(performance.now());"+
       "activeRuleDeadlineTimer=setTimeout(()=>{"+
       "document.documentElement.dataset.qaActiveDeadlineFired='yes';")
+    .replace("      const current=state.trusted;\n      if(!state.rulesEnabled||state.ruleOffer||!state.initialized||",
+      "      const current=state.trusted;"+
+      "if(routeKey()==='/c/active-generation-deadline')"+
+      "document.documentElement.dataset.qaActiveDeadlineGate=JSON.stringify({"+
+      "enabled:state.rulesEnabled,offered:!!state.ruleOffer,initialized:state.initialized,"+
+      "routing:state.routing,destroyed:state.destroyed,keyMatches:state.key===storageKey(),"+
+      "phase:current?.phase,origin:current?.origin,confidence:current?.confidence,"+
+      "markMatches:!!current&&sameRuleEpoch(mark,current),"+
+      "clockMatches:!!current&&sameRuleEpoch(state.ruleClock,current),"+
+      "clockPhase:state.ruleClock?.terminalPhase??null,"+
+      "duration:current?ruleDuration(current):null,"+
+      "rules:state.ruleLibrary.map(x=>({enabled:x.enabled,phase:x.when.phase,min:x.when.minDurationMs})),"+
+      "seen:state.ruleSeen.length});"+
+      "if(!state.rulesEnabled||state.ruleOffer||!state.initialized||")
+    .replace("      considerConditionalPreview(current);",
+      "      considerConditionalPreview(current);"+
+      "if(routeKey()==='/c/active-generation-deadline')"+
+      "document.documentElement.dataset.qaActiveDeadlineAfter=JSON.stringify({"+
+      "offered:!!state.ruleOffer,seen:state.ruleSeen.length,duration:ruleDuration(current)});")
     .replace('api.storage.local.set({[key]:data})',
       "((routeKey()==='/c/terminal-history-fail'&&document.documentElement.dataset.qaRejectTerminalWrite==='yes'&&data.history.some(h=>h.text==='Synthetic terminal record must rollback'&&h.status==='finished'))?Promise.reject(new Error('qa-rejected-terminal-write')):"+
       "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectResolutionWrite==='yes'&&data.items.length===0)?Promise.reject(new Error('qa-rejected-resolution-write')):"+
@@ -1150,6 +1169,8 @@ async function main(){
         visibility:document.visibilityState,
         armed:document.documentElement.dataset.qaActiveDeadlineArmed||null,
         fired:document.documentElement.dataset.qaActiveDeadlineFired||null,
+        gate:document.documentElement.dataset.qaActiveDeadlineGate||null,
+        after:document.documentElement.dataset.qaActiveDeadlineAfter||null,
         status:document.querySelector('#chat-queue-extension-root')?.shadowRoot
           ?.getElementById('status')?.textContent||null,
         note:document.querySelector('#chat-queue-extension-root')?.shadowRoot
