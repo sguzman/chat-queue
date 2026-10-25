@@ -48,8 +48,9 @@ function stageQueue(dir,root){
     JSON.stringify({version:1,rules:[{version:1,id:'qa-real-generation-wait',enabled:true,priority:90,
       when:{phase:'generating',minDurationMs:1200},then:{type:'pause'}}]})+
     "}).then(()=>document.documentElement.dataset.qaActiveDeadlineSeeded='yes');"+
-    "}\\n"+
+    "}\n"+
     "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
+  new Function(qaQueueContent); // Syntactic acceptance before temporary addon installation.
   fs.writeFileSync(cp,qaQueueContent);
   const bp=path.join(dir,'src/background.js');
   let bg=patch(fs.readFileSync(bp,'utf8'),origin,localOrigin);
