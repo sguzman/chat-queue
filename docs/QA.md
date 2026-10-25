@@ -408,3 +408,11 @@ In [full Firefox run 40201495776](https://github.com/sguzman/chat-queue/actions/
 ## ⌨️ Keyboard focus after moving a queue item
 
 [Complete Firefox CI 40225986129](https://github.com/sguzman/chat-queue/actions/runs/40225986129) tests actual `Enter` activation of a queue item's Down control. A move recreates the row buttons; the HUD now restores focus to a usable arrow on the **same item**, falling back to the opposite arrow when the original direction becomes disabled at the list boundary. No focus is stolen from the ChatGPT page or another queue item. Existing pointer reorder, private Shadow DOM, themes, browser restart and real two-addon Chat Signals tests also pass. This is keyboard acceptance in disposable Firefox, **not** a complete screen-reader audit or authenticated ChatGPT HUD review.
+
+## 🔐 Concurrent Add rejected during a Send ownership journal
+
+[Full native Firefox CI 40228013689](https://github.com/sguzman/chat-queue/actions/runs/40228013689) deliberately stalls the background's browser-attested dispatch authorization while an already queued message is preparing. A second Add during that in-flight interval now returns `dispatch-in-progress` without entering the storage save chain, consuming a sequence-numbered external append watermark, clearing the HUD draft, or sending either message. Explicit Pause before the delayed authorization returns prevents Send. The production guard applies to both `enqueue` and `enqueueSequenced`, and the two-add-on test covers the actual HUD Add path. No claim is made about authenticated ChatGPT races.
+
+## 🛑 Rejected uncertain-resolution write retains Send ownership
+
+[Full native Firefox CI 40228220903](https://github.com/sguzman/chat-queue/actions/runs/40228220903) first performs exactly one synthetic Send, rejects its post-click accepted-history write, and retains the queued message in uncertain state. It then rejects the user's *explicit* Discard save: rollback must restore the uncertain payload, while a newly opened third Firefox tab trying the same assigned conversation remains denied the Send lease. Only after an attributable provider terminal and a later successfully saved explicit Discard does the original queue become empty. No duplicate Send or implicit retry occurs. This confirms synthetic Firefox transaction/lease behavior, not live ChatGPT or power-loss recovery.
