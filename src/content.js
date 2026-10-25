@@ -19,6 +19,13 @@
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
+  // Deadlines only dismiss a pending manual review; they never authorize
+  // execution, enqueue or Send. A stale timer cannot act on a newer offer.
+  let ruleApprovalTimer=null;
+  function clearRuleApprovalTimer(){
+    if(ruleApprovalTimer!==null)clearTimeout(ruleApprovalTimer);
+    ruleApprovalTimer=null;
+  }
   // Every metadata publication is ordered within the content-script document.
   // Async Firefox tab URL lookups may otherwise apply a stale paused state
   // after a later running state, incorrectly releasing a dispatch-owner lease.
@@ -176,6 +183,7 @@
   let paintedRows=null,paintedAudit=null;
   function render() {
     if (state.destroyed) return;
+    if(!state.ruleOffer)clearRuleApprovalTimer();
     host.dataset.theme=state.theme;els.theme.value=state.theme;
     els.count.textContent = `${state.items.length} queued`;
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
@@ -535,6 +543,22 @@
       clock.terminalPhase===signal.phase&&Number.isSafeInteger(clock.durationMs)
       ? clock.durationMs : undefined;
   }
+  function expireConditionalOffer(offer,force=false){
+    if(state.ruleOffer!==offer||offer.deadlineAt===undefined)return;
+    const now=performance.now();
+    const remaining=offer.deadlineAt-now;
+    if(!force&&now>=offer.offeredAt&&remaining>0){
+      clearRuleApprovalTimer();
+      ruleApprovalTimer=setTimeout(()=>expireConditionalOffer(offer),Math.ceil(remaining));
+      return;
+    }
+    clearRuleApprovalTimer();
+    auditOffer('expired',offer);
+    state.ruleOffer=null;state.running=false;
+    if(state.scheduler)clearTimeout(state.scheduler);
+    state.scheduler=null;
+    statusNote('Conditional proposal deadline expired; press Start separately');
+  }
   // This is preview-only: authenticated provider events may offer an action,
   // but only the explicit local Approve control can enqueue or pause.
   function considerConditionalPreview(signal) {
@@ -547,10 +571,19 @@
     if(!result?.ok||!result.decision)return;
     state.ruleSeen.push(result.decision.eventKey);
     if(state.ruleSeen.length>rulesEngine.MAX_SEEN)state.ruleSeen.shift();
+    const offeredAt=performance.now();
+    const deadlineMs=result.decision.approvalDeadlineMs;
     state.ruleOffer={key:state.key,ruleId:result.decision.ruleId,
       action:result.decision.action,consentGeneration:state.ruleConsentGeneration,
       documentToken:signal.documentToken,
-      epoch:signal.epoch,phase:signal.phase,confidence:signal.confidence};
+      epoch:signal.epoch,phase:signal.phase,confidence:signal.confidence,
+      ...(deadlineMs===undefined?{}:
+        {offeredAt,deadlineAt:offeredAt+deadlineMs})};
+    clearRuleApprovalTimer();
+    if(deadlineMs!==undefined){
+      const offer=state.ruleOffer;
+      ruleApprovalTimer=setTimeout(()=>expireConditionalOffer(offer),deadlineMs);
+    }
     auditOffer('offered',state.ruleOffer);
     // A proposal requiring manual review must stop any already-scheduled
     // next Send synchronously. processSignal may have just scheduled it on
@@ -1275,6 +1308,15 @@
     const offer=state.ruleOffer;
     if(!offer||state.routing||state.key!==offer.key||state.key!==storageKey()||
        !state.rulesEnabled||offer.consentGeneration!==state.ruleConsentGeneration)return;
+    // Browser timers are throttleable. Even if the expiry callback has not
+    // fired yet, an approval after its monotonic deadline MUST fail closed.
+    if(offer.deadlineAt!==undefined){
+      const now=performance.now();
+      if(!(now>=offer.offeredAt&&now<offer.deadlineAt)){
+        expireConditionalOffer(offer,true);
+        return;
+      }
+    }
     // A newer provider epoch/phase must invalidate the pending review; an
     // obsolete success/failure offer cannot be approved for a later response.
     if(!state.trusted||state.trusted.documentToken!==offer.documentToken||

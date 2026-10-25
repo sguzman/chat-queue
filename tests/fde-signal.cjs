@@ -73,6 +73,10 @@ function prepareQueue(dir,source){
          priority:100,when:{phase:'failed'},then:{type:'pause'}},
        {version:1,id:'epoch-finished',enabled:true,priority:80,
          when:{phase:'finished'},then:{type:'propose',text:'Synthetic second action'}}]
+       :event.data.mode==='deadline-only'?[{
+         version:1,id:'deadline-manual',enabled:true,priority:100,
+         when:{phase:'finished',approvalDeadlineMs:event.data.deadlineMs},
+         then:{type:'propose',text:'Synthetic bounded deadline approval'}}]
        :event.data.mode==='duration-only'?[
         {version:1,id:'duration-frozen',enabled:true,priority:100,
           when:{phase:'finished',minDurationMs:3000},then:{type:'pause'}}
@@ -966,6 +970,55 @@ async function main(){
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Approval, dismissal and phase reclassification must never Send a proposal');
+
+    qaStage='bounded-approval-deadline-expiry';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/rule-review-deadline');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('rules-toggle')}) &&
+        document.documentElement.dataset.qaRuleMutationReady==='yes' &&
+        document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'deadline-only',deadlineMs:1200},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',1,195,'observed','fresh','/c/rule-review-deadline');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),6000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Conditional proposal deadline expired')`),6500);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true);
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /expired · deadline-manual · finished · propose/);
+    await emit('finished',1,196,'observed','fresh','/c/rule-review-deadline');
+    await driver.sleep(350);
+    assert.equal(await driver.executeScript(`return ${hud('rules-approve')}.hidden`),true,
+      'Expiration must not let duplicate same-response terminal reoffer approval');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
+    await driver.executeScript(
+      "document.documentElement.dataset.qaRuleMutationDone='pending';"+
+      "window.postMessage({kind:'qa-change-rule-config',mode:'deadline-only',deadlineMs:6000},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaRuleMutationDone==='yes'"),6000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('rules-toggle')}.textContent==='Enable previews'`),5000);
+    await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
+    await waitNote('Conditional previews enabled');
+    await emit('finished',2,197,'observed','fresh','/c/rule-review-deadline');
+    await driver.wait(async()=>await driver.executeScript(
+      `return !${hud('rules-approve')}.hidden`),6000);
+    await driver.executeScript(`return ${hud('rules-approve')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued' &&
+         ${hud('rules-approve')}.hidden`),9000);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Even within a deadline, manual approval can enqueue but cannot Send');
+    assert.match(await driver.executeScript(`return ${hud('rules-audit')}.textContent`),
+      /approved · deadline-manual · finished · propose/);
 
     qaStage='authenticated-failure-interruption-limit-previews';
     await driver.switchTo().newWindow('tab');
