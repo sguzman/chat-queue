@@ -726,9 +726,39 @@ async function main(){
       assert.equal(await driver.executeScript('return window.__sendCount'),0,
         phase+' must remain paused and not retry on reload');
     }
+    stage='real-provider-sixteen-tabs-hidden-retention';
+    const sixteenStartTab=await driver.getWindowHandle();
+    const loadTabs=[];
+    for(let i=0;i<16;i++){
+      await driver.switchTo().newWindow('tab');
+      const tab=await driver.getWindowHandle();
+      loadTabs.push(tab);
+      const route='/c/fde-sixteen-'+String(i).padStart(2,'0');
+      await driver.get('http://127.0.0.1:'+server.address().port+route);
+      await ready();
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,
+        'Synthetic tab-isolated message '+i);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}?.textContent==='1 queued' &&
+          document.documentElement.dataset.qaSavedRoute?.endsWith(arguments[0]) &&
+          document.documentElement.dataset.qaSavedItems==='1'`,route),12000);
+      assert.equal(await driver.executeScript('return window.__sendCount'),0,
+        'A freshly registered hidden-tab candidate cannot Send automatically');
+    }
+    // The first tab has remained hidden through fifteen subsequent live
+    // provider registrations and independent local storage writes.
+    await driver.switchTo().window(loadTabs[0]);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}?.textContent==='1 queued'`),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Returning to an older tab must never replay an unstarted queue');
+    assert.equal(await driver.executeScript(
+      "return location.pathname"),'/c/fde-sixteen-00');
+    await driver.switchTo().window(sixteenStartTab);
+    stage='provider-removed-no-replay';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-gone-123');
     await ready();
-    stage='provider-removed-no-replay';
     await driver.uninstallAddon(sid);
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${hud('run')})`),13000);
