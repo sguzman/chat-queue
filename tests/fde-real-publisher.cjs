@@ -75,7 +75,7 @@ function stageProvider(dir,root){
   let qaContent=fs.readFileSync(qaContentPath,'utf8');
   qaContent=patch(qaContent,
     "    lastQueuePublished=-1; // the next reconcile republishes the current epoch",
-    "    document.documentElement.dataset.qaSyncReceived='yes';\\n"+
+    "    document.documentElement.dataset.qaSyncReceived='yes';\n"+
     "    lastQueuePublished=-1; // the next reconcile republishes the current epoch");
   qaContent=patch(qaContent,"        queueSequence++;lastQueuePublished=r.changed;",
     "        queueSequence++;document.documentElement.dataset.qaPublishedSequence=String(queueSequence);lastQueuePublished=r.changed;");
