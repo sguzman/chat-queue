@@ -829,8 +829,11 @@
   // separately authorize the *next* pending item after cancellation.
   function closeUnfinishedResponse(status){
     if(!state.awaiting)return;
+    const uncertainHistory=state.awaitingUncertain;
     state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
-    if(state.history[0]?.status==='submitted'){
+    // A failed accepted-history write left NO current history entry. Do not
+    // accidentally mark an older unrelated submitted response interrupted.
+    if(!uncertainHistory&&state.history[0]?.status==='submitted'){
       state.history[0].status=status;
       void save().catch(()=>{});
     }
@@ -854,8 +857,11 @@
       statusNote(attributable?'Response cancelled; press Start to continue':
         'Unattributed response cancellation; press Start to continue');
     } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
+      const uncertainHistory=state.awaitingUncertain;
       state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
-      if(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted') {
+      // Only a durably journaled current response can close a history row.
+      // The first row may belong to an older, abandoned submission.
+      if(!uncertainHistory&&(state.history[0]?.status==='submitted'||state.history[0]?.status==='interrupted')) {
         state.history[0].status='finished';void save();
       }
       statusNote('Response finished; control returned');

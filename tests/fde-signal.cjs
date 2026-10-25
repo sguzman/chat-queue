@@ -118,8 +118,15 @@ function prepareQueue(dir,source){
     .replace('const data=await api.storage.local.get(ruleStore.KEY);',
       "const data=await (routeKey()==='/c/rule-config-race'?new Promise(resolve=>setTimeout(resolve,1200)).then(()=>api.storage.local.get(ruleStore.KEY)):api.storage.local.get(ruleStore.KEY));")
     .replace('api.storage.local.set({[key]:data})',
-      "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
+      "((routeKey()==='/c/accepted-journal-fail'&&document.documentElement.dataset.qaRejectAcceptedWrite==='yes'&&data.history.some(h=>h.text==='Synthetic accepted write must stay uncertain'&&h.status==='submitted'))?Promise.reject(new Error('qa-rejected-accepted-history')):"+
       "((routeKey()==='/c/rule-dependency-persistence'&&document.documentElement.dataset.qaRejectRuleAppend==='yes')?Promise.reject(new Error('qa-rejected-write')):((routeKey()==='/c/rule-approval-route-race'&&document.documentElement.dataset.qaDelayRuleApproval==='yes')?new Promise(resolve=>setTimeout(resolve,1500)).then(()=>api.storage.local.set({[key]:data})):api.storage.local.set({[key]:data}))))")
+    // Inject an older unfinished history entry to prove a later ambiguous
+    // submission cannot falsely finish or interrupt that unrelated message.
+    .replace("      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);",
+      "      state.history=state.blockedRecord?[]:readHistory(stored[state.key]);"+
+      "if(routeKey()==='/c/accepted-journal-fail'&&!state.history.some(h=>h.id==='qa-old-submitted'))"+
+      "state.history.unshift({id:'qa-old-submitted',text:'Synthetic previous abandoned submission',"+
+      "at:1730000000000,status:'submitted'});")
     .replace("if(!response?.ok)throw new Error('Registration unavailable');",
       "if(!response?.ok){document.documentElement.dataset.qaRegisterFailure=String(response?.error||'no-response');throw new Error('Registration unavailable');}")
     .replace("if (!api?.runtime?.sendMessage || !core || !contract) return;",
@@ -1447,6 +1454,15 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Uncertain accepted-history write must retain cross-tab owner lease');
     await driver.switchTo().window(uncertainOwnerWindow);
+    const historicalStatus=()=>driver.executeScript(
+      "return [...document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.historyitem')].map(x=>x.textContent)");
+    assert.equal((await historicalStatus())[0]?.startsWith('submitted: Synthetic previous abandoned submission'),true,
+      'Before current response terminal, old unconfirmed history stays submitted');
+    await emit('finished',1,552,'observed','fresh','/c/accepted-journal-fail');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Response finished; control returned')`),9000);
+    assert.equal((await historicalStatus())[0]?.startsWith('submitted: Synthetic previous abandoned submission'),true,
+      'A terminal for an unjournaled new response must not finish older history');
     await driver.executeScript(
       "document.documentElement.dataset.qaRejectAcceptedWrite='no'");
     await discardButton.click();
