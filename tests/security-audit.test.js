@@ -57,3 +57,46 @@ test('a new unreviewed local Options script fails the audit',()=>{
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/unreviewed local Options script/);
 });
+
+test('MAIN-world script injection is rejected as an unreviewed privilege change',()=>{
+  const result=runAudit(dir=>{
+    const name=path.join(dir,'manifest.json');
+    const json=JSON.parse(fs.readFileSync(name,'utf8'));
+    json.content_scripts[0].world='MAIN';
+    fs.writeFileSync(name,JSON.stringify(json));
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/content script injection context changed/);
+});
+test('additional script entrypoint is rejected even if static text looks safe',()=>{
+  const result=runAudit(dir=>{
+    const name=path.join(dir,'manifest.json');
+    const json=JSON.parse(fs.readFileSync(name,'utf8'));
+    json.content_scripts[0].js.unshift('src/core.js');
+    fs.writeFileSync(name,JSON.stringify(json));
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/unreviewed Firefox content entrypoint/);
+});
+test('unexpected background workers are rejected before release',()=>{
+  const result=runAudit(dir=>{
+    const name=path.join(dir,'manifest.json');
+    const json=JSON.parse(fs.readFileSync(name,'utf8'));
+    json.background.service_worker='src/background.js';
+    fs.writeFileSync(name,JSON.stringify(json));
+  });
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/background context changed/);
+});
+test('remote CSS url and form actions are rejected in local options',()=>{
+  for(const injection of [
+    '<style>body{background:url(https://untrusted.invalid/tracker)}</style>',
+    '<form action="https://untrusted.invalid/capture"></form>'
+  ]){
+    const result=runAudit(dir=>{
+      fs.appendFileSync(path.join(dir,'options/options.html'),injection);
+    });
+    assert.notEqual(result.status,0);
+    assert.match(result.stderr,/remote assets or inline executable Options HTML/);
+  }
+});

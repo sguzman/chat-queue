@@ -12,6 +12,32 @@ const pkg=JSON.parse(read('package.json'));
 const exactly=(actual,expected)=>JSON.stringify(actual)===JSON.stringify(expected);
 
 if(manifest.manifest_version!==3)fail('unexpected manifest schema');
+// Exact manifest surfaces: additions such as world:"MAIN", extra content
+// scripts, background workers, or URL-matching fallback modes must require
+// a deliberate audit update, not silently ride along with a benign diff.
+function exactKeys(value,keys,description){
+  if(!value||typeof value!=='object'||Array.isArray(value)||
+     !exactly(Object.keys(value).sort(),keys.slice().sort()))
+    fail(description+' changed');
+}
+exactKeys(manifest,[
+  'manifest_version','name','version','description','permissions',
+  'background','options_ui','content_scripts','browser_specific_settings'
+],'manifest execution/privilege surface');
+exactKeys(manifest.background,['scripts'],'background context');
+exactKeys(manifest.options_ui,['page','open_in_tab'],'Options context');
+if(manifest.options_ui.open_in_tab!==true)fail('Options tab presentation changed');
+exactKeys(manifest.content_scripts?.[0],
+  ['matches','js','run_at','all_frames'],'content script injection context');
+if(manifest.content_scripts[0].run_at!=='document_idle')
+  fail('content script insertion lifecycle changed');
+if(!exactly(manifest.background.scripts,
+  ['src/signal.js','src/grants.js','src/rules.js','src/background.js']))
+  fail('unreviewed Firefox background entrypoint');
+if(!exactly(manifest.content_scripts[0].js,
+  ['src/core.js','src/signal.js','src/rules.js','src/rule-store.js',
+   'src/content.js']))
+  fail('unreviewed Firefox content entrypoint');
 if(!exactly(manifest.permissions,['storage']))fail('Firefox permission scope changed');
 if('host_permissions' in manifest||'optional_permissions' in manifest||
    'optional_host_permissions' in manifest)fail('new host or optional permissions');
@@ -52,8 +78,9 @@ for(const p of new Set(allJs)){
     fail('non-ChatGPT URL literal in '+p);
 }
 const html=read('options/options.html');
-if(/\b(?:src|href)\s*=\s*["'](?:https?:|\/\/)/i.test(html)||
+if(/\b(?:src|href|action|formaction)\s*=\s*["'](?:https?:|\/\/)/i.test(html)||
    /@import\b/i.test(html)||
+   /\burl\s*\(\s*['"]?\s*(?:https?:|\/\/)/i.test(html)||
    /<script\b(?![^>]*\bsrc\s*=)/i.test(html)||
    /\bon(?:load|error|click|submit|change)\s*=/i.test(html))
   fail('remote assets or inline executable Options HTML');
