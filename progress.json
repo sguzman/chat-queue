@@ -483,10 +483,11 @@
                   "id": "M3-04",
                   "emoji": "🪪",
                   "title": "Bind signal identity to currently selected conversation",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "Exact route, stable document token and monotonic sequence are checked in consumer: src/signal.js, src/background.js, src/content.js; provider agreement pending.",
-                    "Background now independently binds authenticated epochs to browser-registered route and rejects stale route registration; Firefox History API integration acceptance pending."
+                    "Background now independently binds authenticated epochs to browser-registered route and rejects stale route registration; Firefox History API integration acceptance pending.",
+                    "Native Firefox Developer Edition tests actual separately installed Chat Signals publisher and Queue across a same-document React-style History API project-conversation navigation. An unsubmitted prompt remains isolated in the old route; a new project route establishes browser-attested provider authority and can submit only its own queued prompt; returning to old conversation preserves its pending queue and never automatically sends. Full CI both jobs green https://github.com/sguzman/chat-queue/actions/runs/40197623501. Synthetic localhost page, not authenticated production ChatGPT."
                   ]
                 },
                 {

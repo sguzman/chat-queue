@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 63/96 verified (65%) · ██████░░░░ · 30 implemented awaiting acceptance.**
+**Overall: 64/96 verified (66%) · ██████░░░░ · 29 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -104,7 +104,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M3-01` 📡 Read current Chat Signals state without copied classification
 - [x] `M3-02` 🛡️ Define authenticated, versioned source-to-consumer signal protocol
 - [~] `M3-03` 🔢 Attribute phase and completion to exact response epoch _(implemented; acceptance pending)_
-- [~] `M3-04` 🪪 Bind signal identity to currently selected conversation _(implemented; acceptance pending)_
+- [x] `M3-04` 🪪 Bind signal identity to currently selected conversation
 - [x] `M3-05` ⏳ Distinguish historical restoration from fresh terminal event
 - [x] `M3-06` 🔌 Handle absent, outdated or disconnected Chat Signals explicitly
 
@@ -119,7 +119,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [~] `M3-11` 🛑 Honor user cancellation and manual pause without auto restart _(implemented; acceptance pending)_
 - [~] `M3-12` 🧪 Test old completion, missed signals, rerenders and long responses _(implemented; acceptance pending)_
 
-**M3 acceptance:** 5/12 verified (41%) · ████░░░░░░ · 7 implemented but not accepted.
+**M3 acceptance:** 6/12 verified (50%) · █████░░░░░ · 6 implemented but not accepted.
 
 ### 📮 M4 — Safe message delivery
 
