@@ -492,7 +492,11 @@
     return !!hit&&(hit===element||element.contains(hit));
   }
   function usableComposer(editor) {
-    return actionableControl(editor)&&editor.getAttribute('contenteditable')!=='false';
+    // The selector includes a fixed ChatGPT ID; it does not establish that
+    // the element is still an actual text editor after a page rerender.
+    const textControl=editor instanceof HTMLTextAreaElement||
+      (editor instanceof HTMLInputElement&&['text','search'].includes(editor.type));
+    return actionableControl(editor)&&(textControl||editor.isContentEditable===true);
   }
   function findComposer() {
     const found=[...document.querySelectorAll(editorSelector)].filter(usableComposer);

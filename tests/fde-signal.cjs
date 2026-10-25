@@ -1478,6 +1478,27 @@ async function main(){
       `return ${hud('count')}?.textContent==='0 queued'`),12000);
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
 
+    qaStage='malformed-nontext-composer-does-not-send';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/checkbox-composer');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic must not fill checkbox composer';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(() => {
+      const old=document.getElementById('prompt-textarea');
+      const invalid=document.createElement('input');
+      invalid.id='prompt-textarea';invalid.type='checkbox';invalid.value='';
+      old.replaceWith(invalid);
+    });
+    await emit('idle',0,570,'observed','fresh','/c/checkbox-composer');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Composer is missing or ambiguous');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'An arbitrary input with a matching editor ID cannot receive a queued prompt');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
