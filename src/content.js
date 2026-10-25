@@ -929,6 +929,10 @@
     } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
       const uncertainHistory=state.awaitingUncertain;
       state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
+      // A trusted finished epoch does not make a FAILED accepted-history write
+      // durable. The clicked item is still uncertain until manual resolution;
+      // retain cross-tab Send ownership exactly as for unknown/failed epochs.
+      if(uncertainHistory)state.unconfirmedClickLease=true;
       // Only a durably journaled current response can close a history row.
       // The first row may belong to an older, abandoned submission.
       if(!uncertainHistory)
