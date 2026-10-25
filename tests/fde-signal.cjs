@@ -458,7 +458,7 @@ async function main(){
     await emit('idle',0,585,'observed','fresh','/c/post-click-file');
     await driver.executeScript(`return ${hud('run')}.click()`);
     await waitSends(1);
-    const lateFile=await driver.executeScript(() => {
+    const postClickAttachmentInput=await driver.executeScript(() => {
       window.__qaPostClickFileChanges=0;
       const form=document.querySelector('main form');
       form.addEventListener('change',e=>{if(e.isTrusted)window.__qaPostClickFileChanges++},true);
@@ -466,7 +466,7 @@ async function main(){
       input.id='qa-post-click-file';input.type='file';form.append(input);
       return input;
     });
-    await lateFile.sendKeys(fixtureAttachment);
+    await postClickAttachmentInput.sendKeys(fixtureAttachment);
     assert.equal(await driver.executeScript(
       "return document.querySelector('#qa-post-click-file').files.length"),1);
     await emit('generating',1,586,'observed','fresh','/c/post-click-file');
