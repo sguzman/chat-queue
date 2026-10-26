@@ -221,10 +221,10 @@ function prepareQueue(dir,source){
   bg=bg.replace(preflight,
     "    if (message.action === 'dispatch-check' && message.sequence===10) {"+
     "globalThis.__qaFourthChecks=(globalThis.__qaFourthChecks||0)+1;"+
-    "if(globalThis.__qaFourthChecks===2) SIGNALS.clear();}\n"+preflight);
+    "if(globalThis.__qaFourthChecks===3) SIGNALS.clear();}\n"+preflight);
   // QA-only delay on the second authorization check for a later message:
   // actual production check logic still runs after the pause.
-  const delayedAuth="      return currentRoute(sender).then(live=>{\n        if(live!==message.route || SIGNALS.get(tab.id)!==last ||";
+  const delayedAuth="      return currentRoute(sender).then(async live=>{\n        if(live!==message.route||SIGNALS.get(tab.id)!==last||";
   assert.equal(bg.split(delayedAuth).length,2);
   bg=bg.replace(delayedAuth,
     "      return currentRoute(sender).then(async live=>{\n"+
@@ -233,14 +233,14 @@ function prepareQueue(dir,source){
     "        if(message.route==='/c/enqueue-inflight')"+
     "await new Promise(resolve=>setTimeout(resolve,2300));\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
-    "if(globalThis.__qaLateChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "if(globalThis.__qaLateChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
-    "if(globalThis.__qaRouteChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "if(globalThis.__qaRouteChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===50){globalThis.__qaFileChecks=(globalThis.__qaFileChecks||0)+1;"+
-    "if(globalThis.__qaFileChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "if(globalThis.__qaFileChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===60){globalThis.__qaEditorChecks=(globalThis.__qaEditorChecks||0)+1;"+
-    "if(globalThis.__qaEditorChecks===2)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
-    "        if(live!==message.route || SIGNALS.get(tab.id)!==last ||");
+    "if(globalThis.__qaEditorChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    "        if(live!==message.route||SIGNALS.get(tab.id)!==last||");
   fs.writeFileSync(bgPath,bg);
 }
 function prepareProvider(dir){
