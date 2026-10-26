@@ -830,11 +830,13 @@ async function main(){
   await driver.wait(async()=>(await metaCommand({
     type:'qa-old-forward-state'}))?.entered===true,8000,
     'Old API forwarding must enter deliberate fault hold');
+  const rebound=await metaCommand({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/synthetic',registrationVersion:2});
+  assert.equal(rebound.ok,true,'A real Firefox message must create a newer registration');
+  assert.match(rebound.registrationGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'register',route:'/c/synthetic',registrationVersion:2})).ok,true,
-    'A real Firefox message must create a newer registration');
-  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'state',sequence:1,phase:'idle',size:3,running:false,awaiting:false})).ok,true);
+    action:'state',sequence:1,phase:'idle',size:3,running:false,awaiting:false,
+    registrationGeneration:rebound.registrationGeneration})).ok,true);
   assert.equal((await metaCommand({type:'qa-old-forward-release'})).ok,true);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__apiResults.some(x=>x.nonce===arguments[0])',staleForwardNonce),9000);
@@ -853,15 +855,18 @@ async function main(){
   const holdId='12345678-aaaa-4444-bbbb-111111111111';
   assert.equal((await metaCommand({type:'qa-seed-send-hold'})).ok,true);
   const oldReleaseNonce=++nonce;
-  await driver.executeScript((i,token)=>
+  await driver.executeScript((i,token,generation)=>
     window.postMessage({kind:'qa-meta-send',nonce:i,message:{
       type:'chat-queue-internal/v1',action:'release-send-hold',
-      route:'/c/synthetic',holdId:token,qaHoldOldRelease:true
-    }},'*'),oldReleaseNonce,holdId);
+      route:'/c/synthetic',holdId:token,qaHoldOldRelease:true,
+      registrationGeneration:generation
+    }},'*'),oldReleaseNonce,holdId,rebound.registrationGeneration);
   await driver.wait(async()=>(await metaCommand({
     type:'qa-old-hold-state'}))?.entered===true,8000);
-  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'register',route:'/c/synthetic',registrationVersion:2})).ok,true);
+  const latest=await metaCommand({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/synthetic',registrationVersion:2});
+  assert.equal(latest.ok,true);
+  assert.match(latest.registrationGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
   assert.equal((await metaCommand({type:'qa-old-hold-resume'})).ok,true);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
@@ -871,14 +876,17 @@ async function main(){
     oldReleaseNonce),'stale-registration',
     'A prior document must not clear a newer document durable Send hold');
   const held=await metaCommand({type:'chat-queue-internal/v1',
-    action:'send-hold-status',route:'/c/synthetic'});
+    action:'send-hold-status',route:'/c/synthetic',
+    registrationGeneration:latest.registrationGeneration});
   assert.equal(held.held,true);
   assert.equal(held.holdId,holdId);
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'review-send-hold',route:'/c/synthetic',holdId,confirmed:true})).ok,true,
+    action:'review-send-hold',route:'/c/synthetic',holdId,confirmed:true,
+    registrationGeneration:latest.registrationGeneration})).ok,true,
     'New registration retains the manual double-confirmed orphan recovery');
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'send-hold-status',route:'/c/synthetic'})).held,false);
+    action:'send-hold-status',route:'/c/synthetic',
+    registrationGeneration:latest.registrationGeneration})).held,false);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   stage='api-uncertain-item-resolution';
   const seedNonce=++nonce;
