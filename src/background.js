@@ -283,9 +283,15 @@
     if(['send-hold-status','release-send-hold','review-send-hold'].includes(message.action)){
       const conversationId=signalContract.assignedConversationId(message.route);
       if(!conversationId)return Promise.resolve({ok:false,error:'conversation-not-assigned'});
+      // Capture the document generation BEFORE any awaited tab/storage lookup.
+      // A same-route reload is still a new principal: its old in-flight
+      // release/review must not clear the new document's durable Send hold.
+      const generation=REGISTRATIONS.get(tab.id);
       return currentRoute(sender).then(live=>{
         if(live!==message.route||ROUTES.get(tab.id)!==message.route||
            !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
+        if(!generation||REGISTRATIONS.get(tab.id)!==generation)
+          return {ok:false,error:'stale-registration'};
         return serializedHold(conversationId,async()=>{
           const key=holdKey(conversationId);
           let hold;
@@ -294,6 +300,8 @@
           if((await currentRoute(sender))!==message.route||
              ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
             return {ok:false,error:'route-mismatch'};
+          if(REGISTRATIONS.get(tab.id)!==generation)
+            return {ok:false,error:'stale-registration'};
           if(hold!==undefined&&!validHold(hold,conversationId))
             return {ok:false,error:'unsupported-send-hold'};
           if(message.action==='send-hold-status')

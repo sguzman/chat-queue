@@ -902,6 +902,49 @@ test('same-tab document reload permits reviewed retired hold but not live owner'
     'review does not restore provider authority for any new Send');
 });
 
+test('stale same-route document cannot release a newer registration durable hold',async()=>{
+  const route='/c/same-route-reload-hold';
+  const url='https://chatgpt.com'+route;
+  const key='chatqueue:send-hold:v1:same-route-reload-hold';
+  const holdId='12345678-aaaa-4444-bbbb-111111111111';
+  const {listeners,state,context}=create({[key]:{
+    version:1,route,tabId:204,holdId
+  }});
+  const old={tab:{id:204,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route},old)).ok,true);
+  const originalGet=context.browser.storage.local.get;
+  let resume;
+  context.browser.storage.local.get=(requested)=>{
+    if(requested===key&&!resume)
+      return new Promise(resolve=>{resume=()=>resolve(originalGet(requested));});
+    return originalGet(requested);
+  };
+  const release=listeners.internal({type:'chat-queue-internal/v1',
+    action:'release-send-hold',route,holdId},old);
+  for(let i=0;i<16&&!resume;i++)await new Promise(r=>setImmediate(r));
+  assert.equal(typeof resume,'function','Old release must await durable hold lookup');
+  // Same-tab/same-path replacement. Route-only checks would mistakenly
+  // permit old callbacks to release the new document's safety blocker.
+  const fresh={tab:{id:204,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route},fresh)).ok,true);
+  resume();
+  assert.equal((await release).error,'stale-registration');
+  assert.equal(state[key].holdId,holdId,
+    'A stale automatic release must not remove the durable hold');
+  const held=await listeners.internal({type:'chat-queue-internal/v1',
+    action:'send-hold-status',route},fresh);
+  assert.equal(held.ok,true);
+  assert.equal(held.held,true);
+  assert.equal(held.holdId,holdId);
+  // Unlike stale automatic release, deliberate local double-confirmed
+  // orphan review in the new registration remains supported.
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route,confirmed:true,holdId},fresh)).ok,true);
+  assert.equal(Object.hasOwn(state,key),false);
+});
+
 test('failed durable hold storage never permits the final Send preflight',async()=>{
   const {listeners,context}=create();
   const route='/c/hold-failure',url='https://chatgpt.com'+route;
