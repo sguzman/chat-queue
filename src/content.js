@@ -792,7 +792,7 @@
     if (!freshProvider() || !contract.ready(state.trusted,routeKey())) return;
     const item=state.items.find(e=>e.status==='pending');
     if (!item) return;
-    const attemptKey=state.key,attemptGeneration=routeGeneration;
+    const attemptKey=state.key,attemptGeneration=routeGeneration,attemptRegistration=state.registrationGeneration;
     const attemptToken=uid();
     const holdId=uid();
     const baseline=state.trusted;
@@ -801,7 +801,8 @@
     // authorization promise is still pending. Path equality alone cannot
     // authorize that old attempt or allow it to clear a newer attempt.
     const sameAttempt=()=>state.attempting===attemptToken&&
-      routeGeneration===attemptGeneration&&!state.routing&&!state.destroyed&&
+      routeGeneration===attemptGeneration&&state.registrationGeneration===attemptRegistration&&
+      !state.routing&&!state.destroyed&&
       state.key===attemptKey&&storageKey()===attemptKey;
     statusNote('Preparing next message');
     let clicked=false;
@@ -831,7 +832,8 @@
       // Reserve the exact-route owner before changing the page composer.
       // Competing tabs fail while their drafts remain completely untouched.
       const ownership=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
-        action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
+        action:'dispatch-check',registrationGeneration:attemptRegistration,
+         route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
         ? 'Another tab owns this conversation; no Send attempted'
@@ -864,6 +866,7 @@
       // exposing the prompt in ChatGPT's composer or clicking Send.
       const reserved=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',stage:'reserve',holdId,
+         registrationGeneration:attemptRegistration,
         route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!reserved?.ok)throw new Error(reserved?.error==='unresolved-durable-send'
@@ -901,6 +904,7 @@
       // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',stage:'sealed',holdId,
+         registrationGeneration:attemptRegistration,
         route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
@@ -1002,14 +1006,16 @@
       // A surviving durable hold requires separate explicit local review.
       try{
         const current=await api.runtime.sendMessage({
-          type:'chat-queue-internal/v1',action:'send-hold-status',route});
+          type:'chat-queue-internal/v1',action:'send-hold-status',route,
+          registrationGeneration:state.registrationGeneration});
         return current?.ok===true&&current.held===false&&
           state.key===key&&routeKey()===route;
       }catch{return false;}
     }
     let reply;
     try{reply=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
-      action:'release-send-hold',route,holdId:id});}
+      action:'release-send-hold',route,holdId:id,
+       registrationGeneration:state.registrationGeneration});}
     catch{return false;}
     if(!reply?.ok)return false;
     if(state.key===key&&routeKey()===route&&state.durableHoldId===id)
@@ -1135,7 +1141,8 @@
        !contract.assignedConversationRoute(routeKey()))return;
     // One-shot request only; this is not provider evidence or Start authority.
     void api.runtime.sendMessage({type:'chat-queue-internal/v1',
-      action:'sync-provider',route:routeKey()}).catch(()=>{});
+      action:'sync-provider',route:routeKey(),
+       registrationGeneration:state.registrationGeneration}).catch(()=>{});
   }
   async function handleRouteChange() {
     if(!state.initialized)return;
@@ -1581,7 +1588,8 @@
       const reviewRequest=++holdReviewRequest;
       try{
         const answer=await api.runtime.sendMessage({
-          type:'chat-queue-internal/v1',action:'send-hold-status',route});
+          type:'chat-queue-internal/v1',action:'send-hold-status',route,
+          registrationGeneration:state.registrationGeneration});
         if(state.key!==key||routeGeneration!==generation||
            holdReviewRequest!==reviewRequest)return;
         if(!answer?.ok){statusNote('Could not check Send hold');return;}
@@ -1599,7 +1607,8 @@
     try{
       const answer=await api.runtime.sendMessage({
         type:'chat-queue-internal/v1',action:'review-send-hold',route,
-        confirmed:true,holdId:reviewedHoldId});
+        confirmed:true,holdId:reviewedHoldId,
+         registrationGeneration:state.registrationGeneration});
       if(state.key!==key||routeGeneration!==generation)return;
       if(!answer?.ok){
         statusNote(answer?.error==='active-send-hold'
