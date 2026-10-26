@@ -17,7 +17,7 @@
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false, awaitingUncertain: false,
     busySeen: false, attempting: null, durableHoldId: null, unconfirmedClickLease: false, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
-    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
+    editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, registrationGeneration: null, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
   let holdReviewArmed=false;
   let holdReviewTarget=null;
@@ -457,6 +457,7 @@
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
+    state.registrationGeneration=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
@@ -466,9 +467,12 @@
     let restored=false;
     try{
       const answer=await api.runtime.sendMessage({
-        type:'chat-queue-internal/v1',action:'register',route});
+        type:'chat-queue-internal/v1',action:'register',route,registrationVersion:2});
       if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){
+        if(!Number.isSafeInteger(answer.registrationGeneration))
+          throw new Error('Unversioned registration response');
         state.tabId=answer.tabId;
+        state.registrationGeneration=answer.registrationGeneration;
         restored=true;
       }
     }catch{
@@ -490,7 +494,7 @@
     // Private background-only lease bit; never include it in public TABS,
     // status API or subscription metadata. An unresolved or unconfirmed
     // click must not lose cross-tab ownership merely because Run was paused.
-    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,leasePending:Boolean(state.attempting||state.unconfirmedClickLease),revision:state.revision,sequence:++statePublishSequence})
+    void api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'state',phase:state.signal,size:state.items.length,running:state.running,awaiting:state.awaiting,leasePending:Boolean(state.attempting||state.unconfirmedClickLease),revision:state.revision,registrationGeneration:state.registrationGeneration,sequence:++statePublishSequence})
       .then(reply=>{
         // A delayed rejection for an earlier SPA route is not evidence that
         // the newly selected conversation lost its background registration.
@@ -1149,6 +1153,7 @@
     if(!state.routing)rememberDraft(state.key);
     els.draft.value='';
     const generation=++routeGeneration;
+    state.registrationGeneration=null;
     state.routing=true;
     // Never display the previous conversation's private prompts while
     // a new path is waiting on slow or failed extension-storage reads.
@@ -1194,8 +1199,13 @@
     state.requestHighWatermarks=state.blockedRecord?Object.create(null):core.readRequestHighWatermarks(stored[newKey]);
     state.observedSignal=signalFromPage();state.note=state.blockedRecord?'Unsupported saved queue; editing disabled':'Conversation changed; manually start queue';state.editing=null;
     // A new route also invalidates the background's Signal document sequence.
-    try{await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:routeKey()});}catch{}
+    let registration;
+    try{registration=await api.runtime.sendMessage({
+      type:'chat-queue-internal/v1',action:'register',route:routeKey(),registrationVersion:2});
+    }catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
+    if(registration?.ok&&Number.isSafeInteger(registration.registrationGeneration))
+      state.registrationGeneration=registration.registrationGeneration;
     state.routing=false;render();host.style.removeProperty('visibility');publish();
     requestVerifiedProvider();
   }
@@ -1915,11 +1925,14 @@
       // an unbounded registration loop during pathological navigation.
       for(let attempt=0;attempt<4;attempt++){
         initialRoute=routeKey();
-        response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute});
+        response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute,registrationVersion:2});
         if(response?.ok)break;
         if(routeKey()===initialRoute)throw new Error('Registration unavailable');
       }
       if(!response?.ok)throw new Error('Registration unavailable after route changes');
+      // A missing generation must never authorize background state updates.
+      state.registrationGeneration=Number.isSafeInteger(response.registrationGeneration)
+        ?response.registrationGeneration:null;
       state.tabId=response.tabId;
       state.key=`chatqueue:v1:tab:${state.tabId}:${initialRoute}`;
       state.keyRoute=initialRoute;
