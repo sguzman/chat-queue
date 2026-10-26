@@ -815,8 +815,12 @@
         throw new Error('Composer changed during Send hold; no Send attempted');
       fillComposer(editor,item.text);
       send=findSend(current.form);
-      editor.addEventListener('beforeinput',onHumanInput,true);
-      editor.addEventListener('input',onHumanInput,true);
+      // A user may switch to another editable field while the browser-owned
+      // sealed authorization is pending. Real edits elsewhere on this page
+      // also mean the user has resumed control and must cancel Queue Send.
+      // Synthetic page events are untrusted and cannot trip this guard.
+      document.addEventListener('beforeinput',onHumanInput,true);
+      document.addEventListener('input',onHumanInput,true);
       send.addEventListener('click',onHumanInput,true);
       // A real file-picker change can happen after the click without any
       // input event on the editor or Send button. Treat it as user interference.
@@ -906,10 +910,8 @@
       }
     } finally {
       if(state.inflightProof===proof)state.inflightProof=null;
-      if(editor){
-        editor.removeEventListener('beforeinput',onHumanInput,true);
-        editor.removeEventListener('input',onHumanInput,true);
-      }
+      document.removeEventListener('beforeinput',onHumanInput,true);
+      document.removeEventListener('input',onHumanInput,true);
       if(send)send.removeEventListener('click',onHumanInput,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
