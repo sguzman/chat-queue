@@ -10,7 +10,7 @@ const {Builder}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 
 const page='<!doctype html><html><body><main><form>'+
-  '<div id="prompt-textarea" contenteditable="true"></div>'+
+  '<div id="prompt-textarea" contenteditable="true" style="display:block;min-height:44px;width:280px"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
   '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];'+
   'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data);'+
@@ -76,6 +76,17 @@ async function main(){
      "browser.storage.local.get('qa:eventpage-boot-count').then(v=>",
      "window.postMessage({kind:'qa-boot-reply',nonce,",
      "count:v['qa:eventpage-boot-count']||0},'*'));",
+     "});",
+     // Seed only a metadata-only already-unresolved Send from a synthetic
+     // earlier tab, before forcing genuine idle suspension. No prompt text.
+     "window.addEventListener('message',event=>{",
+     "if(event.source!==window||event.data?.kind!=='qa-seed-send-hold')return;",
+     "const nonce=event.data.nonce;",
+     "browser.storage.local.set({'chatqueue:send-hold:v1:real-event-page':{",
+     "version:1,tabId:999,route:'/c/real-event-page',",
+     "holdId:'12345678-aaaa-4444-bbbb-555555555555'}})",
+     ".then(()=>window.postMessage({kind:'qa-hold-reply',nonce,ok:true},'*'))",
+     ".catch(()=>window.postMessage({kind:'qa-hold-reply',nonce,ok:false},'*'));",
      "});"
    ].join(''));
    // Minimal genuine SECOND add-on that authenticates as Chat Signals.
