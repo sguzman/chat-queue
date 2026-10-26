@@ -216,6 +216,11 @@ async function main(){
    const hud=id=>"document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('"+id+"')";
    await driver.wait(async()=>await driver.executeScript(
      `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
+   // The contender is a NEW document; the first tab's QA heartbeat flag
+   // does not propagate into it. Avoid spurious synthetic 2-second registry
+   // invalidation during the independently authenticated Send probe.
+   await driver.executeScript(
+     "document.documentElement.dataset.qaNormalHeartbeat='true'");
    await driver.executeScript(
      `const d=${hud('draft')};d.value='Synthetic contender after real event-page idle';`);
    await driver.executeScript(`return ${hud('add')}.click()`);
