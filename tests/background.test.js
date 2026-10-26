@@ -87,6 +87,52 @@ test('versioned state rejects a predecessor document after same-route re-registr
     'the old paused frame did not clear the newer owner');
 });
 
+
+test('versioned registration blocks stale privileged Send and hold IPC',async()=>{
+  const {listeners,state}=create();
+  const tab={tab:{id:121,url:'https://chatgpt.com/c/internal-v2'},
+    url:'https://chatgpt.com/c/internal-v2'};
+  const route='/c/internal-v2';
+  const base={type:'chat-queue-internal/v1',route};
+  assert.equal((await listeners.internal({...base,action:'register',
+    registrationVersion:3},tab)).error,'unsupported-registration-version');
+  const old=await listeners.internal({...base,action:'register',
+    registrationVersion:2},tab);
+  const current=await listeners.internal({...base,action:'register',
+    registrationVersion:2},tab);
+  const obsolete={...base,registrationGeneration:old.registrationGeneration};
+  const live={...base,registrationGeneration:current.registrationGeneration};
+  for(const action of ['sync-provider','dispatch-check','send-hold-status',
+    'release-send-hold','review-send-hold']){
+    const message={...obsolete,action,documentToken:'a'.repeat(32),
+      epoch:1,sequence:1,holdId:'12345678-aaaa-4444-bbbb-111111111111',
+      confirmed:true};
+    assert.equal((await listeners.internal(message,tab)).error,'stale-registration',
+      action+' must reject a prior document after same-route reload');
+    assert.equal((await listeners.internal({...message,registrationGeneration:undefined},
+      tab)).error,'stale-registration',action+' must reject missing generation');
+  }
+  assert.equal((await listeners.internal({...live,action:'sync-provider'},tab)).ok,true);
+  assert.equal((await listeners.internal({...live,action:'send-hold-status'},tab)).held,false);
+  const provider={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:121,
+    signal:{version:1,route,documentToken:'a'.repeat(32),epoch:1,sequence:1,
+      phase:'idle',origin:'fresh',confidence:'observed'}},provider)).ok,true);
+  const dispatch={...live,action:'dispatch-check',documentToken:'a'.repeat(32),
+    epoch:1,sequence:1};
+  assert.equal((await listeners.internal(dispatch,tab)).ok,true);
+  // A successful probe does not create a durable hold, but a reserved Send
+  // must stay blocked from the predecessor's release/review operations.
+  const holdId='12345678-aaaa-4444-bbbb-111111111111';
+  const reserved=await listeners.internal({...dispatch,stage:'reserve',holdId},tab);
+  assert.equal(reserved.ok,true);
+  const key='chatqueue:send-hold:v1:internal-v2';
+  assert.equal(state[key]?.holdId,holdId);
+  assert.equal((await listeners.internal({...obsolete,action:'release-send-hold',
+    holdId},tab)).error,'stale-registration');
+  assert.equal(state[key]?.holdId,holdId);
+});
+
 test('cross-extension API is denied by default unless allowlisted',async()=>{
   const {listeners}=create();
   const answer=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'unapproved@example.test'});
