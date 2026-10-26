@@ -549,6 +549,21 @@
       return {ok:false,error:'authorization-changed'};
     if(TABS.get(message.tabId)!==target)
       return {ok:false,error:'tab-not-registered'};
+    if(message.action!=='status'){
+      // The browser can commit a History API or cross-origin navigation
+      // before tabs.onUpdated revokes an old registration. Before forwarding
+      // any externally authorized mutation, recheck the browser-owned
+      // URL and registration rather than relying on stale tab metadata.
+      let live;
+      try{live=new URL((await api.tabs.get(message.tabId))?.url);}
+      catch{return {ok:false,error:'tab-unavailable'};}
+      if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
+         ROUTES.get(message.tabId)!==targetRoute||TABS.get(message.tabId)!==target||
+         live.protocol!=='https:'||live.hostname!=='chatgpt.com'||
+         live.port!==''||live.pathname!==targetRoute||
+         grantRevision!==authorizedAt)
+        return {ok:false,error:'route-or-registration-changed'};
+    }
     try {
       const reply=await api.tabs.sendMessage(message.tabId, {
         type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null, requester

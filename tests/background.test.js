@@ -303,6 +303,54 @@ test('silent persisted revocation prevents delayed external commands from reachi
   }
 });
 
+test('cross-origin and wrong-route navigation deny external mutations before tab notification',async()=>{
+  for(const liveUrl of [
+    'https://example.test/c/mutation-preflight',
+    'https://chatgpt.com/c/unrelated-mutation',
+    'http://chatgpt.com/c/mutation-preflight',
+    'https://chatgpt.com:8443/c/mutation-preflight'
+  ]){
+    const {listeners,context,forwards}=create();
+    const original='https://chatgpt.com/c/mutation-preflight';
+    const sender={tab:{id:112,url:original},url:original};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/mutation-preflight'},sender)).ok,true);
+    context.browser.tabs.get=async()=>({id:112,url:liveUrl});
+    const answer=await listeners.external({type:'chat-queue/v1',
+      action:'start',tabId:112},{id:'approved@example.test'});
+    assert.equal(answer.error,'route-or-registration-changed',liveUrl);
+    assert.equal(forwards.length,0,
+      'No privileged Start may be forwarded after live browser location changes');
+  }
+});
+
+test('external enqueue is refused if navigation occurs during its async authorization',async()=>{
+  const {listeners,context,forwards}=create();
+  const url='https://chatgpt.com/c/queued-before-move';
+  const sender={tab:{id:113,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/queued-before-move'},sender)).ok,true);
+  const originalGet=context.browser.storage.local.get;
+  let read=0,release;
+  context.browser.storage.local.get=key=>{
+    if(key==='chatqueue:api-grants:v2'&&++read===2)
+      return new Promise(resolve=>{release=()=>resolve(originalGet(key));});
+    return originalGet(key);
+  };
+  const command=listeners.external({type:'chat-queue/v1',action:'enqueue',tabId:113,
+    payload:{text:'Synthetic prompt must remain unsent'}},
+    {id:'approved@example.test'});
+  for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof release,'function');
+  // Browser location changes while the persisted permission read is pending;
+  // deliberately withhold tabs.onUpdated to exercise the narrow race.
+  context.browser.tabs.get=async()=>({id:113,url:'https://chatgpt.com/c/another'});
+  release();
+  const answer=await command;
+  assert.equal(answer.error,'route-or-registration-changed');
+  assert.equal(forwards.length,0,'No old-conversation enqueue may reach a moved tab');
+});
+
 test('revoking read scope during an in-flight status request withholds private prompt text',async()=>{
   const {listeners,state,context}=create();
   const page={tab:{id:83,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
