@@ -402,6 +402,19 @@
     }
     const target = TABS.get(message.tabId);
     if (!target) return { ok: false, error: 'tab-not-registered' };
+    // Firefox can commit a revoked capability before storage.onChanged reaches
+    // this event page. A delayed *first* ACL read otherwise authorizes a
+    // previously permitted mutating verb (including Start/Resolve). Recheck
+    // durable authority immediately before forwarding ANY tab command.
+    if(grantRevision!==authorizedAt)return {ok:false,error:'authorization-changed'};
+    let liveGrants;
+    try{liveGrants=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+    catch{return {ok:false,error:'authorization-changed'};}
+    if(grantRevision!==authorizedAt||
+       !grants.has(liveGrants,requester,grants.ACTION_SCOPE[message.action]))
+      return {ok:false,error:'authorization-changed'};
+    if(TABS.get(message.tabId)!==target)
+      return {ok:false,error:'tab-not-registered'};
     try {
       const reply=await api.tabs.sendMessage(message.tabId, {
         type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null, requester
