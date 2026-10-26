@@ -65,9 +65,10 @@ test('versioned state rejects a predecessor document after same-route re-registr
     signal:{version:1,route,documentToken:letter.repeat(32),
       epoch:1,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}});
   assert.equal((await listeners.external(signal(111,'a'),provider)).ok,true);
-  const auth=(letter)=>({type:'chat-queue-internal/v1',action:'dispatch-check',
+  const auth=(letter,registrationGeneration)=>({type:'chat-queue-internal/v1',action:'dispatch-check',
+    registrationGeneration,
     route,documentToken:letter.repeat(32),epoch:1,sequence:1});
-  assert.equal((await listeners.internal(auth('a'),first)).ok,true,
+  assert.equal((await listeners.internal(auth('a',newReg.registrationGeneration),first)).ok,true,
     'fresh registration obtains the single dispatch lease');
   const oldLate={...incoming,sequence:1000,phase:'finished',running:false,
     awaiting:false,leasePending:false};
@@ -80,9 +81,10 @@ test('versioned state rejects a predecessor document after same-route re-registr
   const retained=listed.tabs.find(tab=>tab.tabId===111);
   assert.equal(retained?.running,true,'the replacement running state survives old callbacks');
   assert.equal(retained?.phase,'idle','old completion must not overwrite current metadata');
-  assert.equal((await listeners.internal(register,other)).ok,true);
+  const otherReg=await listeners.internal(register,other);
+  assert.equal(otherReg.ok,true);
   assert.equal((await listeners.external(signal(112,'b'),provider)).ok,true);
-  assert.equal((await listeners.internal(auth('b'),other)).error,
+  assert.equal((await listeners.internal(auth('b',otherReg.registrationGeneration),other)).error,
     'conversation-owned-by-another-tab',
     'the old paused frame did not clear the newer owner');
 });
