@@ -281,7 +281,13 @@
           if(hold!==undefined&&!validHold(hold,conversationId))
             return {ok:false,error:'unsupported-send-hold'};
           if(message.action==='send-hold-status')
-            return {ok:true,held:hold!==undefined};
+            return hold===undefined ? {ok:true,held:false} :
+              {ok:true,held:true,holdId:hold.holdId};
+          // A second review click must apply to precisely the marker shown
+          // on the first click, never a later Send's replacement marker.
+          if(message.action==='review-send-hold'&&
+             (hold===undefined||message.holdId!==hold.holdId))
+            return {ok:false,error:'send-hold-changed'};
           if(hold===undefined)return {ok:true,held:false};
           if(message.action==='release-send-hold'&&
              !sameHold(hold,tab.id,message.route,message.holdId))
