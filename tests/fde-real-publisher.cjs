@@ -708,13 +708,20 @@ async function main(){
     await (await driver.findElement(By.css('[data-testid="stop-button"]'))).click();
     await driver.executeScript("document.querySelector('[data-testid=stop-button]')?.remove()");
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('status')}.textContent.includes('Response cancelled; press Start to continue')`),10000);
+      `return ${hud('status')}.textContent.includes('Response cancelled; review prior Send hold')`),10000);
     await driver.sleep(900);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'A trusted Stop action cannot resume or retry subsequent queued messages');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
-    // A deliberate second Start must work after cancellation; retaining the
-    // old awaiting flag would strand the next item indefinitely.
+    // A Stop means the first queued prompt was already clicked. Closing
+    // its response does NOT prove it never reached ChatGPT. The transcript
+    // must be deliberately reviewed before a separate Start may proceed.
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Check the ChatGPT transcript')`),9000);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Prior Send hold released after deliberate review')`),9000);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       'return window.__sendCount===2'),12000);
