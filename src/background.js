@@ -569,7 +569,7 @@
         // navigate to the same /c/<id> before tabs.onUpdated is delivered.
         if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
            ROUTES.get(message.tabId)!==targetRoute||
-           live.origin!=='https://chatgpt.com'||live.pathname!==targetRoute)
+           live.protocol!=='https:'||live.hostname!=='chatgpt.com'||live.port!==''||live.pathname!==targetRoute)
           return {ok:false,error:'route-or-registration-changed'};
         // Do the durable ACL read LAST: Firefox can commit a revoked grant
         // before its onChanged notification reaches this event page.
@@ -588,7 +588,7 @@
         catch{return {ok:false,error:'tab-unavailable'};}
         if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
            ROUTES.get(message.tabId)!==targetRoute||
-           finalUrl.origin!=='https://chatgpt.com'||finalUrl.pathname!==targetRoute||
+           finalUrl.protocol!=='https:'||finalUrl.hostname!=='chatgpt.com'||finalUrl.port!==''||finalUrl.pathname!==targetRoute||
            grantRevision!==authorizedAt)
           return {ok:false,error:'route-or-registration-changed'};
       }
