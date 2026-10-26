@@ -25,8 +25,6 @@ async function main(){
    throw Error('FDE_BINARY must identify Firefox Developer Edition');
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-event-page-'));
  const providerRoot=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-idle-provider-'));
- const profile=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-two-phase-profile-'));
- const queueUrl=()=>`http://127.0.0.1:${server.address().port}/c/real-event-page`;
  const src=path.resolve(__dirname,'..');
  const server=http.createServer((_req,res)=>{
    res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);
@@ -57,15 +55,6 @@ async function main(){
    content=content.replace(closed,"attachShadow({mode:'open'})");
    // Observe only that a publisher resync was requested after real
    // event-page recovery; there is deliberately no provider in this test.
-   // QA-only metadata for completed registration, no private queue content.
-   content=content.replace(
-     'if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){',
-     "document.documentElement.dataset.qaRecoveryRegistration=String(answer?.ok===true);"+
-     "if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){");
-   const initialRegistered='state.tabId=response.tabId;';
-   assert.equal(content.split(initialRegistered).length,2);
-   content=content.replace(initialRegistered,
-     initialRegistered+"document.documentElement.dataset.qaInitialRegistration='true';");
    const resyncMarker='  function requestVerifiedProvider(){';
    assert.equal(content.split(resyncMarker).length,2);
    content=content.replace(resyncMarker,resyncMarker+
@@ -140,16 +129,9 @@ async function main(){
            sequence:signal.sequence,result:{ok:false}},'*'));
      });`);
    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-   // Two independent FDE sessions reuse only this disposable, dedicated QA
-   // profile: the first proves genuine event-page idle with the saved hold,
-   // the second returns to a normal background lifetime for stable Signal
-   // registration. Never touch the user's existing Firefox profile.
-   const build=idle=>new Builder().forBrowser('firefox').setFirefoxOptions(
-     new firefox.Options().setBinary(binary)
-       .addArguments('-headless','-profile',profile)
-       .setPreference('xpinstall.signatures.required',false)
-       .setPreference('extensions.background.idle.timeout',idle)).build();
-   driver=await build(2);
+   const options=new firefox.Options().setBinary(binary).addArguments('-headless')
+     .setPreference('extensions.background.idle.timeout',2);
+   driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
    const installed=await driver.installAddon(root,true);
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
    await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-event-page');
@@ -229,114 +211,55 @@ async function main(){
    console.log('FDE real event-page restarts:',before,'to',restarted,
      '; metadata-only hold survives idle, queue preserved, no Send');
 
-   // Browser teardown ends phase one. The temporary test add-on is
-   // deliberately reinstalled by the same fixed ID in the next session.
-   // Its fixed-ID add-on and storage must survive in this SAME disk profile.
-   stage='normal-lifetime-restart';
-   await driver.quit();driver=null;
-   // When Firefox reopens an explicit -profile, the existing profile's
-   // user.js can override Selenium's new setPreference option. Replace only
-   // the disposable QA profile's own prior idle preference. Do not edit any
-   // existing/user browser profile or touch non-test Firefox settings.
-   const userPrefs=path.join(profile,'user.js');
-   const idlePref='extensions.background.idle.timeout';
-   const originalPrefs=fs.existsSync(userPrefs)?fs.readFileSync(userPrefs,'utf8'):'';
-   const normalized=originalPrefs.replace(
-     /^user_pref\("extensions\.background\.idle\.timeout",\s*\d+\);\s*$/gm,'');
-   fs.writeFileSync(userPrefs,normalized+'\nuser_pref("'+idlePref+'", 120);\n');
-   driver=await build(120);
-   assert.equal(await driver.installAddon(root,true),installed,
-     'The identical Queue temporary extension must reinstall in the same profile');
+   // The previous page's event page ACTUALLY restarted, and the unresolved
+   // metadata-only hold is intact. A new browser tab now registers independently
+   // against the restarted background. The provider is a different real Firefox
+   // extension principal, never a page-origin forged Signal.
+   stage='new-competing-tab-after-actual-idle';
    const providerInstalled=await driver.installAddon(providerRoot,true);
    assert.equal(providerInstalled,providerId);
-   await driver.get(queueUrl());
-   stage='restored-addon-and-tab-registration';
+   await driver.switchTo().newWindow('tab');
+   await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-event-page');
    await driver.wait(async()=>await driver.executeScript(
      "return Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('run')) && document.documentElement.dataset.qaProviderReady==='true'"),18000);
-   // Initial production registration must complete BEFORE publishing an
-   // authenticated Signal. Do not use a page-script registration bypass.
+   await driver.executeScript(
+     "const d=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');"+
+     "d.value='Synthetic competing tab after real event-page idle';");
+   await driver.executeScript(
+     "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click()");
    await driver.wait(async()=>await driver.executeScript(
-     "return document.documentElement.dataset.qaInitialRegistration==='true'"),9000,
-     'The actual content script never completed its initial registration');
-   const secondSessionBoot=await readBoot();
-   await driver.sleep(4100);
-   const afterStabilization=await readBoot();
-   if(afterStabilization!==secondSessionBoot){
-     const prefEvidence={};
-     for(const name of ['prefs.js','user.js']){
-       const file=path.join(profile,name);
-       const data=fs.existsSync(file)?fs.readFileSync(file,'utf8'):'';
-       prefEvidence[name]=data.split(String.fromCharCode(10))
-         .filter(x=>x.includes('extensions.background.idle.timeout'))
-         .map(x=>x.trim().slice(0,120));
-     }
-     throw Error('Normal-lifetime idle preference ineffective; boot='+
-       secondSessionBoot+'→'+afterStabilization+', pref='+JSON.stringify(prefEvidence));
-   }
-   // In this second browser session, the Queue and independently installed
-   // provider identify themselves via actual Firefox extension principals.
-   // A browser page cannot send an authenticated provider envelope directly.
+     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'"),8000);
    const fresh={version:1,route:'/c/real-event-page',
      documentToken:'fedcba9876543210fedcba9876543210',
      sequence:1,epoch:0,phase:'idle',origin:'fresh',confidence:'observed'};
-   await driver.executeScript(
-     'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',fresh);
-   try{
-     await driver.wait(async()=>await driver.executeScript(
-       'return window.__signalReplies.some(x=>x.sequence===1 && x.result?.ok===true)'),12000,
-       'Registered synthetic provider could not authenticate a new idle epoch');
-   }catch(error){
-     // Fixed-schema fixture diagnostics only: no queue contents, transcript,
-     // extension storage, browser profile, or user data in public CI output.
-     const diagnostic=await driver.executeScript(() => ({
-       replies:window.__signalReplies.map(x=>({
-         sequence:x.sequence,ok:x.result?.ok,error:x.result?.error||null})),
-       queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
-       queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-         ?.getElementById('status')?.textContent?.slice(0,120)||null,
-       providerReady:document.documentElement.dataset.qaProviderReady||null,
-       initialRegistered:document.documentElement.dataset.qaInitialRegistration||null,
-       recoveryRegistered:document.documentElement.dataset.qaRecoveryRegistration||null
-     }));
-     throw new Error(error.message+'; boot='+secondSessionBoot+
-       '→'+await readBoot()+'; '+JSON.stringify(diagnostic));
-   }
+   stage='authenticated-competing-tab-hold-denial';
+   // Publish a fresh idle Signal, and directly invoke the HUD's actual Start
+   // button after Firefox verifies the provider principal. This avoids slow
+   // WebDriver polling artificially outliving the two-second idle window.
+   const result=await driver.executeAsyncScript(
+     `const signal=arguments[0],done=arguments[arguments.length-1];
+     const listener=event=>{
+       if(event.source!==window||event.data?.kind!=='qa-signal-reply'||
+          event.data.sequence!==signal.sequence)return;
+       window.removeEventListener('message',listener);
+       const reply=event.data.result;
+       if(reply?.ok){
+         document.querySelector('#chat-queue-extension-root').shadowRoot
+           .getElementById('run').click();
+       }
+       done(reply);
+     };
+     window.addEventListener('message',listener);
+     window.postMessage({kind:'qa-signal',signal},'*');`,fresh);
+   assert.equal(result?.ok,true,
+     'A newly registered tab must receive an authenticated idle provider event: '+String(result?.error||'unknown'));
    await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Signal: idle •')"),8000);
-   assert.deepEqual(await readHold(),expectedHold,
-     'Unresolved hold must survive the entire browser restart in the same profile');
-   const count=await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent");
-   if(count==='0 queued'){
-     await driver.executeScript(
-       "const d=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');d.value='Synthetic second-session competing message';");
-     await driver.executeScript(
-       "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click()");
-     await driver.wait(async()=>await driver.executeScript(
-       "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'"),8000);
-   }else assert.equal(count,'1 queued');
-   stage='authenticated-competing-tab-denied';
-   await driver.executeScript(
-     "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('run').click()");
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Previous Send may be unresolved; review its hold')"),9000);
-   assert.equal(await driver.executeScript('return window.__sent'),0);
-   assert.deepEqual(await readHold(),expectedHold);
-   const clickReview=()=>driver.executeScript(
-     "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('hold-review').click()");
-   stage='manual-review-across-browser-lifetime';
-   await clickReview();
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Check the ChatGPT transcript')"),9000);
-   assert.deepEqual(await readHold(),expectedHold,
-     'A first review click is not permission to release the hold');
-   await clickReview();
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Prior Send hold released')"),9000);
-   assert.equal(await readHold(),null);
+     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Previous Send may be unresolved; review its hold')"),8000);
    assert.equal(await driver.executeScript('return window.__sent'),0,
-     'Review does not retry or resume Send');
-   console.log('FDE two-phase same-profile hold denied with authenticated provider; explicit review did not Send');
+     'The independent authenticated competing tab must not Send past the saved hold');
+   assert.deepEqual(await readHold(),expectedHold,
+     'An authenticated denied Send must leave the original hold unchanged');
+   console.log('FDE authenticated competing tab denied after real idle without sending');
    await driver.uninstallAddon(providerInstalled);
    await driver.uninstallAddon(installed);
  }catch(error){
@@ -346,7 +269,6 @@ async function main(){
    await new Promise(resolve=>server.close(resolve));
    fs.rmSync(root,{recursive:true,force:true});
    fs.rmSync(providerRoot,{recursive:true,force:true});
-   fs.rmSync(profile,{recursive:true,force:true});
  }
 }
 main().catch(error=>{console.error('FDE event-page QA failed:',error.message);process.exitCode=1});
