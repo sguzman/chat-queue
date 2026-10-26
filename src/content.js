@@ -1511,6 +1511,13 @@
       holdReviewRequest++;
     }
   },true);
+  document.addEventListener('click',event=>{
+    if(holdReviewArmed&&!host.contains(event.target)){
+      holdReviewArmed=false;
+      holdReviewTarget=null;
+      holdReviewRequest++;
+    }
+  },true);
   els['history-clear'].addEventListener('click',async()=>{
     // History writes must not overlap an Add or other durable queue write.
     // Otherwise a failed first write can leave a phantom prompt in the
