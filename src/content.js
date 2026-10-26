@@ -751,14 +751,10 @@
       // Competing tabs fail while their drafts remain completely untouched.
       const ownership=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
-        epoch:baseline.epoch,sequence:baseline.sequence,itemId:item.id});
+        epoch:baseline.epoch,sequence:baseline.sequence});
       if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
         ? 'Another tab owns this conversation; no Send attempted'
-        : ownership?.error==='unresolved-saved-send'
-          ? 'Unresolved saved submission in this conversation; review before sending'
-          : ownership?.error==='journal-storage-unavailable'
-            ? 'Saved submission journal unavailable; no Send attempted'
-            : 'Signal authority lost; no Send attempted');
+        : 'Signal authority lost; no Send attempted');
       if(!state.running||!sameAttempt())
         throw new Error('Dispatch context changed before composer handoff');
       const found=findComposer();
@@ -785,7 +781,7 @@
       // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
         action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
-        epoch:baseline.epoch,sequence:baseline.sequence,itemId:item.id});
+        epoch:baseline.epoch,sequence:baseline.sequence});
       if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
       if (!state.running || !sameAttempt() ||
           state.storageFault || state.pendingSaves>0 || humanTouched ||
