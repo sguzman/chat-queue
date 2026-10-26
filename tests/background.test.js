@@ -39,6 +39,54 @@ function create(persisted={}) {
   vm.runInContext(src,context);
   return {listeners,forwards,syncRequests,state,context};
 }
+
+test('versioned state rejects a predecessor document after same-route re-registration',async()=>{
+  const {listeners}=create();
+  const route='/c/rebound-private-owner';
+  const sender=id=>({tab:{id,url:'https://chatgpt.com'+route},url:'https://chatgpt.com'+route});
+  const first=sender(111),other=sender(112);
+  const register={type:'chat-queue-internal/v1',action:'register',
+    route,registrationVersion:2};
+  const oldReg=await listeners.internal(register,first);
+  assert.equal(oldReg.ok,true);
+  assert.ok(Number.isSafeInteger(oldReg.registrationGeneration));
+  const incoming={type:'chat-queue-internal/v1',action:'state',
+    phase:'generating',running:true,awaiting:true,sequence:1,
+    registrationGeneration:oldReg.registrationGeneration};
+  assert.equal((await listeners.internal(incoming,first)).ok,true);
+  const newReg=await listeners.internal(register,first);
+  assert.equal(newReg.ok,true);
+  assert.notEqual(newReg.registrationGeneration,oldReg.registrationGeneration);
+  const replacement={...incoming,phase:'idle',sequence:1,
+    registrationGeneration:newReg.registrationGeneration};
+  assert.equal((await listeners.internal(replacement,first)).ok,true);
+  const provider={id:'chat-signals@sguzman.github'};
+  const signal=(tabId,letter)=>({type:'chat-queue-signal/v1',tabId,
+    signal:{version:1,route,documentToken:letter.repeat(32),
+      epoch:1,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}});
+  assert.equal((await listeners.external(signal(111,'a'),provider)).ok,true);
+  const auth=(letter)=>({type:'chat-queue-internal/v1',action:'dispatch-check',
+    route,documentToken:letter.repeat(32),epoch:1,sequence:1});
+  assert.equal((await listeners.internal(auth('a'),first)).ok,true,
+    'fresh registration obtains the single dispatch lease');
+  const oldLate={...incoming,sequence:1000,phase:'finished',running:false,
+    awaiting:false,leasePending:false};
+  assert.equal((await listeners.internal(oldLate,first)).error,'stale-registration',
+    'a late old-document pause must not release the new lease');
+  assert.equal((await listeners.internal({...oldLate,registrationGeneration:undefined},first)).error,
+    'stale-registration','a missing generation cannot bypass versioned publication');
+  const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},
+    {id:'approved@example.test'});
+  const retained=listed.tabs.find(tab=>tab.tabId===111);
+  assert.equal(retained?.running,false);
+  assert.equal(retained?.phase,'idle','old completion must not overwrite current metadata');
+  assert.equal((await listeners.internal(register,other)).ok,true);
+  assert.equal((await listeners.external(signal(112,'b'),provider)).ok,true);
+  assert.equal((await listeners.internal(auth('b'),other)).error,
+    'conversation-owned-by-another-tab',
+    'the old paused frame did not clear the newer owner');
+});
+
 test('cross-extension API is denied by default unless allowlisted',async()=>{
   const {listeners}=create();
   const answer=await listeners.external({type:'chat-queue/v1',action:'listTabs'},{id:'unapproved@example.test'});
