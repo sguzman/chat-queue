@@ -26,6 +26,10 @@
   // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
+  // The registration generation which acquired each volatile owner. A tab
+  // reloading its content script leaves a conservative hold, not a LIVE
+  // dispatch from the newer document.
+  const OWNER_REGISTRATIONS = new Map();
   // Persistent, metadata-only Send arbitration survives event-page shutdown.
   // This namespace never contains a queued prompt, history, provider token,
   // extension peer ID or page content. Unknown versions always block Send.
@@ -51,7 +55,10 @@
   }
   function releaseOwner(tabId,keepConversationId=null){
     for(const [conversationId,id] of OWNERS)
-      if(id===tabId&&conversationId!==keepConversationId)OWNERS.delete(conversationId);
+      if(id===tabId&&conversationId!==keepConversationId){
+        OWNERS.delete(conversationId);
+        OWNER_REGISTRATIONS.delete(conversationId);
+      }
   }
   const PORTS = new Map();
   // One writer per Firefox-attested peer ID per event page. Persistent
@@ -236,6 +243,7 @@
           if(stage==='sealed'){
             if(record===undefined)return {ok:false,error:'durable-send-hold-missing'};
             OWNERS.set(conversationId,tab.id);
+            OWNER_REGISTRATIONS.set(conversationId,REGISTRATIONS.get(tab.id));
             return {ok:true};
           }
           if(stage==='reserve'){
@@ -260,6 +268,7 @@
           }
           // The volatile claim is synchronized after ALL async reads/writes.
           OWNERS.set(conversationId,tab.id);
+          OWNER_REGISTRATIONS.set(conversationId,REGISTRATIONS.get(tab.id));
           return {ok:true};
         });
       });
@@ -292,8 +301,19 @@
           if(message.action==='release-send-hold'&&
              !sameHold(hold,tab.id,message.route,message.holdId))
             return {ok:false,error:'send-hold-not-owned'};
+          // A same-tab re-registration invalidates the old authenticated
+          // document. Its previous volatile owner is NOT a live Send in the
+          // newly registered document; the persisted hold still requires a
+          // fresh, ID-bound, double-confirmed human review. Different tabs or
+          // the CURRENT registration remain protected by active ownership.
+          const owner=OWNERS.get(conversationId);
+          const oldGeneration=OWNER_REGISTRATIONS.get(conversationId);
+          const retiredSameTabOwner=owner===tab.id&&
+            Number.isSafeInteger(oldGeneration)&&
+            oldGeneration!==REGISTRATIONS.get(tab.id);
           if(message.action==='review-send-hold'&&
-             (message.confirmed!==true||OWNERS.has(conversationId)))
+             (message.confirmed!==true||
+              (owner!==undefined&&!retiredSameTabOwner)))
             return {ok:false,error:'active-send-hold'};
           // 'release' comes only from the trusted Queue content script after
           // its accepted terminal history or explicit uncertainty review
@@ -305,7 +325,10 @@
           try{remaining=(await api.storage.local.get(key))[key];}
           catch{return {ok:false,error:'send-hold-storage-unavailable'};}
           if(remaining!==undefined)return {ok:false,error:'send-hold-not-released'};
-          if(OWNERS.get(conversationId)===tab.id)OWNERS.delete(conversationId);
+          if(OWNERS.get(conversationId)===tab.id){
+            OWNERS.delete(conversationId);
+            OWNER_REGISTRATIONS.delete(conversationId);
+          }
           return {ok:true,held:false};
         });
       });
