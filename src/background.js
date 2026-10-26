@@ -233,8 +233,6 @@
       const conversationId=signalContract.assignedConversationId(message.route);
       if(!conversationId)
         return Promise.resolve({ok:false,error:'conversation-not-assigned'});
-      if(!matchingRegistration(tab.id,message))
-        return Promise.resolve({ok:false,error:'stale-registration'});
       // A restarted event page has no provider registration. A previously
       // observed content-script Signal cannot authorize a new Send by itself.
       const last=SIGNALS.get(tab.id);
@@ -243,6 +241,8 @@
          last.epoch!==message.epoch || last.sequence!==message.sequence ||
          !signalContract.ready(last,message.route))
         return Promise.resolve({ok:false,error:'signal-authority-lost'});
+      if(!matchingRegistration(tab.id,message))
+        return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(async live=>{
         if(live!==message.route||SIGNALS.get(tab.id)!==last||
            ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
