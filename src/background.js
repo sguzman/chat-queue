@@ -24,6 +24,11 @@
   // Unique per-registration lease generations prevent old async state reads
   // from becoming current when a tab re-registers the same conversation.
   const REGISTRATIONS = new Map();
+  // Production content opts into versioned state publication. Each new
+  // same-route document receives a fresh registration generation; a delayed
+  // state frame from its predecessor cannot release the successor's Send lease.
+  // Legacy synthetic browser fixtures do not opt in and remain test-only.
+  const STRICT_STATE_REGISTRATIONS = new Set();
   let nextRegistration=0;
   // An earlier asynchronous tabs.get() must not reinstate a superseded
   // registration after a newer document or route has registered this tab.
@@ -189,10 +194,13 @@
         ROUTES.set(tab.id,message.route);
         ORIGINS.set(tab.id,new URL(sender.url||tab.url).origin);
         STATE_SEQUENCES.set(tab.id,0);
-        REGISTRATIONS.set(tab.id,++nextRegistration);
+        const registrationGeneration=++nextRegistration;
+        REGISTRATIONS.set(tab.id,registrationGeneration);
+        if(message.registrationVersion===2)STRICT_STATE_REGISTRATIONS.add(tab.id);
+        else STRICT_STATE_REGISTRATIONS.delete(tab.id);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
-        return {ok:true,tabId:tab.id};
+        return {ok:true,tabId:tab.id,registrationGeneration};
       });
     }
     if(message.action==='sync-provider'){
@@ -356,11 +364,20 @@
       const registered=ROUTES.get(tab.id);
       const generation=REGISTRATIONS.get(tab.id);
       if(!TABS.has(tab.id)||!registered||!generation)return Promise.resolve({ok:false,error:'route-mismatch'});
+      // Capturing the map's generation is insufficient if an OLD document
+      // starts its request AFTER the new document registered. Require its
+      // explicit, privately returned registration generation as well.
+      if(STRICT_STATE_REGISTRATIONS.has(tab.id)&&
+         message.registrationGeneration!==generation)
+        return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(live=>{
         if(ROUTES.get(tab.id)!==registered||live!==registered||!TABS.has(tab.id))
           return {ok:false,error:'route-mismatch'};
         if(REGISTRATIONS.get(tab.id)!==generation)
           return {ok:false,error:'stale-state'};
+        if(STRICT_STATE_REGISTRATIONS.has(tab.id)&&
+           message.registrationGeneration!==generation)
+          return {ok:false,error:'stale-registration'};
         // Test after the asynchronous browser URL read: the read's callbacks
         // may resolve out of order, including after a newer pause/Start.
         if(message.sequence<=(STATE_SEQUENCES.get(tab.id)||0))
@@ -672,6 +689,7 @@
         ORIGINS.delete(message.tabId);
         STATE_SEQUENCES.delete(message.tabId);
         REGISTRATIONS.delete(message.tabId);
+        STRICT_STATE_REGISTRATIONS.delete(message.tabId);
       }
       return { ok: false, error: 'tab-unavailable' };
     }
@@ -686,7 +704,7 @@
     // a later A->B->A must not resurrect the old callback.
     if(!preservePending)REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
-    ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
+    ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);STRICT_STATE_REGISTRATIONS.delete(tabId);
     notify(tabId,null);
   }
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
