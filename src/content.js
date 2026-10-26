@@ -89,7 +89,7 @@
   panel.className = 'panel';
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue" aria-controls="body status" aria-expanded="true">−</button></header>
-    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="hold-review" type="button">Review prior Send hold</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
+    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items" role="list" aria-label="Queued messages"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="hold-review" type="button">Review prior Send hold</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
     <details id="rules-panel"><summary>Conditional proposals (off)</summary><div id="rules-note" class="data-note" aria-live="polite">Disabled until explicitly enabled. No automatic sending.</div><div class="data-buttons"><button id="rules-toggle" type="button">Enable previews</button><button id="rules-approve" type="button" hidden>Approve proposal</button><button id="rules-dismiss" type="button" hidden>Dismiss</button></div><details id="rules-audit-panel"><summary>Review history (<span id="rules-audit-count">0</span>, this conversation only)</summary><div id="rules-audit" class="history" aria-label="Conditional review audit"></div></details></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
@@ -285,6 +285,12 @@
       // Handle real pointer drag with explicit before/after insertion zones.
       // Keyboard Up/Down remains available and never depends on pointer input.
       row.dataset.itemId=item.id;
+      // Expose the same ordinal position that arrow/pointer reorder updates.
+      // This is metadata only; the row preview remains the user's actual
+      // queued text and no new data is published to the host page.
+      row.setAttribute('role','listitem');
+      row.setAttribute('aria-posinset',String(index+1));
+      row.setAttribute('aria-setsize',String(state.items.length));
       let pointer=null;
       const locate=(x,y)=>{
         for(const candidate of els.items.querySelectorAll('.item')){
