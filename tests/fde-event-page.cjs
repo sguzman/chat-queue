@@ -12,9 +12,10 @@ const firefox=require('selenium-webdriver/firefox');
 const page='<!doctype html><html><body><main><form>'+
   '<div id="prompt-textarea" contenteditable="true" style="display:block;min-height:44px;width:280px"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
-  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];'+
+  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];window.__holdStatusReplies=[];'+
   'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data);'+
   'if(e.data?.kind==="qa-hold-reply")window.__holdReplies.push(e.data);'+
+  'if(e.data?.kind==="qa-hold-status-reply")window.__holdStatusReplies.push(e.data);'+
   'if(e.data?.kind==="qa-signal-reply")window.__signalReplies.push(e.data)})</script>'+
   '</body></html>';
 
@@ -87,6 +88,17 @@ async function main(){
      "holdId:'12345678-aaaa-4444-bbbb-555555555555'}})",
      ".then(()=>window.postMessage({kind:'qa-hold-reply',nonce,ok:true},'*'))",
      ".catch(()=>window.postMessage({kind:'qa-hold-reply',nonce,ok:false},'*'));",
+     "});",
+     // Read-only inspection uses the production internal hold-status path.
+     // No background test helper reads or deletes the saved metadata.
+     "window.addEventListener('message',event=>{",
+     "if(event.source!==window||event.data?.kind!=='qa-hold-status')return;",
+     "const nonce=event.data.nonce;",
+     "browser.runtime.sendMessage({type:'chat-queue-internal/v1',",
+     "action:'send-hold-status',route:'/c/real-event-page'})",
+     ".then(result=>window.postMessage({kind:'qa-hold-status-reply',nonce,result},'*'))",
+     ".catch(()=>window.postMessage({kind:'qa-hold-status-reply',nonce,",
+     "result:{ok:false,error:'qa-status-ipc-failed'}},'*'));",
      "});"
    ].join(''));
    // Minimal genuine SECOND add-on that authenticates as Chat Signals.
@@ -142,6 +154,29 @@ async function main(){
      return driver.executeScript(
        'return window.__bootReplies.find(x=>x.nonce===arguments[0]).count',id);
    };
+   // Install an orphan metadata-only hold BEFORE the actual Firefox event
+   // page suspends. This is not a simulated background restart or a prompt
+   // journal copied into privileged storage.
+   stage='seed-persisted-hold';
+   const seededId=++nonce;
+   await driver.executeScript(
+     'window.postMessage({kind:"qa-seed-send-hold",nonce:arguments[0]},"*")',seededId);
+   await driver.wait(async()=>await driver.executeScript(
+     'return window.__holdReplies.some(x=>x.nonce===arguments[0])',seededId),5000);
+   assert.equal(await driver.executeScript(
+     'return window.__holdReplies.find(x=>x.nonce===arguments[0]).ok',seededId),true);
+   const holdStatus=async()=>{
+     const id=++nonce;
+     await driver.executeScript(
+       'window.postMessage({kind:"qa-hold-status",nonce:arguments[0]},"*")',id);
+     await driver.wait(async()=>await driver.executeScript(
+       'return window.__holdStatusReplies.some(x=>x.nonce===arguments[0])',id),5000);
+     return driver.executeScript(
+       'return window.__holdStatusReplies.find(x=>x.nonce===arguments[0]).result',id);
+   };
+   assert.deepEqual(await holdStatus(),{
+     ok:true,held:true,holdId:'12345678-aaaa-4444-bbbb-555555555555'
+   });
    stage='actual-event-page-idle';
    const initialResync=await driver.executeScript(
      "return Number(document.documentElement.dataset.qaProviderSyncCount||0)");
@@ -161,13 +196,34 @@ async function main(){
    assert.equal(await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent"),'1 queued');
    assert.equal(await driver.executeScript('return window.__sent'),0);
+   // The new, genuinely re-instantiated event page must still find exactly
+   // the saved orphan hold through its production internal API. One review
+   // click is only a request to inspect; it must NOT delete the hold.
+   stage='persisted-hold-after-actual-idle';
+   assert.deepEqual(await holdStatus(),{
+     ok:true,held:true,holdId:'12345678-aaaa-4444-bbbb-555555555555'
+   });
+   const reviewClick=()=>driver.executeScript(
+     "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('hold-review').click()");
+   await reviewClick();
+   await driver.wait(async()=>await driver.executeScript(
+     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Check the ChatGPT transcript')"),7000);
+   assert.equal((await holdStatus()).held,true,
+     'First local review click must not clear a persisted Send hold');
+   stage='explicit-review-after-actual-idle';
+   await reviewClick();
+   await driver.wait(async()=>await driver.executeScript(
+     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Prior Send hold released')"),7000);
+   assert.deepEqual(await holdStatus(),{ok:true,held:false});
+   assert.equal(await driver.executeScript('return window.__sent'),0,
+     'Manual orphan review must not dispatch or retry a queued prompt');
    await driver.executeScript(
      "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('run').click()");
    await driver.wait(async()=>await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('authenticated-chat-signals-required')"),6000);
    assert.equal(await driver.executeScript('return window.__sent'),0);
    console.log('FDE real event-page restarts:',before,'to',restarted,
-     '; queue preserved and Send denied');
+     '; persisted hold retained across idle, two-click orphan review required, no Send');
    await driver.uninstallAddon(installed);
  }catch(error){
    throw new Error(stage+': '+error.message);
