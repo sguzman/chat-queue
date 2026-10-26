@@ -241,19 +241,40 @@ async function main(){
      `return ${hud('count')}.textContent==='1 queued'`),9000);
    let signalSequence=0;
    const emitIdle=async()=>{
-     const sequence=++signalSequence;
-     const signal={version:1,documentToken:'b'.repeat(32),
-       route:'/c/real-event-page',epoch:0,sequence,phase:'idle',
-       origin:'fresh',confidence:'observed'};
-     await driver.executeScript(
-       'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',signal);
-     await driver.wait(async()=>await driver.executeScript(
-       'return window.__signalReplies.some(x=>x.sequence===arguments[0])',sequence),9000);
-     const ack=await driver.executeScript(
-       'return window.__signalReplies.find(x=>x.sequence===arguments[0]).result',sequence);
-     assert.equal(ack.ok,true,'independent publisher must authenticate fresh idle');
-     await driver.wait(async()=>await driver.executeScript(
-       `return ${hud('status')}.textContent.includes('Signal: idle')`),8000);
+     // Firefox's deliberately one-second QA idle policy may terminate an
+     // event page between a newly created tab's initial register and its
+     // provider callback. A tab-not-registered reply is NOT an authenticated
+     // Signal; reload the QA tab to perform a fresh real registration rather
+     // than treating a stale publisher event as dispatch authority.
+     for(let attempt=0;attempt<4;attempt++){
+       const sequence=++signalSequence;
+       const signal={version:1,documentToken:'b'.repeat(32),
+         route:'/c/real-event-page',epoch:0,sequence,phase:'idle',
+         origin:'fresh',confidence:'observed'};
+       await driver.executeScript(
+         'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',signal);
+       await driver.wait(async()=>await driver.executeScript(
+         'return window.__signalReplies.some(x=>x.sequence===arguments[0])',sequence),9000);
+       const ack=await driver.executeScript(
+         'return window.__signalReplies.find(x=>x.sequence===arguments[0]).result',sequence);
+       if(ack?.ok){
+         await driver.wait(async()=>await driver.executeScript(
+           `return ${hud('status')}.textContent.includes('Signal: idle')`),8000);
+         return;
+       }
+       assert.equal(ack?.error,'tab-not-registered',
+         'unexpected denial from independent authenticated publisher');
+       await driver.navigate().refresh();
+       await driver.wait(async()=>await driver.executeScript(
+         `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
+       await driver.wait(async()=>await driver.executeScript(
+         `return ${hud('count')}.textContent==='1 queued'`),9000);
+       await driver.executeScript(
+         'window.postMessage({kind:"qa-keepalive",active:true},"*")');
+       await driver.wait(async()=>await driver.executeScript(
+         'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000);
+     }
+     throw Error('No fresh authenticated Signal after bounded tab re-registration');
    };
    // Only AFTER proving a true idle suspension, keep the QA event page
    // awake during this separate publisher-authorized dispatch arbitration.
