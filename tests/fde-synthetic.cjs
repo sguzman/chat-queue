@@ -413,6 +413,56 @@ async function main(){
     },originalFirst),9000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
+    qaStage='keyboard-delete-focus';
+    // Real keyboard Delete destroys its own button. Focus must stay in HUD:
+    // the nearest remaining queue action, then draft when none survives.
+    const preservedDraftOnDelete=await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('draft').value);
+    const keyboardDeleteLast=await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:last-child button[aria-label="Remove message"]'));
+    await keyboardDeleteLast.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=sh.querySelector('.item');
+      return sh.getElementById('count').textContent==='1 queued' &&
+        row?.querySelector('.preview')?.textContent==='Synthetic first message' &&
+        row.contains(sh.activeElement) &&
+        sh.activeElement?.getAttribute('aria-label')==='Edit message' &&
+        sh.getElementById('status').textContent.includes('Queued message removed.');
+    }),8000,'Keyboard Delete must announce removal and focus surviving row');
+    const keyboardDeleteOnly=await driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item button[aria-label="Remove message"]'));
+    await keyboardDeleteOnly.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      return sh.getElementById('count').textContent==='0 queued' &&
+        sh.activeElement===sh.getElementById('draft') &&
+        sh.getElementById('status').textContent.includes('Queued message removed.');
+    }),8000,'Deleting final row must focus draft, not host ChatGPT');
+    for(const restored of ['Synthetic first message','Synthetic second message']){
+      await driver.executeScript(message => {
+        const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+        sh.getElementById('draft').value=message;sh.getElementById('add').click();
+      },restored);
+      await driver.wait(async()=>await driver.executeScript(message => {
+        const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+        return [...sh.querySelectorAll('.item .preview')].some(
+          row=>row.textContent===message);
+      },restored),8000);
+    }
+    assert.deepEqual(await driver.executeScript(() =>
+      [...document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item .preview')].map(row=>row.textContent)),
+      ['Synthetic first message','Synthetic second message']);
+    await driver.executeScript(draft => {
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('draft').value=draft;
+    },preservedDraftOnDelete);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='accessible-names-and-live-status';
     const aria=await driver.executeScript(() => {
       const root=document.querySelector('#chat-queue-extension-root').shadowRoot;

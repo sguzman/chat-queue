@@ -258,6 +258,12 @@
     const focusedActionLabel=focusedControl?.getAttribute?.('aria-label');
     const focusedActionItem=focusedActionLabel
       ? focusedControl.closest?.('.item')?.dataset.itemId:null;
+    // A deleted action disappears with its row. Keep its previous ordinal
+    // to select a surviving keyboard target, or return to the HUD draft.
+    const focusedActionIndex=focusedActionItem
+      ? [...els.items.querySelectorAll('.item')].findIndex(
+          row=>row.dataset.itemId===focusedActionItem)
+      : -1;
     const oldRow=state.editing?[...els.items.children].find(row=>
       row.dataset.itemId===state.editing):null;
     const oldEditor=oldRow?.querySelector('textarea');
@@ -368,9 +374,11 @@
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Review, then explicitly retry or discard.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
         const locked=Boolean(state.attempting||state.importing);
-        const editItems=mutate=>{
+        const editItems=(mutate,successNote=null)=>{
+          const originKey=state.key;
           void persistItemMutation(mutate).then(result=>{
             if(!result.ok)statusNote(result.error);
+            else if(successNote&&state.key===originKey)statusNote(successNote);
           });
         };
         ctrls.append(button('↑','Move earlier',()=>editItems(()=>{
@@ -389,7 +397,7 @@
            },locked||item.status!=='pending'),
           button('Delete','Remove message',()=>editItems(()=>{
             state.items=state.items.filter(x=>x.id!==item.id);
-          }),locked||item.status!=='pending'));
+          },'Queued message removed.'),locked||item.status!=='pending'));
         if (item.status==='uncertain'){
           ctrls.append(button('Retry','Allow manually requested retry',async()=>{
             const reply=await act('resolve',{id:item.id,decision:'retry'},true);
@@ -426,7 +434,14 @@
           ? buttons.find(button=>!button.disabled&&
             ['Move earlier','Move later'].includes(button.getAttribute('aria-label'))
           ):null);
-      target?.focus({preventScroll:true});
+      if(target)target.focus({preventScroll:true});
+      else if(focusedActionLabel==='Remove message'&&focusedActionIndex>=0&&!sameRow){
+        const rows=[...els.items.querySelectorAll('.item')];
+        const neighbor=rows[Math.min(focusedActionIndex,rows.length-1)];
+        const button=[...(neighbor?.querySelectorAll('.controls button')||[])]
+          .find(candidate=>!candidate.disabled);
+        (button||els.draft).focus({preventScroll:true});
+      }
     }
     paintedRows=rowsState;
   }
