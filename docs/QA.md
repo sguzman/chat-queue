@@ -597,3 +597,9 @@ This is bounded **semantic DOM and keyboard behavior** in a disposable Firefox p
 The native Firefox test activates Edit and Save by actual keyboard Enter, types a synthetic suffix, verifies it was durably saved and that focus returned to that item's Edit button, then repeats a keyboard edit and Save to restore the original text. It asserts exact visible message text and zero Send clicks. Earlier native Firefox checks separately cover unsaved Cancel, ordered list semantics, collapsed state announcements, and themes. No account, real prompt, or existing browser profile is involved.
 
 This is synthetic browser keyboard acceptance for the existing **M7-06** task, not a screen-reader or authenticated-site accessibility certification. M7-06 and release remain unverified.
+
+## ⌨️ Queue Delete keyboard focus and screen-reader status (2026-10-26)
+
+[Complete native Firefox Developer Edition CI 40356471838](https://github.com/sguzman/chat-queue/actions/runs/40356471838) passed **both** static/unit and full browser jobs after a production keyboard-focus fix. The new test activates Delete through real Firefox WebDriver Enter, waits for the private queue's persistent mutation, and verifies the focused action moves from the deleted second row to the remaining row's enabled Edit button. Deleting the final row focuses the HUD's Add queued message textarea, never the host page. A neutral `role=status` update announces that the queued message was removed only after a successful persistent write.
+
+The fixture then restores both synthetic messages in their original order, preserves the unrelated unsent HUD draft and confirms zero Send clicks. This closes a concrete keyboard-focus defect within M7-06's **synthetic Firefox** coverage. It does not stand in for an actual screen-reader run, authenticated ChatGPT accessibility testing or the release gates. The verified task count therefore remains **84/96**.
