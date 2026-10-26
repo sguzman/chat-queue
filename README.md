@@ -25,15 +25,15 @@ A standalone, **Firefox Developer Edition-first** ChatGPT message queue and floa
 - **Theme selector:** `System` (default), `Light`, `Dark`. `System` follows desktop preferences without synchronizing with ChatGPT's own site theme. Selection is saved locally and mirrored in other open HUDs and the options page.
 - Queued prompts remain editable while ChatGPT generates. Only an active dispatch attempt temporarily locks mutations.
 - Single-attempt dispatch with draft occupancy checks, explicit user authorization, and pause on unknown/interrupted/failed/limit states. No automatic retry after an uncertain submission.
-- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scoped API client, mutation-token conflict handling, and revocation passed synthetic Firefox Developer Edition QA; Options permissions UX remains unaccepted end-to-end. Genuine Firefox event-page idle/restart recovery passed; full browser restart and authenticated sending remain separate gates.
+- Local Firefox extension storage and **explicit, independent extension API grants** for `discover`, `read`, `append`, `edit`, and `control`; no telemetry or server endpoint. Legacy broad allowlist entries are deliberately inactive until manually reauthorized. Scoped API client, mutation-token conflict handling, and revocation passed synthetic Firefox Developer Edition QA; Options permissions UX remains unaccepted end-to-end. Actual Firefox event-page recreation and complete two-process browser restart passed in isolated synthetic tests; authenticated ChatGPT sending and crash/power-loss recovery remain separate gates.
 
 ## 📡 Critical limitation: Chat Signals contract
 
-Chat Signals v0.3.13 currently provides `document.documentElement.dataset.chatSignalsState`. This attribute is **not an authenticated channel and contains no response epoch or route identity**. Chat Queue now reads it **for HUD display only**, not for sending or queue advancement.
+The legacy pinned Chat Signals 0.3.13 reference (commit `102e3ea16a9e9535d377c1d4e8b564f5b0fdb721`) exposes `document.documentElement.dataset.chatSignalsState`; this page attribute is **not authenticated** and cannot authorize Queue sending. A separate, newer pinned source checkout (commit `d17117047f5e582591e514240c008b166bf96d8a`, also reporting manifest version 0.3.13) includes the independent metadata-only `chat-queue-signal/v1` publisher. Queue still uses the page attribute for HUD display only.
 
 The fail-closed consumer accepts `chat-queue-signal/v1` only when Firefox authenticates the sender as the Chat Signals extension. It requires a matching route, monotonic sequence, response epoch and fresh event origin; each Send attempt is journaled as uncertain before the click. See [Signal contract](docs/SIGNAL-CONTRACT.md).
 
-**Important: Chat Signals does not yet publish this protocol.** Start therefore refuses with `authenticated-chat-signals-required`. The receiver's tests are not real browser integration acceptance. No changes were made to the Chat Signals repository.
+**Current evidence:** the newer publisher and Chat Queue have passed real two-add-on Firefox Developer Edition tests on **synthetic localhost pages**, including guarded serial Send, no-authority denial and restart safety. If the authenticated publisher is absent, outdated or disconnected, Start refuses with `authenticated-chat-signals-required`. This **does not** establish actual logged-in ChatGPT DOM/React compatibility, remote Send acceptance or safe network retries; those remain release blockers.
 
 ## 🦊 Disposable Firefox Developer Edition
 
@@ -45,7 +45,7 @@ The local queue loader preserves unrecognized future-version records without ove
 
 ## 🛠️ Development
 
-Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks, real headless Firefox Developer Edition installation, a synthetic HUD/browser test, and **two-addon synthetic Signal transport** tests. These prove bounded browser mechanics, not authenticated ChatGPT sending or a working real Chat Signals publisher.
+Use Node 22+ and `npm run check` (no installed NPM dependencies). `npm run progress` prints verified vs. implemented percentages; edit `progress.json`, then regenerate `ROADMAP.md` using `npm run roadmap`. CI performs static/Node checks, real headless Firefox Developer Edition installation, isolated HUD/browser tests and two-addon integration tests against the separately pinned Chat Signals publisher. These prove bounded synthetic-browser mechanics, **not** authenticated ChatGPT delivery, complete assistive-technology support or safe live-site retry.
 
 Work directly on `main`, keep public materials free of private chat content, and do not reproduce Chat Signals inference logic here. `npm run release:gate` currently refuses release because the 96-task evidence ledger is incomplete; `npm run sign:unlisted` is credential-protected, gated and **does not** automatically sign or distribute anything. This is a complete-feature roadmap, not an assertion that every later conditional or external API behavior already works.
 
