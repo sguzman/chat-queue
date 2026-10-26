@@ -56,6 +56,14 @@ function createQueue(dest,root){
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    statusBoundary);
+ // QA-only: suspend one failed old peer forward until a new registration.
+ const forwardBoundary="      const reply=await api.tabs.sendMessage(message.tabId, {";
+ assert.equal(bg.split(forwardBoundary).length,2);
+ bg=bg.replace(forwardBoundary,
+   "      if(message.action==='enqueue'&&message.payload?.qaRejectOldForward===true){"+
+   "globalThis.__qaOldForwardEntered=true;"+
+   "await new Promise(resolve=>{globalThis.__qaOldForwardRelease=resolve;});"+
+   "throw new Error('qa-old-document-no-receiver');}\n"+forwardBoundary);
  const grantListener="  api.storage.onChanged.addListener((changes,area)=>{";
  assert.equal(bg.split(grantListener).length,2);
  bg=bg.replace(grantListener,grantListener+
@@ -89,6 +97,14 @@ function createQueue(dest,root){
  browser.storage.local.set({[${JSON.stringify(grantsKey)}]:${JSON.stringify(initialPolicy)}});
  browser.runtime.onMessage.addListener((msg,sender)=>{
    if(!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
+   if(msg?.type==='qa-old-forward-state')
+     return Promise.resolve({ok:true,entered:globalThis.__qaOldForwardEntered===true});
+   if(msg?.type==='qa-old-forward-release'){
+     const release=globalThis.__qaOldForwardRelease;
+     if(typeof release!=='function')return Promise.resolve({ok:false,error:'not-held'});
+     globalThis.__qaOldForwardRelease=null;globalThis.__qaOldForwardEntered=false;
+     release();return Promise.resolve({ok:true});
+   }
    if(msg?.type==='qa-seed-uncertain'){
      const key='chatqueue:v1:tab:'+sender.tab.id+':/c/api-uncertain';
      return browser.storage.local.set({[key]:{version:1,
@@ -563,6 +579,46 @@ async function main(){
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.ok',
     newNonce),true);
   assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+
+  stage='stale-forward-rejection-preserves-new-registration';
+  const staleForwardNonce=++nonce;
+  await driver.executeScript((id,target)=>{
+    window.postMessage({kind:'qa-api-request',nonce:id,request:{
+      type:'chat-queue/v1',action:'enqueue',tabId:target,
+      payload:{text:'Synthetic old tab forward must fail',qaRejectOldForward:true}
+    }},'*');
+  },staleForwardNonce,tabId);
+  const metaCommand=async message=>{
+    const id=++nonce;
+    await driver.executeScript((token,payload)=>
+      window.postMessage({kind:'qa-meta-send',nonce:token,message:payload},'*'),
+      id,message);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__metadataResults.some(x=>x.nonce===arguments[0])',id),9000);
+    return driver.executeScript(
+      'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result',id);
+  };
+  await driver.wait(async()=>(await metaCommand({
+    type:'qa-old-forward-state'}))?.entered===true,8000,
+    'Old API forwarding must enter deliberate fault hold');
+  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/synthetic'})).ok,true,
+    'A real Firefox message must create a newer registration');
+  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
+    action:'state',sequence:1,phase:'idle',size:3,running:false,awaiting:false})).ok,true);
+  assert.equal((await metaCommand({type:'qa-old-forward-release'})).ok,true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',staleForwardNonce),9000);
+  assert.equal(await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result.error',
+    staleForwardNonce),'tab-unavailable');
+  const afterOldFailure=await command({type:'chat-queue/v1',action:'listTabs'});
+  assert.equal(afterOldFailure.ok,true);
+  assert.equal(afterOldFailure.tabs.length,1,'Old error must preserve fresh registration');
+  assert.equal(afterOldFailure.tabs[0].tabId,tabId);
+  assert.equal(afterOldFailure.tabs[0].phase,'idle');
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
 
   stage='api-uncertain-item-resolution';
