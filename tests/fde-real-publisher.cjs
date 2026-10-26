@@ -146,6 +146,9 @@ document.querySelector('[data-testid="send-button"]').addEventListener('click',(
   const editor=document.getElementById('prompt-textarea');
   window.__sentPayloads.push(editor.innerText||editor.textContent||'');
   window.__sendCount++;
+  // The Send click is observable, but the synthetic site never produces
+  // a busy/accepted response on this deliberately ambiguous test route.
+  if(location.pathname==='/c/unconfirmed-click')return;
   const form=document.querySelector('main form');
   const stop=document.createElement('button');
   stop.type='button';stop.dataset.testid='stop-button';stop.textContent='Stop';
@@ -828,6 +831,52 @@ async function main(){
     await driver.sleep(900);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Reload during an attributable response cannot auto-send the remaining prompt');
+    // Real pinned Chat Signals is installed. A normal, browser-authorized
+    // Queue click reaches the page's Send handler exactly once, but this
+    // fixture deliberately does NOT clear the composer or emit a busy phase.
+    // Thus neither a click nor elapsed time may be called acceptance. The
+    // private uncertainty journal and durable hold must prevent blind retry
+    // of this potentially delivered prompt, including after actual reload.
+    stage='real-provider-unconfirmed-click-never-retries';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/unconfirmed-click');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic possibly accepted first click',
+      'Synthetic following item must remain paused'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]`,
+        (index+1)+' queued'),9000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Submission not confirmed; manual review required')`),11000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Synthetic possibly accepted first click'],
+      'One ambiguous click must not dispatch the next queued message');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'After a click without trusted busy evidence, the first item is uncertain');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued',
+      'No item is silently dropped on failed acceptance');
+    await driver.sleep(950);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Idle time must not trigger an automatic retry after an ambiguous click');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('status')}) && ${hud('count')}?.textContent==='2 queued'`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Reload must not replay the potentially accepted Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    await driver.sleep(800);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Restored provider idle cannot retry an unconfirmed previous click');
+
     stage='real-provider-hidden-composer-never-sends';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/hidden-composer');
     await ready();
