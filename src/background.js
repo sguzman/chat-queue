@@ -569,6 +569,20 @@
          live.origin!==ORIGINS.get(message.tabId)||live.pathname!==targetRoute||
          grantRevision!==authorizedAt)
         return {ok:false,error:'route-or-registration-changed'};
+      // A scope revoke can persist while tabs.get() waits, before the
+      // storage.onChanged event arrives. Do not forward a mutating command
+      // without rechecking durable authority AFTER browser URL resolution.
+      let finalGrant;
+      try{finalGrant=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+      catch{return {ok:false,error:'authorization-changed'};}
+      if(grantRevision!==authorizedAt||
+         !grants.has(finalGrant,requester,grants.ACTION_SCOPE[message.action]))
+        return {ok:false,error:'authorization-changed'};
+      if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
+         ROUTES.get(message.tabId)!==targetRoute||
+         ORIGINS.get(message.tabId)!==live.origin||
+         TABS.get(message.tabId)!==target)
+        return {ok:false,error:'route-or-registration-changed'};
     }
     try {
       const reply=await api.tabs.sendMessage(message.tabId, {

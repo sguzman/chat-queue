@@ -324,6 +324,38 @@ test('cross-origin and wrong-route navigation deny external mutations before tab
   }
 });
 
+test('silently revoked durable mutation grants deny writes after browser URL lookup',async()=>{
+  for(const action of ['enqueue','start']){
+    const {listeners,state,context,forwards}=create();
+    const url='https://chatgpt.com/c/revoked-while-url-awaits';
+    const sender={tab:{id:116,url},url};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/revoked-while-url-awaits'},sender)).ok,true);
+    const originalGet=context.browser.storage.local.get;
+    let reads=0,release;
+    context.browser.storage.local.get=key=>{
+      if(key==='chatqueue:api-grants:v2')reads++;
+      return originalGet(key);
+    };
+    context.browser.tabs.get=()=>new Promise(resolve=>{release=()=>resolve({id:116,url});});
+    const pending=listeners.external({type:'chat-queue/v1',action,tabId:116,
+      ...(action==='enqueue'?{payload:{text:'Synthetic no forwarded mutation'}}:{})},
+      {id:'approved@example.test'});
+    for(let i=0;i<16&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(typeof release,'function');
+    assert.equal(reads,2,'Initial and pre-forward permission reads completed');
+    state['chatqueue:api-grants:v2']={version:2,grants:{
+      'approved@example.test':['discover','read','edit']
+    }};
+    // No storage.onChanged: the event page has not observed this revoke.
+    release();
+    const result=await pending;
+    assert.equal(result.error,'authorization-changed',action);
+    assert.equal(reads,3,'Last durable grant read follows tab URL lookup');
+    assert.equal(forwards.length,0,'A revoked Start or Enqueue never reaches a tab');
+  }
+});
+
 test('external enqueue is refused if navigation occurs during its async authorization',async()=>{
   const {listeners,context,forwards}=create();
   const url='https://chatgpt.com/c/queued-before-move';
