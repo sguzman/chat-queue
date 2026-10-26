@@ -234,6 +234,16 @@ async function main(){
    // Its fixed-ID add-on and storage must survive in this SAME disk profile.
    stage='normal-lifetime-restart';
    await driver.quit();driver=null;
+   // When Firefox reopens an explicit -profile, the existing profile's
+   // user.js can override Selenium's new setPreference option. Replace only
+   // the disposable QA profile's own prior idle preference. Do not edit any
+   // existing/user browser profile or touch non-test Firefox settings.
+   const userPrefs=path.join(profile,'user.js');
+   const idlePref='extensions.background.idle.timeout';
+   const originalPrefs=fs.existsSync(userPrefs)?fs.readFileSync(userPrefs,'utf8'):'';
+   const normalized=originalPrefs.replace(
+     /^user_pref\("extensions\.background\.idle\.timeout",\s*\d+\);\s*$/gm,'');
+   fs.writeFileSync(userPrefs,normalized+'\nuser_pref("'+idlePref+'", 120);\n');
    driver=await build(120);
    assert.equal(await driver.installAddon(root,true),installed,
      'The identical Queue temporary extension must reinstall in the same profile');
@@ -249,6 +259,9 @@ async function main(){
      "return document.documentElement.dataset.qaInitialRegistration==='true'"),9000,
      'The actual content script never completed its initial registration');
    const secondSessionBoot=await readBoot();
+   await driver.sleep(4100);
+   assert.equal(await readBoot(),secondSessionBoot,
+     'Normal-lifetime phase must NOT retain the forced rapid event-page restarts');
    // In this second browser session, the Queue and independently installed
    // provider identify themselves via actual Firefox extension principals.
    // A browser page cannot send an authenticated provider envelope directly.
