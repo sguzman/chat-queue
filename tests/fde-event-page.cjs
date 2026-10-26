@@ -168,6 +168,77 @@ async function main(){
    assert.equal(await driver.executeScript('return window.__sent'),0);
    console.log('FDE real event-page restarts:',before,'to',restarted,
      '; queue preserved and Send denied');
+   // Now isolate the *durable hold* claim: it must persist through another
+   // genuine idle termination and refuse a SECOND tab whose independent,
+   // browser-attested Signal is fresh. Missing-provider denial is not enough.
+   stage='seed-metadata-only-hold-before-idle';
+   const seedNonce=++nonce;
+   await driver.executeScript(
+     'window.postMessage({kind:"qa-seed-send-hold",nonce:arguments[0]},"*")',seedNonce);
+   await driver.wait(async()=>await driver.executeScript(
+     'return window.__holdReplies.some(x=>x.nonce===arguments[0])',seedNonce),7000);
+   assert.equal(await driver.executeScript(
+     'return window.__holdReplies.find(x=>x.nonce===arguments[0]).ok',seedNonce),true);
+   const heldBoot=await readBoot();
+   stage='hold-survives-real-event-page-idle';
+   const heldRestart=await driver.wait(async()=>{
+     const count=await readBoot();
+     return count>heldBoot?count:false;
+   },47000,'Firefox event page did not suspend while durable hold was persisted');
+   assert.ok(heldRestart>heldBoot);
+   stage='authenticated-contender-refused-after-idle';
+   const installedProvider=await driver.installAddon(providerRoot,true);
+   assert.equal(installedProvider,'chat-signals@sguzman.github');
+   await driver.switchTo().newWindow('tab');
+   await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-event-page');
+   const hud=id=>"document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('"+id+"')";
+   await driver.wait(async()=>await driver.executeScript(
+     `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
+   await driver.executeScript(
+     `const d=${hud('draft')};d.value='Synthetic contender after real event-page idle';`);
+   await driver.executeScript(`return ${hud('add')}.click()`);
+   await driver.wait(async()=>await driver.executeScript(
+     `return ${hud('count')}.textContent==='1 queued'`),9000);
+   let signalSequence=0;
+   const emitIdle=async()=>{
+     const sequence=++signalSequence;
+     const signal={version:1,documentToken:'b'.repeat(32),
+       route:'/c/real-event-page',epoch:0,sequence,phase:'idle',
+       origin:'fresh',confidence:'observed'};
+     await driver.executeScript(
+       'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',signal);
+     await driver.wait(async()=>await driver.executeScript(
+       'return window.__signalReplies.some(x=>x.sequence===arguments[0])',sequence),9000);
+     const ack=await driver.executeScript(
+       'return window.__signalReplies.find(x=>x.sequence===arguments[0]).result',sequence);
+     assert.equal(ack.ok,true,'independent publisher must authenticate fresh idle');
+     await driver.wait(async()=>await driver.executeScript(
+       `return ${hud('status')}.textContent.includes('Signal: idle')`),8000);
+   };
+   await emitIdle();
+   await driver.executeScript(`return ${hud('run')}.click()`);
+   await driver.wait(async()=>await driver.executeScript(
+     `return ${hud('status')}.textContent.includes('Previous Send may be unresolved; review its hold')`),12000);
+   assert.equal(await driver.executeScript('return window.__sent'),0,
+     'a truly suspended-and-restarted event page must enforce persisted hold');
+   stage='explicit-review-unlocks-new-start-after-idle';
+   await driver.executeScript(`return ${hud('hold-review')}.click()`);
+   await driver.wait(async()=>await driver.executeScript(
+     `return ${hud('status')}.textContent.includes('Check the ChatGPT transcript')`),9000);
+   await driver.executeScript(`return ${hud('hold-review')}.click()`);
+   await driver.wait(async()=>await driver.executeScript(
+     `return ${hud('status')}.textContent.includes('Prior Send hold released')`),9000);
+   assert.equal(await driver.executeScript('return window.__sent'),0,
+     'review is not an automatic retry');
+   await emitIdle();
+   await driver.executeScript(`return ${hud('run')}.click()`);
+   await driver.wait(async()=>await driver.executeScript(
+     'return window.__sent===1'),12000);
+   assert.equal(await driver.executeScript('return window.__sent'),1,
+     'only an explicit new Start is authorized after review');
+   console.log('FDE real event-page idle with metadata Send hold:',heldBoot,
+     'to',heldRestart,'; authenticated competing Send refused until explicit review');
+   await driver.uninstallAddon(installedProvider);
    await driver.uninstallAddon(installed);
  }catch(error){
    throw new Error(stage+': '+error.message);
