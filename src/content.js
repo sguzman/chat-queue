@@ -532,12 +532,30 @@
   }
   function fillComposer(editor,text) {
     editor.focus();
+    // execCommand inserts at the browser's active selection, NOT into an
+    // element supplied as an argument. A page-side focus handler can divert
+    // the caret into another editor before Queue inserts its private prompt.
+    if(document.activeElement!==editor)
+      throw new Error('Composer focus diverted; no insertion');
     if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
       const descriptor=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(editor),'value');
       descriptor.set.call(editor,text);
       editor.dispatchEvent(new Event('input',{bubbles:true}));
     } else {
-      if (typeof document.execCommand !== 'function' || !document.execCommand('insertText',false,text)) throw new Error('Composer insertion failed');
+      // An active contenteditable can still retain a selection in an unrelated
+      // editor. Explicitly collapse the range inside this already-empty
+      // composer, then verify ownership before the irreversible insertion.
+      const selection=window.getSelection();
+      if(!selection)throw new Error('Composer selection unavailable; no insertion');
+      const range=document.createRange();
+      range.selectNodeContents(editor);range.collapse(false);
+      selection.removeAllRanges();selection.addRange(range);
+      if(document.activeElement!==editor||!selection.anchorNode||
+         (selection.anchorNode!==editor&&!editor.contains(selection.anchorNode)))
+        throw new Error('Composer selection diverted; no insertion');
+      if (typeof document.execCommand !== 'function' ||
+          !document.execCommand('insertText',false,text))
+        throw new Error('Composer insertion failed');
     }
     const value=canonicalComposerText(editorValue(editor));
     if (value !== canonicalComposerText(text)) throw new Error('Composer did not accept the exact message');
