@@ -542,16 +542,15 @@
       descriptor.set.call(editor,text);
       editor.dispatchEvent(new Event('input',{bubbles:true}));
     } else {
-      // An active contenteditable can still retain a selection in an unrelated
-      // editor. Explicitly collapse the range inside this already-empty
-      // composer, then verify ownership before the irreversible insertion.
+      // A contenteditable's browser selection, not the DOM element argument,
+      // determines where execCommand inserts. Preserve a valid React/
+      // ProseMirror caret (and its block structure); refuse a selection in
+      // some other editor instead of repositioning it at the container root.
       const selection=window.getSelection();
-      if(!selection)throw new Error('Composer selection unavailable; no insertion');
-      const range=document.createRange();
-      range.selectNodeContents(editor);range.collapse(false);
-      selection.removeAllRanges();selection.addRange(range);
-      if(document.activeElement!==editor||!selection.anchorNode||
-         (selection.anchorNode!==editor&&!editor.contains(selection.anchorNode)))
+      const inside=node=>!!node&&(node===editor||editor.contains(node));
+      if(!selection||selection.rangeCount!==1||
+         !inside(selection.anchorNode)||!inside(selection.focusNode)||
+         document.activeElement!==editor)
         throw new Error('Composer selection diverted; no insertion');
       if (typeof document.execCommand !== 'function' ||
           !document.execCommand('insertText',false,text))
