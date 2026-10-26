@@ -194,10 +194,37 @@
            SIGNALS.get(tab.id)!==last || ROUTES.get(tab.id)!==message.route ||
            !TABS.has(tab.id))
           return {ok:false,error:'route-or-signal-changed'};
+        // Earlier-tab recovery *copies* messages and retains the original
+        // source record. After a durable copy has been explicitly reviewed,
+        // the now-closed original cannot permanently block this conversation.
+        // Never accept this exception while a source tab with the same
+        // conversation identity is still live or the recovered copy remains
+        // uncertain: either may still represent an unresolved Send.
+        const reviewedSources=new Set();
+        for(const [key,record] of Object.entries(saved)){
+          const match=/^chatqueue:v1:tab:([0-9]+):(\/.*)$/.exec(key);
+          if(!match||signalContract.assignedConversationId(match[2])!==conversationId||
+             !record||!Array.isArray(record.items)||
+             record.items.some(item=>!item||item.status!=='pending')||
+             !Array.isArray(record.recoveredSources))continue;
+          for(const source of record.recoveredSources)
+            if(typeof source==='string')reviewedSources.add(source);
+        }
         for(const [key,record] of Object.entries(saved)){
           const match=/^chatqueue:v1:tab:([0-9]+):(\/.*)$/.exec(key);
           if(!match||signalContract.assignedConversationId(match[2])!==conversationId||
              !record||!Array.isArray(record.items))continue;
+          if(reviewedSources.has(key)){
+            // Browser-owned tab metadata prevents an old reviewed marker
+            // from covering a NEW uncertain Send from a still-open source.
+            let liveSource=false;
+            try{
+              const tabInfo=await api.tabs.get(Number(match[1]));
+              liveSource=signalContract.assignedConversationId(
+                new URL(tabInfo.url).pathname)===conversationId;
+            }catch{/* tab gone: original recovered source is inert */}
+            if(!liveSource)continue;
+          }
           for(const item of record.items){
             if(!item||item.status==='pending')continue;
             // The same item is intentionally journaled uncertain between
@@ -209,8 +236,12 @@
             return {ok:false,error:'unresolved-saved-send'};
           }
         }
-        // The authoritative volatile claim remains synchronous AFTER both
-        // asynchronous reads, so simultaneous tabs cannot both acquire it.
+        if((await currentRoute(sender))!==message.route ||
+           SIGNALS.get(tab.id)!==last || ROUTES.get(tab.id)!==message.route ||
+           !TABS.has(tab.id))
+          return {ok:false,error:'route-or-signal-changed'};
+        // The authoritative volatile claim remains synchronous AFTER all
+        // asynchronous storage and browser-owned URL reads.
         const owner=OWNERS.get(conversationId);
         if(owner!==undefined&&owner!==tab.id)
           return {ok:false,error:'conversation-owned-by-another-tab'};
