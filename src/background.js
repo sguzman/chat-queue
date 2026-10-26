@@ -35,6 +35,15 @@
   const DOCUMENT_ID=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
   const documentIdOf=sender=>typeof sender?.documentId==='string'&&
     DOCUMENT_ID.test(sender.documentId)?sender.documentId:null;
+  // Firefox 153+ can route content messages to the registered *document*,
+  // avoiding accidental delivery into another document after a tab reload.
+  // Older Firefox/test fixtures without a documented document ID retain the
+  // existing exact-route/generation guards instead of guessing a target.
+  const sendToRegisteredDocument=(tabId,frame)=>{
+    const id=DOCUMENT_IDS.get(tabId);
+    return id?api.tabs.sendMessage(tabId,frame,{documentId:id})
+      :api.tabs.sendMessage(tabId,frame);
+  };
   // Per-document freshness guard, not a page-visible or peer API credential.
   const matchingRegistration=(tabId,message,sender)=>Boolean(
     REGISTRATIONS.get(tabId)&&
@@ -488,7 +497,7 @@
       SIGNALS.set(tabId,parsed);
       // The receiving tab independently checks the exact current route.
       try {
-        const result=await api.tabs.sendMessage(tabId,{type:'chat-queue-signal-verified/v1',signal:parsed});
+        const result=await sendToRegisteredDocument(tabId,{type:'chat-queue-signal-verified/v1',signal:parsed});
         if(!result?.ok)return {ok:false,error:'consumer-unavailable'};
       }catch{return {ok:false,error:'consumer-unavailable'};}
       return {ok:true};
@@ -654,7 +663,7 @@
         return {ok:false,error:'route-or-registration-changed'};
     }
     try {
-      const reply=await api.tabs.sendMessage(message.tabId, {
+      const reply=await sendToRegisteredDocument(message.tabId, {
         type: 'chat-queue-api/v1', action: message.action, payload: message.payload || null, requester
       });
       // Status contains private prompts. A storage revocation can commit

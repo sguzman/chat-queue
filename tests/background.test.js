@@ -23,7 +23,7 @@ function create(persisted={}) {
       return fn(message,sender);
     }},onMessageExternal:{addListener:fn=>listeners.external=fn},onConnectExternal:{addListener:fn=>listeners.connect=fn}},
     tabs:{get:async tabId=>({id:tabId,url:liveUrls.get(tabId)}),
-      sendMessage:async(tabId,message)=>{forwards.push({tabId,message});return {ok:true};},
+      sendMessage:async(tabId,message,options)=>{forwards.push({tabId,message,options});return {ok:true};},
       onRemoved:{addListener:fn=>listeners.removed=fn},
       onUpdated:{addListener:fn=>listeners.updated=(id,change)=>{
         if(change.url)liveUrls.set(id,change.url);
@@ -39,6 +39,27 @@ function create(persisted={}) {
   vm.runInContext(src,context);
   return {listeners,forwards,syncRequests,state,context};
 }
+
+test('Firefox document-scoped forwarding targets exactly the registered document',async()=>{
+  const {listeners,forwards}=create();
+  const route='/c/document-targeting';
+  const url='https://chatgpt.com'+route;
+  const browserDoc='cccccccc-3333-4333-8333-cccccccccccc';
+  const current={tab:{id:623,url},url,documentId:browserDoc};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route,registrationVersion:2},current)).ok,true);
+  const signal={version:1,route,documentToken:'a'.repeat(32),
+    sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',
+    tabId:623,signal},{id:'chat-signals@sguzman.github'})).ok,true);
+  assert.equal(forwards.at(-1).options?.documentId,browserDoc,
+    'a trusted provider Signal must not target an unrelated reloaded document');
+  const external={id:'approved@example.test'};
+  assert.equal((await listeners.external({type:'chat-queue/v1',
+    action:'enqueue',tabId:623,payload:{text:'Synthetic authorized append'}},external)).ok,true);
+  assert.equal(forwards.at(-1).options?.documentId,browserDoc,
+    'a scoped mutation must be delivered only into the attested document');
+});
 
 test('browser-attested document ID prevents token reuse by another tab document',async()=>{
   const {listeners}=create();
