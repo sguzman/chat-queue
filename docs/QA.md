@@ -697,3 +697,15 @@ The initial SARIF reported **one** `js/missing-origin-check` warning in a dispos
 The canonical CI supply-chain audit now explicitly reviews the additional CodeQL workflow and its immutable action SHA. Only that workflow receives `security-events:write`; existing CI and QA launcher permissions remain contents-read only. Its adversarial tests reject changes to the exact CodeQL pin, action owner, or permission scopes. Latest passing static/unit run: [40403847799](https://github.com/sguzman/chat-queue/actions/runs/40403847799), **145/145 tests**. M7-09 remains `implemented`, not verified, because an independent human production audit, authenticated-site safety qualification and final release gates remain outstanding.
 
 **Verified roadmap progress remains 84/96 = 87.50%; delta +0.00 percentage points.**
+
+## 🛡️ Fail-closed CodeQL findings gate and SARIF race repair (2026-10-26)
+
+Pinned GitHub CodeQL v4.39.0 with the `security-extended` JavaScript suite now has a second CI interlock: `scripts/codeql-findings-gate.mjs` reads the retained SARIF and fails if it contains **any findings**, is absent, is malformed, lacks CodeQL run provenance, or is a symlink. It outputs only counts and generic failure reasons, never file paths, copied source or diagnostic snippets. The workflow retains the SARIF artifact with `if: always()` even after a finding causes failure.
+
+The initial new strict-gate run [40405898611](https://github.com/sguzman/chat-queue/actions/runs/40405898611) failed as intended: CodeQL found one `js/file-system-race` in the gate itself, where checking a filename and then opening the filename permitted a path replacement between operations. The fix opens the report once using `O_NOFOLLOW`, then validates and reads through the **same file descriptor**. An adversarial test also requires SARIF symlinks to be refused.
+
+The corrected [CodeQL run 40406325054](https://github.com/sguzman/chat-queue/actions/runs/40406325054) passed, the gate log explicitly reported **0 findings across 1 CodeQL run**, and inspection of the archived SARIF confirmed **0 results**. Static/unit suite [40406324959](https://github.com/sguzman/chat-queue/actions/runs/40406324959) passed **149/149 tests** at this point, while its native Firefox job was still running.
+
+The read-only authenticated-structure probe also now includes producer-selector consistency, the real viewport/hit-test checks, and a fail-closed file-attachment check. It still does **not** prove actual ChatGPT React/ProseMirror behavior, nor does any CodeQL scan substitute for an independent human release security audit. M4-01 and M7-09 remain `implemented`, not `verified`.
+
+**Canonical progress: 84/96 verified = 87.50%, delta +0.00 percentage points.**
