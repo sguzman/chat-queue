@@ -141,9 +141,9 @@ async function main(){
      // the same production register action as ordinary content startup, then
      // independently require the production sync-provider route check to pass.
      // No synthetic background state, forged Signals or QA-only keepalive.
-     "const registered=await browser.runtime.sendMessage({type,action:'register',route});",
+     "const registered=await browser.runtime.sendMessage({type,action:'register',route,registrationVersion:2});",
      "if(!registered?.ok)return registered;",
-     "return browser.runtime.sendMessage({type,action:'sync-provider',route});",
+     "return browser.runtime.sendMessage({type,action:'sync-provider',route,registrationGeneration:registered.registrationGeneration});",
      "})",
      ".then(result=>window.postMessage({kind:'qa-ready-reply',nonce,",
      "ok:result?.ok===true},'*'))",
