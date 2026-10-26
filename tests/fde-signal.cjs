@@ -203,6 +203,10 @@ function prepareQueue(dir,source){
     "      const qaStored=await api.storage.local.get(state.key);"+
     "if(qaStored[state.key]?.items?.find(x=>x.id===item.id)?.status!=='uncertain')"+
     "throw new Error('QA: composer handoff preceded durable uncertain journal');\n"+
+    "const qaHoldKey='chatqueue:send-hold:v1:'+contract.assignedConversationId(routeKey());"+
+    "const qaHeld=(await api.storage.local.get(qaHoldKey))[qaHoldKey];"+
+    "if(qaHeld?.version!==1||qaHeld?.holdId!==holdId)"+
+    "throw new Error('QA: composer handoff preceded durable metadata hold');\n"+
     journalHandoff));
   // Only QA origin allowlist changes; production background is otherwise intact.
   const bgPath=path.join(dir,'src/background.js');
