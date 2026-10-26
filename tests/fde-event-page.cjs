@@ -212,6 +212,15 @@ async function main(){
    assert.ok(heldRestart>heldBoot);
    await driver.executeScript(
      "localStorage.setItem('__qaHeartbeatNormal','yes');document.documentElement.dataset.qaNormalHeartbeat='true'");
+   // The event-page restart has already been observed. Keep the CURRENT tab
+   // connected before installing a second add-on and opening a new tab: with
+   // a 1-second synthetic idle timeout it could otherwise suspend midway
+   // through the contender's first Queue registration.
+   await driver.executeScript(
+     'window.postMessage({kind:"qa-keepalive",active:true},"*")');
+   await driver.wait(async()=>await driver.executeScript(
+     'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000,
+     'Original tab did not establish QA keepalive after true idle');
    stage='authenticated-contender-refused-after-idle';
    const installedProvider=await driver.installAddon(providerRoot,true);
    assert.equal(installedProvider,'chat-signals@sguzman.github');
