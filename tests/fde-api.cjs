@@ -63,6 +63,9 @@ function createQueue(dest,root){
  bg=bg.replace(previewBoundary,
    "    if(message.action==='previewRules'&&message.payload?.qaHoldRules===true){"+
    "globalThis.__qaRulesPreviewHoldEntered=true;"+
+   // Reuse the QA grant-revoke barrier for this separate Rules scope test.
+   // It changes no production authorization logic or provider state.
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    previewBoundary);
  // QA-only: suspend one failed old peer forward until a new registration.
