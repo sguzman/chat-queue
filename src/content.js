@@ -15,10 +15,11 @@
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false, awaitingUncertain: false,
-    busySeen: false, attempting: null, unconfirmedClickLease: false, signal: 'unknown', observedSignal:'unknown',
+    busySeen: false, attempting: null, durableHoldId: null, unconfirmedClickLease: false, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
+  let holdReviewArmed=false;
   // Deadlines only dismiss a pending manual review; they never authorize
   // execution, enqueue or Send. A stale timer cannot act on a newer offer.
   let ruleApprovalTimer=null;
@@ -86,13 +87,13 @@
   panel.className = 'panel';
   panel.setAttribute('aria-label', 'Chat Queue');
   panel.innerHTML = `<header class="top" tabindex="0" aria-label="Queue panel. Arrow keys move it; Home resets position."><strong>Message Queue</strong><span id="count" class="small">0 queued</span><select id="theme" aria-label="Chat Queue theme" title="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><button id="reset" title="Reset position and expand queue" aria-label="Reset queue position">↺</button><button id="toggle" title="Collapse or expand queue" aria-label="Collapse queue">−</button></header>
-    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
+    <div id="status" class="status" role="status"></div><div id="body"><div id="items" class="items"></div><details><summary>Recently submitted / backup</summary><div id="history" class="history"></div><div class="data-buttons"><button id="backup-export" type="button">Export queue</button><button id="backup-choose" type="button">Import JSON</button><button id="backup-confirm" type="button" hidden>Confirm import</button><button id="recovery-find" type="button">Find earlier queues</button><button id="recovery-confirm" type="button" hidden>Recover for review</button><button id="hold-review" type="button">Review prior Send hold</button><button id="history-clear" class="danger" type="button">Forget history</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div><div id="data-note" class="data-note" aria-live="polite"></div></details>
     <details id="rules-panel"><summary>Conditional proposals (off)</summary><div id="rules-note" class="data-note" aria-live="polite">Disabled until explicitly enabled. No automatic sending.</div><div class="data-buttons"><button id="rules-toggle" type="button">Enable previews</button><button id="rules-approve" type="button" hidden>Approve proposal</button><button id="rules-dismiss" type="button" hidden>Dismiss</button></div><details id="rules-audit-panel"><summary>Review history (<span id="rules-audit-count">0</span>, this conversation only)</summary><div id="rules-audit" class="history" aria-label="Conditional review audit"></div></details></details>
     <div class="foot"><label for="draft" class="small">Add queued message</label><textarea id="draft" placeholder="Message to send when control returns" spellcheck="true"></textarea>
     <div class="footrow"><button id="add">Add to queue</button><button id="clear" class="danger">Clear</button><button id="run" class="primary">Start</button></div>
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
-  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','rules-audit','rules-audit-count','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','hold-review','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','rules-audit','rules-audit-count','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
   // Unsaved HUD drafts must not migrate into another ChatGPT conversation.
   // Keep at most 32 volatile, exact-route drafts within this tab; never sync
   // or expose them to the page. Persisted queued items have separate storage.
@@ -1004,7 +1005,8 @@
     state.ruleOffer=null;state.ruleSeen=[];state.rulesEnabled=false;state.ruleLibrary=[];state.ruleAudit=[];
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
-    state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.unconfirmedClickLease=false;state.busySeen=false;
+    state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.durableHoldId=null;state.unconfirmedClickLease=false;state.busySeen=false;
+    holdReviewArmed=false;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
