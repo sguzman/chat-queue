@@ -340,9 +340,17 @@ async function main(){
     assert.deepEqual(aria.unlabeled,[],
       'Every visible actionable HUD element needs an accessible name');
     qaStage='toggle';
+    assert.deepEqual(await driver.executeScript(() => {
+      const b=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle');
+      return {controls:b.getAttribute('aria-controls'),
+        expanded:b.getAttribute('aria-expanded')};
+    }),{controls:'body status',expanded:'true'},
+    'The expanded queue control must name its controlled regions');
     const toggle=await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle')");
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),true);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle').getAttribute('aria-expanded')"),'false',
+      'Keyboard collapse must announce collapsed state');
     await driver.executeScript(() => {
       const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
       window.__qaCollapsedRow=sh.querySelector('.item:first-child');
@@ -356,6 +364,8 @@ async function main(){
       true,'Collapsed status changes must avoid replacing hidden queue rows');
     await toggle.sendKeys(Key.ENTER);
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('body').hidden"),false);
+    assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle').getAttribute('aria-expanded')"),'true',
+      'Keyboard expansion must announce expanded state');
     await driver.executeScript(`const el=${jsEl('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='light'"),5000);
     const lightToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
@@ -385,10 +395,14 @@ async function main(){
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),15000);
     assert.equal(await driver.executeScript(`return ${jsEl('body')}.hidden`),true);
+    assert.equal(await driver.executeScript(`return ${jsEl('toggle')}.getAttribute('aria-expanded')`),'false',
+      'Restored collapsed layout must retain its accessible state');
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),movedRight);
     const reset=await driver.executeScript(`return ${jsEl('reset')}`);
     await reset.click();
     assert.equal(await driver.executeScript(`return ${jsEl('body')}.hidden`),false);
+    assert.equal(await driver.executeScript(`return ${jsEl('toggle')}.getAttribute('aria-expanded')`),'true',
+      'Reset must restore the expanded accessible state');
     assert.equal(await driver.executeScript("return document.querySelector('#chat-queue-extension-root').style.right"),'20px');
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'2 queued');
     await driver.executeScript("document.documentElement.dataset.chatSignalsState='finished'");
