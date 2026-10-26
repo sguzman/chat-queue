@@ -368,6 +368,51 @@ async function main(){
     'Keyboard Cancel must retain item context and discard unsaved edits');
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
 
+    qaStage='keyboard-save-focus-after-async-persistence';
+    // Save traverses two serialized storage/render boundaries before closing
+    // the editor. A keyboard user should land on the same item's Edit
+    // button, not the document body or an unrelated queue item.
+    const editAgain=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Edit message"]'));
+    await editAgain.sendKeys(Key.ENTER);
+    const savedEditor=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child textarea[aria-label="Edit queued message"]'));
+    await savedEditor.sendKeys(' - saved edit');
+    const saveEdit=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Save edit"]'));
+    await saveEdit.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript((expected)=>{
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=sh.querySelector('.item:first-child');
+      return row.querySelector('.preview')?.textContent===expected &&
+        sh.activeElement===row.querySelector('button[aria-label="Edit message"]');
+    },originalFirst+' - saved edit'),9000);
+    // Undo the saved text using the same keyboard edit/Save lifecycle, so
+    // subsequent ordering assertions see the exact original fixture.
+    const reopen=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Edit message"]'));
+    await reopen.sendKeys(Key.ENTER);
+    const undoEditor=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child textarea[aria-label="Edit queued message"]'));
+    await undoEditor.clear();
+    await undoEditor.sendKeys(originalFirst);
+    const restoreSave=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Save edit"]'));
+    await restoreSave.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(expected=>{
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=sh.querySelector('.item:first-child');
+      return row.querySelector('.preview')?.textContent===expected &&
+        sh.activeElement===row.querySelector('button[aria-label="Edit message"]');
+    },originalFirst),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='accessible-names-and-live-status';
     const aria=await driver.executeScript(() => {
       const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
