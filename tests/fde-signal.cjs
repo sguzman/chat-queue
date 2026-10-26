@@ -43,9 +43,23 @@ function prepareQueue(dir,source){
       version:1,rules:[{version:1,id:'synthetic-followup',enabled:true,
         priority:50,when:{phase:'finished'},
         then:{type:'propose',text:'Synthetic approved follow-up'}}]
-    }});`);
+    }});
+    // QA-only, real temporary Firefox extension lifecycle reload. Only the
+    // loopback disposable test page can request it, never production pages.
+    browser.runtime.onMessage.addListener((message,sender)=>{
+      if(message?.type!=='qa-addon-reload'||
+         !sender.tab?.url?.startsWith('http://127.0.0.1:'))return;
+      setTimeout(()=>browser.runtime.reload(),180);
+      return Promise.resolve({ok:true});
+    });`);
   fs.writeFileSync(path.join(dir,'qa-rule-config-change.js'),`
     document.documentElement.dataset.qaRuleMutationReady='yes';
+    window.addEventListener('message',event=>{
+      if(event.source!==window||event.data?.kind!=='qa-addon-reload')return;
+      browser.runtime.sendMessage({type:'qa-addon-reload'})
+        .then(reply=>{if(reply?.ok)document.documentElement.dataset.qaAddonReloadAck='yes';})
+        .catch(()=>{});
+    });
     window.addEventListener('message',event=>{
       if(event.source!==window||event.data?.kind!=='qa-change-rule-config')return;
       const phase=['failed','interrupted','limit'].includes(event.data.phase)
@@ -1842,8 +1856,15 @@ async function main(){
     await waitSends(1);
     await emit('generating',1,931,'observed','fresh','/c/durable-orphan');
     await waitNote('Waiting for confirmed response completion');
-    // Browser-owned tab removal releases volatile OWNERS, not the durable
-    // marker for a potentially accepted Send.
+    // Force an ACTUAL Firefox temporary add-on reload while its previous
+    // Send is unresolved. This destroys the current event page and restores
+    // the add-on from manifest scripts without deleting local storage.
+    await driver.executeScript("window.postMessage({kind:'qa-addon-reload'},'*')");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaAddonReloadAck==='yes'"),9000);
+    await driver.sleep(1000);
+    // Browser-owned tab removal also clears any remaining volatile owner;
+    // neither event-page reload nor tab closure may erase its durable hold.
     await driver.close();
     await driver.switchTo().window(tabBeforeDurableOwner);
     await driver.switchTo().newWindow('tab');
