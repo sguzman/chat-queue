@@ -29,6 +29,10 @@
   // state frame from its predecessor cannot release the successor's Send lease.
   // Legacy synthetic browser fixtures do not opt in and remain test-only.
   const STRICT_STATE_REGISTRATIONS = new Set();
+  // Per-document freshness guard, not a page-visible or peer API credential.
+  const matchingRegistration=(tabId,message)=>Boolean(
+    REGISTRATIONS.get(tabId)&&(!STRICT_STATE_REGISTRATIONS.has(tabId)||
+      message.registrationGeneration===REGISTRATIONS.get(tabId)));
   let nextRegistration=0;
   // An earlier asynchronous tabs.get() must not reinstate a superseded
   // registration after a newer document or route has registered this tab.
@@ -181,6 +185,8 @@
     if (!/^https:\/\/chatgpt\.com\//.test(sender.url || tab.url || '')) return;
     if (message.action === 'register') {
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
+      if(message.registrationVersion!==undefined&&message.registrationVersion!==2)
+        return Promise.resolve({ok:false,error:'unsupported-registration-version'});
       const attempt=++nextRegisterAttempt;
       REGISTER_ATTEMPTS.set(tab.id,{attempt,route:message.route});
       return currentRoute(sender).then(live=>{
@@ -204,6 +210,8 @@
       });
     }
     if(message.action==='sync-provider'){
+      if(!matchingRegistration(tab.id,message))
+        return Promise.resolve({ok:false,error:'stale-registration'});
       // A verified provider resample is requested only once the receiving
       // content script has initialized, never inside register(). That way
       // a valid Signal cannot arrive before the content listener can accept it.
@@ -213,6 +221,8 @@
       return currentRoute(sender).then(live=>{
         if(live!==message.route||ROUTES.get(tab.id)!==message.route||
            !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
+        if(!matchingRegistration(tab.id,message))
+          return {ok:false,error:'stale-registration'};
         syncVerifiedProvider(tab.id,message.route);
         return {ok:true};
       });
@@ -223,6 +233,8 @@
       const conversationId=signalContract.assignedConversationId(message.route);
       if(!conversationId)
         return Promise.resolve({ok:false,error:'conversation-not-assigned'});
+      if(!matchingRegistration(tab.id,message))
+        return Promise.resolve({ok:false,error:'stale-registration'});
       // A restarted event page has no provider registration. A previously
       // observed content-script Signal cannot authorize a new Send by itself.
       const last=SIGNALS.get(tab.id);
@@ -295,6 +307,8 @@
       // A same-route reload is still a new principal: its old in-flight
       // release/review must not clear the new document's durable Send hold.
       const generation=REGISTRATIONS.get(tab.id);
+      if(!matchingRegistration(tab.id,message))
+        return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(live=>{
         if(live!==message.route||ROUTES.get(tab.id)!==message.route||
            !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
