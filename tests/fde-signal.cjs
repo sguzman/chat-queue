@@ -1866,7 +1866,7 @@ async function main(){
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
-    if(qaStage.startsWith('rapid-')&&driver){
+    if((qaStage.startsWith('rapid-')||qaStage==='trusted-edit-after-send-click'||qaStage==='orphaned-durable-uncertain-journal-after-tab-closure')&&driver){
       try{diagnostics=JSON.stringify(await driver.executeScript(() => ({
         sent:window.__sent?.length,acks:window.__acks?.map(x=>({sequence:x.sequence,ok:x.result?.ok})),
         status:document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('status')?.textContent,
