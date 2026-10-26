@@ -258,6 +258,10 @@ function prepareQueue(dir,source){
     "if(globalThis.__qaFileChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===60){globalThis.__qaEditorChecks=(globalThis.__qaEditorChecks||0)+1;"+
     "if(globalThis.__qaEditorChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
+    // A real human edits a different field AFTER composer insertion but
+    // BEFORE the final browser-owned Send permission returns.
+    "        if(message.sequence===62){globalThis.__qaOtherFieldChecks=(globalThis.__qaOtherFieldChecks||0)+1;"+
+    "if(globalThis.__qaOtherFieldChecks===3)await new Promise(resolve=>setTimeout(resolve,2100));}\n"+
     "        if(live!==message.route||SIGNALS.get(tab.id)!==last||");
   fs.writeFileSync(bgPath,bg);
 }
@@ -605,6 +609,55 @@ async function main(){
     assert.equal(await driver.executeScript(
       "return document.querySelector('#qa-post-click-file').files.length"),1,
       "The user-selected attachment must remain untouched");
+    await driver.switchTo().window(priorTrustedRaceTab);
+
+    // A user can shift focus to a DIFFERENT text field in the same
+    // document while Queue awaits sealed browser authorization. The queued
+    // composer text remains byte-for-byte unchanged, so inspecting only its
+    // input listeners would miss the trusted human interaction. No click is
+    // allowed after this unrelated, genuine Firefox keyboard activity.
+    qaStage='trusted-unrelated-field-edit-blocks-preclick';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/unrelated-edit');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(
+      `const d=${hud('draft')};d.value='Synthetic queued text must not Send after another edit';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(()=>{
+      const other=document.createElement('input');
+      other.type='text';other.id='qa-unrelated-human-field';
+      document.querySelector('main').append(other);
+      window.__qaOtherInputTrusted=0;
+      other.addEventListener('input',event=>{
+        if(event.isTrusted)window.__qaOtherInputTrusted++;
+      });
+    });
+    await emit('idle',0,62,'observed','fresh','/c/unrelated-edit');
+    await waitNote('Signal: idle');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText===" +
+      "'Synthetic queued text must not Send after another edit'"),10000);
+    await (await driver.findElement(By.id('qa-unrelated-human-field'))).sendKeys('Real human typing');
+    assert.ok(await driver.executeScript('return window.__qaOtherInputTrusted')>0,
+      'Unrelated input must be a browser-trusted edit, not page-dispatched synthetic input');
+    await waitNote('Dispatch context changed; no send attempted');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A trusted edit outside the composer cancels a pending Send');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('qa-unrelated-human-field').value"),'Real human typing');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText"),
+      'Synthetic queued text must not Send after another edit');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    await emit('idle',0,63,'observed','fresh','/c/unrelated-edit');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Subsequent ready evidence cannot resurrect a human-interrupted Send');
     await driver.switchTo().window(priorTrustedRaceTab);
 
     qaStage='trusted-user-edit-race';
