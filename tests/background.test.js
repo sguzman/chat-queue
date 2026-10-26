@@ -51,6 +51,10 @@ test('production content never drops the versioned registration contract',()=>{
     'state, hold status/release/review and provider sync must keep current generation');
   assert.match(content,/state[.]registrationGeneration===attemptRegistration/,
     'the original Send attempt cannot inherit a later registration');
+  assert.equal(content.includes('Number.isSafeInteger(registration.registrationGeneration)'),false,
+    'SPA project navigation must not reject valid UUID registration as an integer');
+  assert.equal((content.match(/validRegistrationGeneration[(](?:answer|response|registration)[.]registrationGeneration[)]/g)||[]).length,3,
+    'initial registration, event-page recovery and SPA re-registration must all validate UUIDs');
 });
 
 test('versioned state rejects a predecessor document after same-route re-registration',async()=>{
