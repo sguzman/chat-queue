@@ -140,9 +140,9 @@ process.exit(0);
     [path.join(temp,'scripts/sign-unlisted.mjs')],
     {cwd:temp,env,encoding:'utf8',timeout:15000});
   assert.notEqual(refusedFile.status,0);
-  assert.match(refusedFile.stderr,/Unapproved or unreadable signing source: src\\/core[.]js/);
+  assert.match(refusedFile.stderr,/Unapproved or unreadable signing source: src\/core[.]js/);
   assert.doesNotMatch(refusedFile.stdout+refusedFile.stderr,/SYNTHETIC_PRIVATE_MUST_NOT_BE_PACKAGED/);
-  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse)
+  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse)
     .map(o=>o.phase),['check'],'No lint or sign after unsafe source');
   fs.rmSync(sourceFile);fs.writeFileSync(sourceFile,originalCore);
 
@@ -156,7 +156,7 @@ process.exit(0);
     {cwd:temp,env,encoding:'utf8',timeout:15000});
   assert.notEqual(refusedDirectory.status,0);
   assert.match(refusedDirectory.stderr,/Unsafe signing source directory: src/);
-  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse)
+  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse)
     .map(o=>o.phase),['check']);
  }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
