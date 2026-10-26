@@ -241,7 +241,20 @@ async function main(){
    await driver.uninstallAddon(installedProvider);
    await driver.uninstallAddon(installed);
  }catch(error){
-   throw new Error(stage+': '+error.message);
+   let diagnosis='';
+   if(driver){
+     try{diagnosis=JSON.stringify(await driver.executeScript(() => ({
+       hud:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+         ?.getElementById('status')?.textContent?.slice(-175)||null,
+       count:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+         ?.getElementById('count')?.textContent||null,
+       sent:window.__sent??null,
+       publisherReady:document.documentElement.dataset.qaProviderReady||null,
+       signalAcks:window.__signalReplies?.map(x=>({
+         sequence:x.sequence,ok:x.result?.ok,error:x.result?.error}))||[]
+     })));}catch{}
+   }
+   throw new Error(stage+': '+error.message+(diagnosis?' meta='+diagnosis:''));
  }finally{
    if(driver)await driver.quit();
    await new Promise(resolve=>server.close(resolve));
