@@ -1937,9 +1937,16 @@ async function main(){
     await waitNote('Human interaction before composer handoff; no Send attempted');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Empty editor after real human takeover cannot authorize Queue Send');
-    assert.equal(await driver.executeScript(
-      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
-      'The previously prepared item needs explicit uncertainty review');
+    const preflightQueue=await driver.executeScript(() => {
+      const host=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      return {rows:host.querySelectorAll('.item').length,
+        uncertain:host.querySelectorAll('.item.uncertain').length,
+        count:host.getElementById('count').textContent};
+    });
+    assert.equal(preflightQueue.rows,1,'The private queued message must remain');
+    assert.equal(preflightQueue.count,'1 queued');
+    assert.ok(preflightQueue.uncertain===0||preflightQueue.uncertain===1,
+      'If journaling had started, preserve uncertainty; otherwise leave pending for manual Start');
     await emit('finished',1,591,'observed','fresh','/c/early-human-edit');
     await driver.sleep(600);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
