@@ -26,6 +26,29 @@
   // Volatile one-dispatch-owner-per-conversation gate. Lost with the event
   // page: a restarted page must re-validate the provider before reacquiring.
   const OWNERS = new Map();
+  // Persistent, metadata-only Send arbitration survives event-page shutdown.
+  // This namespace never contains a queued prompt, history, provider token,
+  // extension peer ID or page content. Unknown versions always block Send.
+  const HOLD_PREFIX='chatqueue:send-hold:v1:';
+  const HOLD_ID=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
+  const HOLD_OPS=new Map();
+  const holdKey=id=>HOLD_PREFIX+id;
+  const validHold=(record,conversationId)=>Boolean(record&&
+    record.version===1&&Number.isInteger(record.tabId)&&record.tabId>=0&&
+    typeof record.route==='string'&&
+    signalContract.assignedConversationId(record.route)===conversationId&&
+    typeof record.holdId==='string'&&HOLD_ID.test(record.holdId)&&
+    Object.keys(record).every(key=>['version','tabId','route','holdId'].includes(key)));
+  const sameHold=(record,tabId,route,holdId)=>Boolean(record&&
+    record.tabId===tabId&&record.route===route&&record.holdId===holdId);
+  function serializedHold(conversationId,callback){
+    const prior=HOLD_OPS.get(conversationId)||Promise.resolve();
+    const next=prior.catch(()=>{}).then(callback);
+    HOLD_OPS.set(conversationId,next);
+    void next.then(()=>{if(HOLD_OPS.get(conversationId)===next)HOLD_OPS.delete(conversationId);},
+      ()=>{if(HOLD_OPS.get(conversationId)===next)HOLD_OPS.delete(conversationId);});
+    return next;
+  }
   function releaseOwner(tabId,keepConversationId=null){
     for(const [conversationId,id] of OWNERS)
       if(id===tabId&&conversationId!==keepConversationId)OWNERS.delete(conversationId);
@@ -186,19 +209,59 @@
          last.epoch!==message.epoch || last.sequence!==message.sequence ||
          !signalContract.ready(last,message.route))
         return Promise.resolve({ok:false,error:'signal-authority-lost'});
-      return currentRoute(sender).then(live=>{
-        if(live!==message.route || SIGNALS.get(tab.id)!==last ||
-           ROUTES.get(tab.id)!==message.route || !TABS.has(tab.id))
+      return currentRoute(sender).then(async live=>{
+        if(live!==message.route||SIGNALS.get(tab.id)!==last||
+           ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
           return {ok:false,error:'route-or-signal-changed'};
-        // Different assigned URL shapes with the same conversation ID are
-        // potential aliases. Deny a second concurrent owner, while keeping
-        // route/document/epoch authority exact for the current tab.
-        const owner=OWNERS.get(conversationId);
-        if(owner!==undefined&&owner!==tab.id)
-          return {ok:false,error:'conversation-owned-by-another-tab'};
-        // The claim is synchronous after the browser-owned route check.
-        OWNERS.set(conversationId,tab.id);
-        return {ok:true};
+        const stage=message.stage??'probe';
+        if(!['probe','reserve','sealed'].includes(stage)||
+           (stage!=='probe'&&(!HOLD_ID.test(message.holdId||''))))
+          return {ok:false,error:'invalid-dispatch-stage'};
+        return serializedHold(conversationId,async()=>{
+          const key=holdKey(conversationId);
+          let record;
+          try{record=(await api.storage.local.get(key))[key];}
+          catch{return {ok:false,error:'send-hold-storage-unavailable'};}
+          if((await currentRoute(sender))!==message.route||
+             SIGNALS.get(tab.id)!==last||
+             ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
+            return {ok:false,error:'route-or-signal-changed'};
+          if(record!==undefined&&
+             (!validHold(record,conversationId)||
+              !sameHold(record,tab.id,message.route,message.holdId)))
+            return {ok:false,error:'unresolved-durable-send'};
+          const owner=OWNERS.get(conversationId);
+          if(owner!==undefined&&owner!==tab.id)
+            return {ok:false,error:'conversation-owned-by-another-tab'};
+          if(stage==='sealed'){
+            if(record===undefined)return {ok:false,error:'durable-send-hold-missing'};
+            OWNERS.set(conversationId,tab.id);
+            return {ok:true};
+          }
+          if(stage==='reserve'){
+            // The content script persisted its uncertain private queue item
+            // BEFORE this stage. Commit ONLY bounded metadata before the
+            // first composer insertion; no Send if this storage write fails.
+            if(record===undefined){
+              try{
+                await api.storage.local.set({[key]:{
+                  version:1,tabId:tab.id,route:message.route,holdId:message.holdId
+                }});
+                record=(await api.storage.local.get(key))[key];
+              }catch{return {ok:false,error:'send-hold-storage-unavailable'};}
+              if(!validHold(record,conversationId)||
+                 !sameHold(record,tab.id,message.route,message.holdId))
+                return {ok:false,error:'send-hold-not-persisted'};
+            }
+            if((await currentRoute(sender))!==message.route||
+               SIGNALS.get(tab.id)!==last||
+               ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
+              return {ok:false,error:'route-or-signal-changed'};
+          }
+          // The volatile claim is synchronized after ALL async reads/writes.
+          OWNERS.set(conversationId,tab.id);
+          return {ok:true};
+        });
       });
     }
     if (message.action === 'state') {
