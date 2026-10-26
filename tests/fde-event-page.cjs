@@ -67,9 +67,22 @@ async function main(){
    fs.writeFileSync(path.join(root,'qa-startup.js'),[
      "void browser.storage.local.get('qa:eventpage-boot-count').then(v=>",
      "browser.storage.local.set({'qa:eventpage-boot-count':",
-     "(v['qa:eventpage-boot-count']||0)+1}));"
+     "(v['qa:eventpage-boot-count']||0)+1}));",
+     "browser.runtime.onMessage.addListener((message,sender)=>{",
+     "if(message?.type==='qa-keepalive'&&",
+     "sender.tab?.url?.startsWith('http://127.0.0.1:'))return Promise.resolve({ok:true});",
+     "});"
    ].join(''));
    fs.writeFileSync(path.join(root,'qa-monitor.js'),[
+     "let qaKeepaliveTimer=null;",
+     "window.addEventListener('message',event=>{",
+     "if(event.source!==window||event.data?.kind!=='qa-keepalive')return;",
+     "if(event.data.active!==true){clearInterval(qaKeepaliveTimer);qaKeepaliveTimer=null;return;}",
+     "if(qaKeepaliveTimer!==null)return;",
+     "qaKeepaliveTimer=setInterval(()=>{",
+     "void browser.runtime.sendMessage({type:'qa-keepalive'}).catch(()=>{});",
+     "},250);",
+     "});",
      "window.addEventListener('message',event=>{",
      "if(event.source!==window||event.data?.kind!=='qa-boot-read')return;",
      "const nonce=event.data.nonce;",
@@ -215,6 +228,10 @@ async function main(){
      await driver.wait(async()=>await driver.executeScript(
        `return ${hud('status')}.textContent.includes('Signal: idle')`),8000);
    };
+   // Only AFTER proving a true idle suspension, keep the QA event page
+   // awake during this separate publisher-authorized dispatch arbitration.
+   await driver.executeScript(
+     'window.postMessage({kind:"qa-keepalive",active:true},"*")');
    await emitIdle();
    await driver.executeScript(`return ${hud('run')}.click()`);
    await driver.wait(async()=>await driver.executeScript(
@@ -236,6 +253,8 @@ async function main(){
      'return window.__sent===1'),12000);
    assert.equal(await driver.executeScript('return window.__sent'),1,
      'only an explicit new Start is authorized after review');
+   await driver.executeScript(
+     'window.postMessage({kind:"qa-keepalive",active:false},"*")');
    console.log('FDE real event-page idle with metadata Send hold:',heldBoot,
      'to',heldRestart,'; authenticated competing Send refused until explicit review');
    await driver.uninstallAddon(installedProvider);
