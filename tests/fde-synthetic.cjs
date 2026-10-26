@@ -313,6 +313,43 @@ async function main(){
     await upAfterLowerDrop.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    qaStage='keyboard-edit-cancel-focus';
+    // Editing a row rebuilds its buttons. Keyboard activation must hand
+    // focus directly to the new textarea; Cancel must restore focus to the
+    // same item's Edit button and discard the unsaved text.
+    const originalFirst=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child .preview')?.textContent);
+    const firstEdit=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Edit message"]'));
+    await firstEdit.sendKeys(Key.ENTER);
+    await driver.wait(async()=>await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const editor=sh.querySelector('.item:first-child textarea[aria-label="Edit queued message"]');
+      return Boolean(editor && sh.activeElement===editor);
+    }),6000);
+    const unsavedEditor=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child textarea[aria-label="Edit queued message"]'));
+    await unsavedEditor.sendKeys(' - unsaved edit');
+    const cancelEdit=await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item:first-child button[aria-label="Cancel edit"]'));
+    await cancelEdit.sendKeys(Key.ENTER);
+    assert.deepEqual(await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const row=sh.querySelector('.item:first-child');
+      return {
+        preview:row.querySelector('.preview')?.textContent,
+        active:sh.activeElement?.getAttribute('aria-label'),
+        sameRow:row.contains(sh.activeElement),
+        editing:!!row.querySelector('textarea')
+      };
+    }),{preview:originalFirst,active:'Edit message',sameRow:true,editing:false},
+    'Keyboard Cancel must retain item context and discard unsaved edits');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='accessible-names-and-live-status';
     const aria=await driver.executeScript(() => {
       const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
