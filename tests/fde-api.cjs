@@ -791,6 +791,23 @@ async function main(){
     'late old-document frame cannot replace live state');
   assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
+  // A legacy document cannot downgrade the v2 registry even if its route
+  // and tab match. This exercises the real Firefox content-message principal.
+  stage='native-firefox-versioned-registration-downgrade';
+  const downgradeNonce=++nonce;
+  await driver.executeScript((id,message)=>
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*'),
+    downgradeNonce,{type:'chat-queue-internal/v1',action:'register',
+      route:'/c/synthetic'});
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    downgradeNonce),8000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.error',
+    downgradeNonce),'registration-downgrade-denied');
+  assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true,
+    'rejected downgrade retains the fresh registration state');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
 
   stage='stale-forward-rejection-preserves-new-registration';
   const staleForwardNonce=++nonce;
