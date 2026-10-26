@@ -56,6 +56,15 @@ function createQueue(dest,root){
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    statusBoundary);
+ // QA-only: suspend Rules preview after its initial persisted scope read.
+ // Production does not accept qaHoldRules or inject a delay.
+ const previewBoundary="    if (message.action === 'previewRules') {";
+ assert.equal(bg.split(previewBoundary).length,2);
+ bg=bg.replace(previewBoundary,
+   "    if(message.action==='previewRules'&&message.payload?.qaHoldRules===true){"+
+   "globalThis.__qaRulesPreviewHoldEntered=true;"+
+   "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
+   previewBoundary);
  // QA-only: suspend one failed old peer forward until a new registration.
  const forwardBoundary="      const reply=await api.tabs.sendMessage(message.tabId, {";
  assert.equal(bg.split(forwardBoundary).length,2);
@@ -117,6 +126,8 @@ function createQueue(dest,root){
  browser.storage.local.set({[${JSON.stringify(grantsKey)}]:${JSON.stringify(initialPolicy)}});
  browser.runtime.onMessage.addListener((msg,sender)=>{
    if(!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
+   if(msg?.type==='qa-preview-hold-state')
+     return Promise.resolve({ok:true,entered:globalThis.__qaRulesPreviewHoldEntered===true});
    if(msg?.type==='qa-old-forward-state')
      return Promise.resolve({ok:true,entered:globalThis.__qaOldForwardEntered===true});
    if(msg?.type==='qa-old-forward-release'){
@@ -251,6 +262,49 @@ async function main(){
   assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.route),false);
   assert.equal(JSON.stringify(result.audit).includes(syntheticSignal.documentToken),false);
   assert.equal(await driver.executeScript('return window.__sent'),0);
+  stage='native-silent-Rules-revocation-before-preview';
+  const holdPreview=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-api-request",nonce:arguments[0],request:{type:"chat-queue/v1",action:"previewRules",payload:{rules:[arguments[1]],signal:arguments[2],qaHoldRules:true}}},"*")',
+    holdPreview,syntheticRule,syntheticSignal);
+  const pollMetadata=async message=>{
+    const i=++nonce;
+    await driver.executeScript(
+      'window.postMessage({kind:"qa-meta-send",nonce:arguments[0],message:arguments[1]},"*")',
+      i,message);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__metadataResults.some(x=>x.nonce===arguments[0])',i),5000);
+    return driver.executeScript(
+      'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result',i);
+  };
+  await driver.wait(async()=>(await pollMetadata({
+    type:'qa-preview-hold-state'}))?.entered===true,8000);
+  const revokePreview=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set-silent",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append"]}}},"*")',
+    revokePreview,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    revokePreview),10000);
+  assert.equal(await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result.ok',
+    revokePreview),true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',
+    holdPreview),10000);
+  assert.equal(await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result.error',
+    holdPreview),'authorization-changed');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  const restorePreview=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","rules"]}}},"*")',
+    restorePreview,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    restorePreview),10000);
+  assert.equal((await command({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[syntheticRule],signal:syntheticSignal}})).ok,true);
   stage='scoped-persistent-rules';
   const firstLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
   assert.equal(firstLibrary.ok,true);
