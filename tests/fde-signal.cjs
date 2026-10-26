@@ -551,7 +551,7 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await emit('idle',0,583,'observed','fresh','/c/post-click-user');
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Unconfirmed human-interrupted click retains cross-tab Send ownership');
     await driver.switchTo().window(unconfirmedClickOwner);
@@ -839,7 +839,7 @@ async function main(){
     const crossRouteContender=await driver.getWindowHandle();
     await emit('idle',0,72,'observed','fresh',alternateRoute);
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
     assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
@@ -1616,7 +1616,7 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await emit('idle',0,560,'observed','fresh','/c/accepted-journal-fail');
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Uncertain accepted-history write must retain cross-tab owner lease');
     await driver.switchTo().window(uncertainOwnerWindow);
@@ -1649,7 +1649,7 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await emit('idle',0,561,'observed','fresh','/c/accepted-journal-fail');
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Rejected uncertain resolution cannot free another tab to Send');
     await driver.switchTo().window(ownerWindowAfterRejectedDiscard);
@@ -1674,7 +1674,7 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await emit('idle',0,563,'observed','fresh','/c/accepted-journal-fail');
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Attributable completion cannot free a rejected-history uncertain Send');
     await driver.switchTo().window(finishedUncertainOwnerWindow);
@@ -1730,7 +1730,7 @@ async function main(){
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await emit('idle',0,623,'observed','fresh','/c/accepted-journal-fail');
     await driver.executeScript(`return ${hud('run')}.click()`);
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Unknown provider cannot free the previous uncertain Send lease');
     await driver.switchTo().window(lostProviderOwner);
