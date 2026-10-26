@@ -12,8 +12,10 @@ const firefox=require('selenium-webdriver/firefox');
 const page='<!doctype html><html><body><main><form>'+
   '<div id="prompt-textarea" contenteditable="true"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
-  '</form></main><script>window.__sent=0;window.__bootReplies=[];'+
-  'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data)})</script>'+
+  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];'+
+  'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data);'+
+  'if(e.data?.kind==="qa-hold-reply")window.__holdReplies.push(e.data);'+
+  'if(e.data?.kind==="qa-signal-reply")window.__signalReplies.push(e.data)})</script>'+
   '</body></html>';
 
 async function main(){
@@ -21,6 +23,7 @@ async function main(){
  if(!binary||!path.isAbsolute(binary)||!fs.existsSync(binary))
    throw Error('FDE_BINARY must identify Firefox Developer Edition');
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-event-page-'));
+ const providerRoot=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-idle-provider-'));
  const src=path.resolve(__dirname,'..');
  const server=http.createServer((_req,res)=>{
    res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(page);
@@ -75,9 +78,36 @@ async function main(){
      "count:v['qa:eventpage-boot-count']||0},'*'));",
      "});"
    ].join(''));
+   // Minimal genuine SECOND add-on that authenticates as Chat Signals.
+   // It never reads Queue storage or accesses the production ChatGPT origin.
+   const providerId='chat-signals@sguzman.github';
+   fs.writeFileSync(path.join(providerRoot,'manifest.json'),JSON.stringify({
+     manifest_version:3,name:'Synthetic Signal idle QA',version:'1.0',
+     browser_specific_settings:{gecko:{id:providerId}},
+     background:{scripts:['background.js']},
+     content_scripts:[{matches:['http://127.0.0.1/*'],
+       js:['content.js'],run_at:'document_idle'}]
+   }));
+   fs.writeFileSync(path.join(providerRoot,'background.js'),`
+     browser.runtime.onMessage.addListener((message,sender)=>{
+       if(message?.type!=='qa-signal'||!Number.isInteger(sender.tab?.id))return;
+       return browser.runtime.sendMessage('chat-queue-eventpage-qa@sguzman.github',{
+         type:'chat-queue-signal/v1',tabId:sender.tab.id,signal:message.signal});
+     });`);
+   fs.writeFileSync(path.join(providerRoot,'content.js'),`
+     document.documentElement.dataset.qaProviderReady='true';
+     window.addEventListener('message',event=>{
+       if(event.source!==window||event.data?.kind!=='qa-signal')return;
+       const signal=event.data.signal;
+       browser.runtime.sendMessage({type:'qa-signal',signal})
+         .then(result=>window.postMessage({kind:'qa-signal-reply',
+           sequence:signal.sequence,result},'*'))
+         .catch(()=>window.postMessage({kind:'qa-signal-reply',
+           sequence:signal.sequence,result:{ok:false}},'*'));
+     });`);
    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
    const options=new firefox.Options().setBinary(binary).addArguments('-headless')
-     .setPreference('extensions.background.idle.timeout',1);
+     .setPreference('extensions.background.idle.timeout',2);
    driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
    const installed=await driver.installAddon(root,true);
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
@@ -134,6 +164,7 @@ async function main(){
    if(driver)await driver.quit();
    await new Promise(resolve=>server.close(resolve));
    fs.rmSync(root,{recursive:true,force:true});
+   fs.rmSync(providerRoot,{recursive:true,force:true});
  }
 }
 main().catch(error=>{console.error('FDE event-page QA failed:',error.message);process.exitCode=1});
