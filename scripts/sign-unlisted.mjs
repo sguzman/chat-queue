@@ -51,9 +51,28 @@ try{
     if(typeof rel!=='string'||!/^(manifest\.json|(?:src|options)\/[a-z0-9-]+\.(?:js|html))$/.test(rel))
       throw Error('Unapproved signing source: '+String(rel));
     const from=path.join(root,rel),to=path.join(stage,rel);
-    if(!fs.statSync(from).isFile())throw Error('Missing signing source: '+rel);
-    fs.mkdirSync(path.dirname(to),{recursive:true});
-    fs.copyFileSync(from,to);
+    // A symlinked allowlisted script could otherwise copy unrelated private
+    // bytes into the uploaded XPI. Check every source directory, then open
+    // the exact file once without following final-component symlinks.
+    for(const part of rel.split('/').slice(0,-1)){
+      const dir=path.join(root,part);
+      const st=fs.lstatSync(dir);
+      if(!st.isDirectory()||st.isSymbolicLink())
+        throw Error('Unsafe signing source directory: '+part);
+    }
+    let fd;
+    try{
+      fd=fs.openSync(from,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+      if(!fs.fstatSync(fd).isFile())
+        throw Error('Not a regular signing source');
+      fs.mkdirSync(path.dirname(to),{recursive:true});
+      fs.writeFileSync(to,fs.readFileSync(fd),{flag:'wx',mode:0o600});
+    }catch{
+      // Do not print system paths or source bytes in public failure logs.
+      throw Error('Unapproved or unreadable signing source: '+rel);
+    }finally{
+      if(fd!==undefined)fs.closeSync(fd);
+    }
   }
   fs.mkdirSync(artifacts,{recursive:true});
   const runner=['exec','--yes','--package=web-ext@10.8.0','--','web-ext'];
