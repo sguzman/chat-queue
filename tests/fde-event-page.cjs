@@ -258,12 +258,16 @@ async function main(){
        const ack=await driver.executeScript(
          'return window.__signalReplies.find(x=>x.sequence===arguments[0]).result',sequence);
        if(ack?.ok){
-         await driver.wait(async()=>await driver.executeScript(
-           `return ${hud('status')}.textContent.includes('Signal: idle')`),8000);
-         return;
+         // A successful provider callback can still be superseded by an
+         // immediate event-page restart. That is not fresh Send authority.
+         const idle=await driver.wait(async()=>await driver.executeScript(
+           `return ${hud('status')}.textContent.includes('Signal: idle')`),
+           2500).catch(()=>false);
+         if(idle)return;
+       }else{
+         assert.equal(ack?.error,'tab-not-registered',
+           'unexpected denial from independent authenticated publisher');
        }
-       assert.equal(ack?.error,'tab-not-registered',
-         'unexpected denial from independent authenticated publisher');
        await driver.navigate().refresh();
        await driver.wait(async()=>await driver.executeScript(
          `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
