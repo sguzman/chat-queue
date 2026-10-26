@@ -56,10 +56,10 @@ async function main(){
     assert.equal(content.split(defaultHeartbeat).length,2);
     content=content.replace(defaultHeartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
     // QA-only registration race: the old route is rejected after a route change.
-    const bootstrapRegister="api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute})";
+    const bootstrapRegister="api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute,registrationVersion:2})";
     assert.equal(content.split(bootstrapRegister).length,2);
     content=content.replace(bootstrapRegister,
-      "(initialRoute==='/c/bootstrap-register-old' ? (document.documentElement.dataset.qaBootstrapRegisterPending='yes', api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute})) : api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute}))");
+      "(initialRoute==='/c/bootstrap-register-old' ? (document.documentElement.dataset.qaBootstrapRegisterPending='yes', api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute,registrationVersion:2})) : api.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route:initialRoute,registrationVersion:2}))");
     // QA-only delayed initial storage tests SPA route changes before HUD mount.
     const bootstrapLoad="api.storage.local.get([state.key,'chatqueue:settings:v1',UI_KEY])";
     assert.equal(content.split(bootstrapLoad).length,2);
