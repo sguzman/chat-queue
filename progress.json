@@ -624,9 +624,9 @@
                   "id": "M4-03",
                   "emoji": "🧷",
                   "title": "Insert exact prompt without invoking unrelated editors",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "fillComposer implementation; React/FDE QA pending"
+                    "Native Firefox Developer Edition with actual independently installed pinned Chat Signals publisher now captures the exact contenteditable text immediately inside the synthetic Send click, before the page clears it. Three-message sequence preserves queued characters including Unicode and leading/trailing spaces (only browser NBSP/CRLF canonicalization), and normal completion remains gated by authenticated provider epochs. A separate adversarial focus listener diverts the composer to a second contenteditable with an existing unrelated draft: production fillComposer refuses insertion before execCommand, the unrelated draft and original composer are untouched, the queued item remains for manual review, and Send count is zero. The production guard additionally checks that the existing selection belongs to the intended focused editor without moving a valid rich-text caret to the container root. Complete FDE and static CI passed: https://github.com/sguzman/chat-queue/actions/runs/40331504782. This verifies synthetic Firefox composer insertion and noninterference; actual authenticated ChatGPT/ProseMirror behavior remains explicitly unverified under M4-06 and M7-04."
                   ]
                 },
                 {
