@@ -40,6 +40,40 @@ function create(persisted={}) {
   return {listeners,forwards,syncRequests,state,context};
 }
 
+test('legacy document cannot downgrade current or pending v2 registration',async()=>{
+  const {listeners,context}=create();
+  const route='/c/strict-version-no-downgrade';
+  const url='https://chatgpt.com'+route;
+  const first={tab:{id:330,url},url};
+  const legacy={type:'chat-queue-internal/v1',action:'register',route};
+  const current={...legacy,registrationVersion:2};
+  const firstAck=await listeners.internal(current,first);
+  assert.equal(firstAck.ok,true);
+  const denied=await listeners.internal(legacy,first);
+  assert.equal(denied.error,'registration-downgrade-denied');
+  const kept=await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    registrationGeneration:firstAck.registrationGeneration,sequence:1,
+    phase:'generating',running:true,awaiting:true},first);
+  assert.equal(kept.ok,true,
+    'a rejected downgrade may not clear the registered v2 document or its state');
+  const peer={tab:{id:331,url},url};
+  const oldGet=context.browser.tabs.get;
+  let finishLookup;
+  context.browser.tabs.get=()=>new Promise(resolve=>{finishLookup=resolve;});
+  const pending=listeners.internal(current,peer);
+  assert.equal(typeof finishLookup,'function');
+  const downgrade=await listeners.internal(legacy,peer);
+  assert.equal(downgrade.error,'registration-downgrade-denied',
+    'a legacy callback cannot replace a versioned registration awaiting browser URL attestation');
+  finishLookup({id:331,url});
+  const accepted=await pending;
+  assert.equal(accepted.ok,true);
+  assert.match(accepted.registrationGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
+  context.browser.tabs.get=oldGet;
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',action:'state',
+    sequence:1,phase:'idle',registrationGeneration:accepted.registrationGeneration},peer)).ok,true);
+});
+
 test('production content never drops the versioned registration contract',()=>{
   const content=fs.readFileSync(require.resolve('../src/content.js'),'utf8');
   const count=word=>content.split(word).length-1;
