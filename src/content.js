@@ -972,8 +972,9 @@
       const attributable=contract.cancelled(state.trusted,state.waiting);
       closeUnfinishedResponse('interrupted');
       state.running=false;
-      statusNote(attributable?'Response cancelled; press Start to continue':
-        'Unattributed response cancellation; press Start to continue');
+      statusNote(attributable
+        ? 'Response cancelled; review prior Send hold before restarting'
+        : 'Unattributed response cancellation; review prior Send hold');
     } else if (state.awaiting && contract.completed(state.trusted,state.waiting)) {
       const uncertainHistory=state.awaitingUncertain;
       state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;state.waiting=null;
