@@ -597,6 +597,9 @@ test('a Send hold contains metadata only and survives event-page restart',async(
   assert.equal((await check('probe')).ok,true);
   assert.equal((await check('reserve')).ok,true);
   assert.equal((await check('sealed')).ok,true);
+  assert.equal((await first.listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route,confirmed:true},tab)).error,'active-send-hold',
+    'explicit review cannot clear another active dispatch owner');
   const key='chatqueue:send-hold:v1:durable-proof';
   assert.deepEqual(Object.keys(first.state[key]).sort(),
     ['holdId','route','tabId','version']);
