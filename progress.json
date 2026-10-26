@@ -633,19 +633,21 @@
                   "id": "M4-04",
                   "emoji": "🔎",
                   "title": "Verify prepared text and enabled Send at dispatch time",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
                     "local exact-text postcondition in src/content.js",
-                    "Native Firefox before-Send guards require a pointer-hittable, semantically text-editable composer and a separately actionable Send control, refusing overlays or hidden/disabled ancestors with zero Send clicks. Full CI: https://github.com/sguzman/chat-queue/actions/runs/40223820479. Authenticated ChatGPT dispatch acceptance pending."
+                    "Native Firefox before-Send guards require a pointer-hittable, semantically text-editable composer and a separately actionable Send control, refusing overlays or hidden/disabled ancestors with zero Send clicks. Full CI: https://github.com/sguzman/chat-queue/actions/runs/40223820479. Authenticated ChatGPT dispatch acceptance pending.",
+                    "Native Firefox Developer Edition with the actual pinned Chat Signals publisher verifies the exact editor text and actionability of the intended Send control after composer insertion, not just at initial discovery. A deliberately enabled Send button is disabled by the synthetic page's actual editor input handler while Queue prepares the message: production findSend refuses the now-disabled button, with zero Send clicks, no payload received by the site's Send handler, one retained queued item, and no automatic replay if the button is re-enabled. This complements the native FDE hidden, inert, transparent, pointer-occluded and disabled-control cases. Full static/native CI passed: https://github.com/sguzman/chat-queue/actions/runs/40337879544. This is synthetic Firefox dispatch-preflight acceptance, NOT live authenticated ChatGPT/ProseMirror delivery (M4-06 and M7-04 remain open)."
                   ]
                 },
                 {
                   "id": "M4-05",
                   "emoji": "👆",
                   "title": "Attempt one Send click, never blindly retry",
-                  "status": "implemented",
+                  "status": "verified",
                   "evidence": [
-                    "src/content.js dispatchOne; browser acceptance pending"
+                    "src/content.js dispatchOne; browser acceptance pending",
+                    "Native Firefox Developer Edition plus the separately installed pinned Chat Signals publisher records exactly one genuine synthetic-page Send button click in an intentionally unconfirmed scenario: the page does not clear its editor or publish a new busy/accepted response epoch. Queue explicitly reports manual review, preserves the clicked item as uncertain and the second item queued, and never issues another click as time passes or after an actual reload. Earlier FDE post-click human edit, provider failure, tab restart, durable Send-hold and manual-retry fixtures also forbid blind retries. Both full CI jobs passed: https://github.com/sguzman/chat-queue/actions/runs/40336822023 and https://github.com/sguzman/chat-queue/actions/runs/40337879544. This certifies guarded synthetic Firefox one-click/no-auto-retry semantics; real ChatGPT network uncertainty/acceptance remains independently open under M7-04."
                   ]
                 },
                 {
