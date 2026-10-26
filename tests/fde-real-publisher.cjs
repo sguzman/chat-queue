@@ -141,7 +141,10 @@ const page=`<!doctype html><html><head><title>Provider Fixture</title></head><bo
 <section id="response-turns"></section></main>
 <script>
 window.__sendCount=0;
+window.__sentPayloads=[];
 document.querySelector('[data-testid="send-button"]').addEventListener('click',()=>{
+  const editor=document.getElementById('prompt-textarea');
+  window.__sentPayloads.push(editor.innerText||editor.textContent||'');
   window.__sendCount++;
   const form=document.querySelector('main form');
   const stop=document.createElement('button');
@@ -292,7 +295,8 @@ async function main(){
     }
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     stage='three-epochs-no-stale-terminal-advancement';
-    for(const [i,text] of ['Synthetic first message','Synthetic second message','Synthetic third message'].entries()){
+    const exactMessages=['Synthetic first message','  Síntesis — العربية 😀  ','Synthetic third message'];
+    for(const [i,text] of exactMessages.entries()){
       await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
       await driver.executeScript(`return ${hud('add')}.click()`);
       await driver.wait(async()=>await driver.executeScript(
@@ -324,6 +328,16 @@ async function main(){
     await driver.sleep(900);
     assert.equal(await driver.executeScript('return window.__sendCount'),3,
       'Two earlier Copy controls cannot finish the third response');
+    // Capture what the actual synthetic Send button read BEFORE its handler
+    // cleared the editor, rather than trusting the queue's own postcondition.
+    // The test includes Unicode plus leading/trailing spaces; normalization
+    // is limited to the exact browser NBSP/CRLF normalization permitted by
+    // the production adapter. These are generated fixture strings only.
+    const submitted=await driver.executeScript(()=>
+      window.__sentPayloads.map(text=>text.replaceAll(String.fromCharCode(160),' ')
+        .replaceAll(String.fromCharCode(13),'')));
+    assert.deepEqual(submitted,exactMessages,
+      'Queue must insert exactly the queued characters into the intended editor');
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}?.textContent.includes('Queue completed')`),13000);
