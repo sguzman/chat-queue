@@ -55,7 +55,10 @@ test('signing implementation confines upload to unlisted channel and allowlisted
  assert.match(script,/source-dir',stage/);
  assert.match(script,/WEB_EXT_API_KEY/);
  assert.match(script,/WEB_EXT_API_SECRET/);
- assert.match(script,/\bfs\.copyFileSync\(from,to\)/);
+ assert.match(script,/O_NOFOLLOW/);
+ assert.match(script,/fs[.]fstatSync[(]fd[)]/);
+ assert.match(script,/fs[.]readFileSync[(]fd[)]/);
+ assert.match(script,/fs[.]writeFileSync[(]to,fs[.]readFileSync[(]fd[)]/);
  assert.doesNotMatch(script,/shell:true/);
  assert.match(script,/key\.startsWith\('WEB_EXT_'\)/);
  assert.match(script,/WEB_EXT_API_KEY:process\.env\.WEB_EXT_API_KEY/);
@@ -121,5 +124,39 @@ process.exit(0);
   assert.equal(observed[2].stagedTests,false);
   assert.equal(observed[2].stagedPrivate,false);
   assert.doesNotMatch(result.stdout+result.stderr,/TEST_CREDENTIAL_ONLY|TEST_SECRET_ONLY/);
+
+  // Attack rehearsal in the same disposable, fully gated fixture. A
+  // manifest-allowlisted symlink must not copy out-of-tree bytes into the
+  // Mozilla submission or even invoke the fake lint/sign commands.
+  const sourceFile=path.join(temp,'src','core.js');
+  const syntheticPrivate=path.join(temp,'synthetic-private-fixture.js');
+  fs.writeFileSync(syntheticPrivate,'SYNTHETIC_PRIVATE_MUST_NOT_BE_PACKAGED');
+  const originalCore=fs.readFileSync(sourceFile);
+  fs.rmSync(sourceFile);
+  fs.symlinkSync(syntheticPrivate,sourceFile);
+  const log=path.join(temp,'observed-signing-processes.jsonl');
+  fs.writeFileSync(log,'');
+  const refusedFile=spawnSync(process.execPath,
+    [path.join(temp,'scripts/sign-unlisted.mjs')],
+    {cwd:temp,env,encoding:'utf8',timeout:15000});
+  assert.notEqual(refusedFile.status,0);
+  assert.match(refusedFile.stderr,/Unapproved or unreadable signing source: src\\/core[.]js/);
+  assert.doesNotMatch(refusedFile.stdout+refusedFile.stderr,/SYNTHETIC_PRIVATE_MUST_NOT_BE_PACKAGED/);
+  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse)
+    .map(o=>o.phase),['check'],'No lint or sign after unsafe source');
+  fs.rmSync(sourceFile);fs.writeFileSync(sourceFile,originalCore);
+
+  // Reject a symlinked source directory as well, even when the individual
+  // allowlisted filename resolves to an ordinary file within that directory.
+  fs.renameSync(path.join(temp,'src'),path.join(temp,'src-fixture'));
+  fs.symlinkSync(path.join(temp,'src-fixture'),path.join(temp,'src'));
+  fs.writeFileSync(log,'');
+  const refusedDirectory=spawnSync(process.execPath,
+    [path.join(temp,'scripts/sign-unlisted.mjs')],
+    {cwd:temp,env,encoding:'utf8',timeout:15000});
+  assert.notEqual(refusedDirectory.status,0);
+  assert.match(refusedDirectory.stderr,/Unsafe signing source directory: src/);
+  assert.deepEqual(fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse)
+    .map(o=>o.phase),['check']);
  }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
