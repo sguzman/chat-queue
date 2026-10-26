@@ -68,7 +68,7 @@ async function main(){
    const watchCheck='++heartbeatTicks>=REGISTRY_HEARTBEAT_TICKS';
    assert.equal(content.split(watchCheck).length,2);
    content=content.replace(watchCheck,
-     "++heartbeatTicks>=(document.documentElement.dataset.qaNormalHeartbeat==='true'?60:REGISTRY_HEARTBEAT_TICKS)");
+     "++heartbeatTicks>=(localStorage.getItem('__qaHeartbeatNormal')==='yes'?60:REGISTRY_HEARTBEAT_TICKS)");
    fs.writeFileSync(path.join(root,'src/content.js'),content);
    // QA-only counter increments whenever the ACTUAL event page is created.
    fs.writeFileSync(path.join(root,'qa-startup.js'),[
@@ -207,7 +207,7 @@ async function main(){
    },47000,'Firefox event page did not suspend while durable hold was persisted');
    assert.ok(heldRestart>heldBoot);
    await driver.executeScript(
-     "document.documentElement.dataset.qaNormalHeartbeat='true'");
+     "localStorage.setItem('__qaHeartbeatNormal','yes');document.documentElement.dataset.qaNormalHeartbeat='true'");
    stage='authenticated-contender-refused-after-idle';
    const installedProvider=await driver.installAddon(providerRoot,true);
    assert.equal(installedProvider,'chat-signals@sguzman.github');
@@ -220,7 +220,7 @@ async function main(){
    // does not propagate into it. Avoid spurious synthetic 2-second registry
    // invalidation during the independently authenticated Send probe.
    await driver.executeScript(
-     "document.documentElement.dataset.qaNormalHeartbeat='true'");
+     "localStorage.setItem('__qaHeartbeatNormal','yes');document.documentElement.dataset.qaNormalHeartbeat='true'");
    await driver.executeScript(
      `const d=${hud('draft')};d.value='Synthetic contender after real event-page idle';`);
    await driver.executeScript(`return ${hud('add')}.click()`);
