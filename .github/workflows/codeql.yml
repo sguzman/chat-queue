@@ -24,3 +24,11 @@ jobs:
         uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           category: /language:javascript-typescript
+          output: ${{ runner.temp }}/chat-queue-codeql-sarif
+      - name: Retain machine-readable CodeQL results for independent review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chat-queue-codeql-sarif
+          path: ${{ runner.temp }}/chat-queue-codeql-sarif/*.sarif
+          if-no-files-found: error
+          retention-days: 14

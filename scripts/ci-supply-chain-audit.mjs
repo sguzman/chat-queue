@@ -19,7 +19,8 @@ const required=new Set([
   'browser-actions/setup-geckodriver'
 ]);
 const codeqlRequired=new Set([
-  'actions/checkout','github/codeql-action/init','github/codeql-action/analyze'
+  'actions/checkout','actions/upload-artifact',
+  'github/codeql-action/init','github/codeql-action/analyze'
 ]);
 const codeqlSha='6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee';
 let total=0;
@@ -35,7 +36,7 @@ for(const name of allowedFiles){
     fail.push(name+': missing required audited actions');
   if(name==='qa-launcher.yml'&&uses.length!==1)
     fail.push(name+': expected only one reviewed checkout action');
-  if(name==='codeql.yml'&&(uses.length!==3||
+  if(name==='codeql.yml'&&(uses.length!==4||
      [...codeqlRequired].some(x=>!uses.some(ref=>ref.startsWith(x+'@')))))
     fail.push(name+': expected exact checkout, CodeQL init and analysis');
   for(const action of uses){
