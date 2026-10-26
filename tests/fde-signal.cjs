@@ -1823,6 +1823,48 @@ async function main(){
       'Pause then rejected Start cannot revive delayed dispatch authorization');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
 
+    qaStage='persistent-hold-blocks-closed-tab-restart-competitor';
+    const tabBeforeDurableOwner=await driver.getWindowHandle();
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/durable-orphan');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic prior possibly accepted Send';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,930,'observed','fresh','/c/durable-orphan');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,931,'observed','fresh','/c/durable-orphan');
+    await waitNote('Waiting for confirmed response completion');
+    // Browser-owned tab removal releases volatile OWNERS, not the durable
+    // marker for a potentially accepted Send.
+    await driver.close();
+    await driver.switchTo().window(tabBeforeDurableOwner);
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/durable-orphan');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic duplicate Send must be refused';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,940,'observed','fresh','/c/durable-orphan');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Previous Send may be unresolved; review its hold');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'a closed owner tab cannot free an unresolved Send hold');
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await waitNote('Check the ChatGPT transcript');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await waitNote('Prior Send hold released after deliberate review');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'only deliberate review unlocks one separately authorized new Send');
+
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
