@@ -612,6 +612,20 @@
            finalUrl.origin!==ORIGINS.get(message.tabId)||finalUrl.pathname!==targetRoute||
            grantRevision!==authorizedAt)
           return {ok:false,error:'route-or-registration-changed'};
+        // The *last* live tabs.get() was also asynchronous. A durable Read
+        // revoke can commit while that URL lookup waits, before Firefox
+        // delivers storage.onChanged. Finish with a new stored grant read:
+        // never release private prompts based on its earlier snapshot.
+        let finalGrant;
+        try{finalGrant=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+        catch{return {ok:false,error:'authorization-changed'};}
+        if(grantRevision!==authorizedAt||
+           !grants.has(finalGrant,requester,'read'))
+          return {ok:false,error:'authorization-changed'};
+        if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
+           ROUTES.get(message.tabId)!==targetRoute||
+           ORIGINS.get(message.tabId)!==finalUrl.origin)
+          return {ok:false,error:'route-or-registration-changed'};
       }
       return reply;
     } catch {

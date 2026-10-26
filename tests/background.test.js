@@ -554,6 +554,42 @@ test('private status rechecks stored read grant even before revocation event arr
   assert.equal(JSON.stringify(answer).includes('synthetic private fixture'),false);
 });
 
+test('silent Read revocation during final browser URL lookup cannot expose private status',async()=>{
+  const {listeners,state,context}=create();
+  const url='https://chatgpt.com/c/private-final-url-delay';
+  const page={tab:{id:115,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/private-final-url-delay'},page)).ok,true);
+  let releaseUrl,lookupCount=0,grantReads=0;
+  const oldGet=context.browser.storage.local.get;
+  context.browser.storage.local.get=key=>{
+    if(key==='chatqueue:api-grants:v2')grantReads++;
+    return oldGet(key);
+  };
+  context.browser.tabs.get=async()=>{
+    if(++lookupCount===2)
+      return new Promise(resolve=>{releaseUrl=()=>resolve({id:115,url});});
+    return {id:115,url};
+  };
+  context.browser.tabs.sendMessage=async()=>({
+    ok:true,items:[{id:'hidden',text:'Synthetic private late revocation text'}]});
+  const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:115},
+    {id:'approved@example.test'});
+  for(let i=0;i<12&&!releaseUrl;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof releaseUrl,'function','Must pause last URL lookup after earlier grant checks');
+  assert.equal(grantReads,3,'First three grant snapshots must precede final URL lookup');
+  // Durable revoke before storage.onChanged notification, with no URL change.
+  state['chatqueue:api-grants:v2']={version:2,grants:{
+    'approved@example.test':['discover','append']
+  }};
+  releaseUrl();
+  const result=await pending;
+  assert.equal(result.error,'authorization-changed');
+  assert.equal(JSON.stringify(result).includes('Synthetic private late revocation text'),false);
+  assert.equal(grantReads,4,
+    'A fourth durable grant check must follow the final asynchronous URL read');
+});
+
 test('private status fails closed when final authorization storage read fails',async()=>{
   const {listeners,context}=create();
   const url='https://chatgpt.com/c/recheck-error';
