@@ -260,8 +260,18 @@ async function main(){
      'The actual content script never completed its initial registration');
    const secondSessionBoot=await readBoot();
    await driver.sleep(4100);
-   assert.equal(await readBoot(),secondSessionBoot,
-     'Normal-lifetime phase must NOT retain the forced rapid event-page restarts');
+   const afterStabilization=await readBoot();
+   if(afterStabilization!==secondSessionBoot){
+     const prefEvidence={};
+     for(const name of ['prefs.js','user.js']){
+       const file=path.join(profile,name);
+       const data=fs.existsSync(file)?fs.readFileSync(file,'utf8'):'';
+       prefEvidence[name]=[...data.matchAll(/user_pref\\("extensions\\.background\\.idle\\.timeout",\\s*(\\d+)\\)/g)]
+         .map(x=>Number(x[1]));
+     }
+     throw Error('Normal-lifetime idle preference ineffective; boot='+
+       secondSessionBoot+'→'+afterStabilization+', pref='+JSON.stringify(prefEvidence));
+   }
    // In this second browser session, the Queue and independently installed
    // provider identify themselves via actual Firefox extension principals.
    // A browser page cannot send an authenticated provider envelope directly.
