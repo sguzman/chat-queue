@@ -1,7 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {targetUrl,profilePath,qualify,inspectCounts}=
+const vm=require('node:vm');
+const {targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch}=
   require('../scripts/qa-live-structure.cjs');
 test('live read-only QA only accepts exact existing conversation URLs',()=>{
   const good='https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc';
@@ -41,4 +42,22 @@ test('isolated QA profile exists with private permissions and no symlink escapes
     assert.throws(()=>profilePath(tmp));
     assert.throws(()=>profilePath('relative'));
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
+});
+
+test('live structural probe disarms all Queue dispatch before any browser load',()=>{
+  const production=fs.readFileSync(path.join(__dirname,'../src/content.js'),'utf8');
+  const originalEntry='  async function dispatchOne() {';
+  assert.equal(production.split(originalEntry).length,2,
+    'Production source must retain exactly one Send pipeline entry');
+  const qa=disarmQueueDispatch(production);
+  new vm.Script(qa);
+  assert.ok(qa.includes(originalEntry+'\\n    return; // Read-only QA: never prepare, journal, insert, or Send'));
+  assert.ok(!production.includes('Read-only QA: never prepare, journal, insert, or Send'),
+    'Production must never include the QA-only dispatch interlock');
+  assert.equal((qa.match(/send\\.click\\(\\)/g)||[]).length,1,
+    'The only known scripted Send click is unreachable behind the early return');
+  assert.throws(()=>disarmQueueDispatch(production.replace('      send.click(); clicked=true;',
+    '      alternateSendAction();')),/source contract changed/);
+  assert.throws(()=>disarmQueueDispatch(production.replace(originalEntry,'  async function newDispatch() {')),
+    /source contract changed/);
 });

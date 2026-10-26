@@ -67,6 +67,20 @@ function qualify(o){
     return {qualified:false,reason:'existing-user-draft-preserved'};
   return {qualified:true,reason:'read-only-structure-only'};
 }
+// The authenticated QA profile may already contain pending Queue data.
+// Installing the unchanged production add-on would violate a "no Send"
+// guarantee even when WebDriver itself never clicks anything. In the
+// TEMPORARY copied bundle alone, disable dispatchOne before loading Firefox.
+// Fail closed when upstream restructures either the dispatcher or Send path.
+function disarmQueueDispatch(content){
+  const entry='  async function dispatchOne() {';
+  const click='      send.click(); clicked=true;';
+  if(typeof content!=='string'||content.split(entry).length!==2||
+     content.split(click).length!==2)
+    throw Error('Queue dispatch source contract changed; live probe blocked');
+  return content.replace(entry,
+    entry+'\\n    return; // Read-only QA: never prepare, journal, insert, or Send');
+}
 function pinnedProvider(dir){
   if(!path.isAbsolute(dir||''))throw Error('pinned provider source must be absolute');
   const manifest=JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'),'utf8'));
@@ -100,6 +114,9 @@ async function main(){
     fs.copyFileSync(path.join(root,'manifest.json'),path.join(addonDir,'manifest.json'));
     for(const part of ['src','options'])
       fs.cpSync(path.join(root,part),path.join(addonDir,part),{recursive:true});
+    const contentFile=path.join(addonDir,'src/content.js');
+    const disarmed=disarmQueueDispatch(fs.readFileSync(contentFile,'utf8'));
+    fs.writeFileSync(contentFile,disarmed,{mode:0o600});
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
     const queueId=await driver.installAddon(addonDir,true);
     const providerId=await driver.installAddon(process.env.CHAT_SIGNALS_PROVIDER_SOURCE,true);
@@ -129,7 +146,7 @@ async function main(){
     finally{fs.rmSync(addonDir,{recursive:true,force:true});}
   }
 }
-module.exports={targetUrl,profilePath,qualify,inspectCounts};
+module.exports={targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch};
 if(require.main===module)main().catch(()=>{
   // Browser exceptions often include session/profile URLs. Never print them.
   process.stderr.write('Read-only FDE QA blocked; details retained locally.\n');
