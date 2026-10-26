@@ -72,7 +72,7 @@ port.onMessage.addListener(message => {
 });
 ```
 
-A subscription requires the `discover` grant and is disconnected if that scope is revoked (not just when the entire extension ID is deleted). Message contents are never sent on the event stream; call `status` to request them. Clients that also retain `rules` receive additive `rulesChanged` events with only `{revision}` after a successful rule-library write. If `rules` is revoked but `discover` remains, the metadata port stays connected while `rulesChanged` is suppressed.
+A subscription requires the `discover` grant and is disconnected if that scope is revoked (not just when the entire extension ID is deleted). Message contents are never sent on the event stream; call `status` to request them. Clients that also retain `rules` receive additive `rulesChanged` events with only `{revision}` after successful rule-library writes. Concurrent notifications may coalesce: revisions are monotonic within one connected event page, but a client must call `rulesGet` for the authoritative latest revision instead of assuming delivery of every intermediate event. If `rules` is revoked but `discover` remains, the metadata port stays connected while `rulesChanged` is suppressed.
 
 ## Scope-to-action summary
 
