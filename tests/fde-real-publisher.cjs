@@ -127,7 +127,8 @@ function stageAuthorizedClient(dir){
     "});");
   fs.writeFileSync(path.join(dir,'content.js'),
     "window.addEventListener('message',event=>{"+
-    "if(event.source!==window||event.data?.kind!=='qa-authorized-start')return;"+
+    "if(event.source!==window||event.origin!==location.origin||"+
+    "event.data?.kind!=='qa-authorized-start')return;"+
     "browser.runtime.sendMessage({type:'qa-authorized-start'})"+
     ".then(result=>window.postMessage({kind:'qa-authorized-result',"+
     "nonce:event.data.nonce,result},'*'))"+
@@ -393,7 +394,9 @@ async function main(){
     await driver.executeScript(() => {
       window.__qaControlResults=[];
       window.addEventListener('message',e=>{
-        if(e.data?.kind==='qa-authorized-result')window.__qaControlResults.push(e.data);
+        if(e.source!==window||e.origin!==location.origin||
+           e.data?.kind!=='qa-authorized-result')return;
+        window.__qaControlResults.push(e.data);
       });
       window.postMessage({kind:'qa-authorized-start',nonce:1},'*');
     });
