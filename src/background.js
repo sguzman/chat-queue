@@ -264,6 +264,46 @@
         });
       });
     }
+    if(['send-hold-status','release-send-hold','review-send-hold'].includes(message.action)){
+      const conversationId=signalContract.assignedConversationId(message.route);
+      if(!conversationId)return Promise.resolve({ok:false,error:'conversation-not-assigned'});
+      return currentRoute(sender).then(live=>{
+        if(live!==message.route||ROUTES.get(tab.id)!==message.route||
+           !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
+        return serializedHold(conversationId,async()=>{
+          const key=holdKey(conversationId);
+          let hold;
+          try{hold=(await api.storage.local.get(key))[key];}
+          catch{return {ok:false,error:'send-hold-storage-unavailable'};}
+          if((await currentRoute(sender))!==message.route||
+             ROUTES.get(tab.id)!==message.route||!TABS.has(tab.id))
+            return {ok:false,error:'route-mismatch'};
+          if(hold!==undefined&&!validHold(hold,conversationId))
+            return {ok:false,error:'unsupported-send-hold'};
+          if(message.action==='send-hold-status')
+            return {ok:true,held:hold!==undefined};
+          if(hold===undefined)return {ok:true,held:false};
+          if(message.action==='release-send-hold'&&
+             !sameHold(hold,tab.id,message.route,message.holdId))
+            return {ok:false,error:'send-hold-not-owned'};
+          if(message.action==='review-send-hold'&&
+             (message.confirmed!==true||OWNERS.has(conversationId)))
+            return {ok:false,error:'active-send-hold'};
+          // 'release' comes only from the trusted Queue content script after
+          // its accepted terminal history or explicit uncertainty review
+          // persisted. 'review' is an independent local, double-confirmed
+          // action for a vanished/orphaned owner; never external IPC.
+          try{await api.storage.local.remove(key);}
+          catch{return {ok:false,error:'send-hold-storage-unavailable'};}
+          let remaining;
+          try{remaining=(await api.storage.local.get(key))[key];}
+          catch{return {ok:false,error:'send-hold-storage-unavailable'};}
+          if(remaining!==undefined)return {ok:false,error:'send-hold-not-released'};
+          if(OWNERS.get(conversationId)===tab.id)OWNERS.delete(conversationId);
+          return {ok:true,held:false};
+        });
+      });
+    }
     if (message.action === 'state') {
       if(!Number.isSafeInteger(message.sequence)||message.sequence<1)
         return Promise.resolve({ok:false,error:'invalid-state-sequence'});
