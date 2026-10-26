@@ -623,3 +623,13 @@ The cleanup now requires that the current tab snapshot, route and unique registr
 The disposable native Firefox API suite also injects a **QA-only** suspended external Enqueue in the real Firefox event page. A second real internal extension message registers the same tab with a new generation and publishes its state. Only then does the test release the synthetic old-document failure. The old request fails, the current tab remains discoverable and status-readable, its queue is unmodified, and the synthetic ChatGPT Send counter stays zero. This is a real event-page and cross-extension browser lifecycle test, **not** actual authenticated ChatGPT network-failure acceptance.
 
 The bounded evidence improves **M4-08** and **M4-12**. Both remain `implemented` pending actual site behavior. Verified completion is unchanged at **84/96 (87.50%); delta +0.00 percentage points**. No tasks were added or promoted without their required acceptance evidence.
+
+## 🔒 Last URL-check Read revocation regression (2026-10-26)
+
+[Complete static and disposable native Firefox Developer Edition run 40370982548](https://github.com/sguzman/chat-queue/actions/runs/40370982548) passed both jobs and **137/137** Node unit tests. The external Queue `status` command previously re-read the caller's durable Read grant, then awaited one additional browser-owned `tabs.get()` call before revealing a prompt-bearing response. A revocation could commit during that final URL lookup before Firefox delivered `storage.onChanged`, leaving the earlier grant snapshot authoritative by mistake.
+
+Production now performs an additional durable caller-specific Read-grant lookup **after** that last asynchronous browser URL lookup. It also rechecks registration generation and route before releasing the result. The new Node regression deliberately suspends the last URL lookup, changes the persisted ACL without its event notification, then verifies `authorization-changed`, no private prompt content and a fourth durable grant lookup.
+
+The **real Firefox** API fixture introduces a QA-only hold at the final URL-verification stage, issues a real synthetic `browser.storage.local` Read-scope revoke from the separate QA extension and suppresses the delayed change event. The previously authorized `status` response must be withheld. The fixture restores the synthetic grant, preserves the queued item and confirms **zero Send**. No production add-on, personal Firefox profile, authenticated ChatGPT account or actual user message was modified.
+
+This improves existing **M4-08** and **M7-09**, but both remain `implemented`. Separate live-site, independent security and race-atomicity acceptance remain outstanding. Overall **84/96 verified = 87.50%; delta +0.00 percentage points**.
