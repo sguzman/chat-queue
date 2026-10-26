@@ -253,8 +253,21 @@ async function main(){
      window.postMessage({kind:'qa-signal',signal},'*');`,fresh);
    assert.equal(result?.ok,true,
      'A newly registered tab must receive an authenticated idle provider event: '+String(result?.error||'unknown'));
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Previous Send may be unresolved; review its hold')"),8000);
+   try{
+     await driver.wait(async()=>await driver.executeScript(
+       "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Previous Send may be unresolved; review its hold')"),8000);
+   }catch(error){
+     const diagnostic=await driver.executeScript(() => ({
+       queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+         ?.getElementById('status')?.textContent?.slice(0,160)||null,
+       providerReplies:window.__signalReplies.map(x=>({
+         sequence:x.sequence,ok:x.result?.ok,error:x.result?.error||null})),
+       sent:window.__sent,
+       queued:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+         ?.getElementById('count')?.textContent||null
+     }));
+     throw Error(error.message+'; '+JSON.stringify(diagnostic));
+   }
    assert.equal(await driver.executeScript('return window.__sent'),0,
      'The independent authenticated competing tab must not Send past the saved hold');
    assert.deepEqual(await readHold(),expectedHold,
