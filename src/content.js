@@ -891,6 +891,18 @@
       render();publish();
     }
   }
+  async function releaseDurableHold(){
+    const id=state.durableHoldId,key=state.key,route=routeKey();
+    if(!id)return true;
+    let reply;
+    try{reply=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
+      action:'release-send-hold',route,holdId:id});}
+    catch{return false;}
+    if(!reply?.ok)return false;
+    if(state.key===key&&routeKey()===route&&state.durableHoldId===id)
+      state.durableHoldId=null;
+    return true;
+  }
   // A rejected terminal/history status write cannot turn an unsaved
   // 'finished' or 'interrupted' label into apparent durable evidence.
   // Compare exact route generation and revision before restoring, so a
@@ -901,7 +913,16 @@
     const previous=entry.status,key=state.key,generation=routeGeneration,
       revision=state.revision,id=entry.id;
     entry.status=nextStatus;
-    void save().catch(()=>{
+    void save().then(async()=>{
+      if(nextStatus!=='finished'||state.key!==key||
+         routeGeneration!==generation)return;
+      if(!await releaseDurableHold()){
+        state.running=false;
+        statusNote('Send hold could not be cleared; review before another Send');
+        return;
+      }
+      if(state.running&&!state.awaiting&&!state.attempting)planNext();
+    }).catch(()=>{
       if(state.key===key&&routeGeneration===generation&&
          state.revision===revision+1&&state.history[0]?.id===id&&
          state.history[0].status===nextStatus){
@@ -910,6 +931,7 @@
         render();publish();
       }
     });
+    return true;
   }
   // Close a confirmed submission's response wait without putting its
   // already-clicked text back into the retry queue. A new local Start must
@@ -955,10 +977,12 @@
       if(uncertainHistory)state.unconfirmedClickLease=true;
       // Only a durably journaled current response can close a history row.
       // The first row may belong to an older, abandoned submission.
-      if(!uncertainHistory)
+      const savingFinished=!uncertainHistory&&
         persistResponseHistoryStatus('finished');
       statusNote('Response finished; control returned');
-      if(state.running)planNext();
+      // No following Send until finished history AND metadata hold release
+      // have both committed; the async completion schedules continuation.
+      if(state.running&&!savingFinished)planNext();
     } else if (state.running && !state.awaiting && !state.attempting &&
                freshProvider() && contract.ready(state.trusted,routeKey()) && next!==previous) {
       planNext();
@@ -1228,6 +1252,10 @@
           // no-busy-evidence click lease as well as an accepted-write lease.
           // An unsuccessful save must retain both forms of ownership.
           state.unconfirmedClickLease=false;
+          // This explicit choice has already been durably saved. A failed
+          // metadata-release leaves the conservative blocker in place.
+          if(!await releaseDurableHold())
+            statusNote('Saved review; Send hold still active, review separately');
           // The deliberate decision is the only non-provider event allowed to
           // release a lease held for a failed post-click history write. A
           // rejected resolution write must keep the lease and review item.
