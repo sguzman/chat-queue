@@ -25,7 +25,10 @@ jobs:
         with:
           category: /language:javascript-typescript
           output: ${{ runner.temp }}/chat-queue-codeql-sarif
+      - name: Fail closed on unreviewed CodeQL findings or missing results
+        run: node scripts/codeql-findings-gate.mjs "${{ runner.temp }}/chat-queue-codeql-sarif"
       - name: Retain machine-readable CodeQL results for independent review
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: chat-queue-codeql-sarif
