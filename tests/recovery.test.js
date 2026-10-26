@@ -17,6 +17,41 @@ test('recovery only discovers exact same-conversation tab records',()=>{
   assert.deepEqual(result,[{key:'chatqueue:v1:tab:17:/c/alpha',count:1}]);
   assert.equal(JSON.stringify(result).includes('prior alpha'),false,'discovery must be metadata-only');
 });
+test('assigned conversation project URL aliases permit only explicit uncertain recovery',()=>{
+  const records={
+    'chatqueue:v1:tab:10:/c/alpha':record('standalone route'),
+    'chatqueue:v1:tab:11:/g/project-one/c/alpha':record('project one alias'),
+    'chatqueue:v1:tab:12:/g/project-two/c/alpha':record('project two alias'),
+    'chatqueue:v1:tab:13:/g/project-one/c/alphabet':record('lookalike must not leak'),
+    'chatqueue:v1:tab:14:/c/alpha2':record('another conversation'),
+    'chatqueue:v1:tab:15:/g/project-one/c/alpha/extra':record('unsupported nesting'),
+    'chatqueue:v1:tab:16:/g/project-one/c/%61lpha':record('encoded spoof'),
+    'chatqueue:v1:tab:17:/c/alpha?mode=shared':record('query suffix'),
+    'chatqueue:v1:tab:18:/c/alpha':record('current queue')
+  };
+  const alias='/g/project-one/c/alpha';
+  const current='chatqueue:v1:tab:11:/g/project-one/c/alpha';
+  const candidates=core.recoveryCandidates(records,alias,current);
+  assert.deepEqual(candidates,[
+    {key:'chatqueue:v1:tab:10:/c/alpha',count:1},
+    {key:'chatqueue:v1:tab:12:/g/project-two/c/alpha',count:1},
+    {key:'chatqueue:v1:tab:18:/c/alpha',count:1}
+  ]);
+  const recovered=core.recoveryCandidates(records,'/c/alpha',
+    'chatqueue:v1:tab:18:/c/alpha',
+    ['chatqueue:v1:tab:10:/c/alpha']);
+  assert.deepEqual(recovered,[
+    {key:'chatqueue:v1:tab:11:/g/project-one/c/alpha',count:1},
+    {key:'chatqueue:v1:tab:12:/g/project-two/c/alpha',count:1}
+  ]);
+  for(const route of ['/','/g/project-one','/share/alpha','/c/alpha/extra',
+    '/c/%61lpha','/c/alpha?x=1','/g/project-one/c/alpha/extra']){
+    assert.deepEqual(core.recoveryCandidates(records,route,'',[]),[],
+      'Unassigned and noncanonical routes may not enumerate private queues: '+route);
+  }
+  assert.equal(JSON.stringify(candidates).includes('standalone route'),false,
+    'Candidate metadata never contains prompt text');
+});
 test('unknown future versions and unreadable orphan records are not recovered',()=>{
   const items={
     'chatqueue:v1:tab:1:/c/current':{version:99,items:[{id:'legacy-id-123',text:'future',status:'pending'}]},
