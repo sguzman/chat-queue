@@ -469,10 +469,9 @@
       const answer=await api.runtime.sendMessage({
         type:'chat-queue-internal/v1',action:'register',route,registrationVersion:2});
       if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){
-        if(!Number.isSafeInteger(answer.registrationGeneration))
-          throw new Error('Unversioned registration response');
         state.tabId=answer.tabId;
-        state.registrationGeneration=answer.registrationGeneration;
+        state.registrationGeneration=Number.isSafeInteger(answer.registrationGeneration)
+          ?answer.registrationGeneration:null;
         restored=true;
       }
     }catch{
