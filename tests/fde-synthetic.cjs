@@ -625,6 +625,40 @@ async function main(){
     assert.ok(geometry.x>=-1&&geometry.right<=geometry.w+1,JSON.stringify(geometry));
     assert.ok(geometry.y>=-1&&geometry.bottom<=geometry.h+1,JSON.stringify(geometry));
     assert.ok(geometry.topPadding>=8,'Header needs usable padding at zoom');
+    // WCAG 1.4.10 reflow-level stress: 400% zoom at 1280 physical px is
+    // approximately a 320 CSS-pixel content width. The private HUD must
+    // remain entirely inside the viewport and not clip its interactive
+    // controls horizontally; no authentication or Send is involved.
+    qaStage='geometry-400-percent-reflow';
+    await driver.manage().window().setRect({width:1280,height:900});
+    await driver.executeScript('document.documentElement.style.zoom="4";window.dispatchEvent(new Event("resize"))');
+    const fourX=await driver.executeScript(() => {
+      const host=document.querySelector('#chat-queue-extension-root');
+      const shadow=host.shadowRoot,panel=shadow.querySelector('.panel');
+      const box=host.getBoundingClientRect();
+      const controls=[...shadow.querySelectorAll('.top button,.top select,.footrow button')]
+        .filter(element=>!element.disabled&&element.getClientRects().length);
+      return {viewport:{width:innerWidth,height:innerHeight},
+        host:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},
+        panel:{scrollWidth:panel.scrollWidth,clientWidth:panel.clientWidth},
+        controlOverflow:controls.some(element=>{
+          const r=element.getBoundingClientRect();
+          return r.left<box.left-1||r.right>box.right+1;
+        }),
+        controlCount:controls.length};
+    });
+    assert.ok(fourX.host.left>=-1&&fourX.host.right<=fourX.viewport.width+1,
+      'HUD must reflow within the 400% zoom viewport: '+JSON.stringify(fourX));
+    assert.ok(fourX.host.top>=-1&&fourX.host.bottom<=fourX.viewport.height+1,
+      'HUD must remain vertically visible at 400% zoom: '+JSON.stringify(fourX));
+    assert.ok(fourX.panel.scrollWidth<=fourX.panel.clientWidth+1,
+      'HUD panel must not clip content horizontally at 400% zoom: '+JSON.stringify(fourX));
+    assert.ok(fourX.controlCount>=4&&!fourX.controlOverflow,
+      'Interactive HUD actions must remain horizontally reachable at 400% zoom: '+
+      JSON.stringify(fourX));
+    await driver.manage().window().setRect({width:440,height:640});
+    await driver.executeScript('document.documentElement.style.zoom="1.75";window.dispatchEvent(new Event("resize"))');
+
     // The HUD should obey a real Firefox preference for reduced motion.
     const motion=await driver.executeScript(`const root=document.querySelector('#chat-queue-extension-root');
       const panel=root.shadowRoot.querySelector('.panel');
