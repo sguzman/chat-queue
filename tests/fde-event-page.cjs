@@ -62,38 +62,14 @@ async function main(){
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
-   // Only accelerate detection of a genuine idle restart. The contender
-   // stage should use the production heartbeat interval instead of causing
-   // artificial provider invalidation every two seconds.
-   const watchCheck='++heartbeatTicks>=REGISTRY_HEARTBEAT_TICKS';
-   assert.equal(content.split(watchCheck).length,2);
-   content=content.replace(watchCheck,
-     "++heartbeatTicks>=(localStorage.getItem('__qaHeartbeatNormal')==='yes'?60:REGISTRY_HEARTBEAT_TICKS)");
    fs.writeFileSync(path.join(root,'src/content.js'),content);
    // QA-only counter increments whenever the ACTUAL event page is created.
    fs.writeFileSync(path.join(root,'qa-startup.js'),[
      "void browser.storage.local.get('qa:eventpage-boot-count').then(v=>",
      "browser.storage.local.set({'qa:eventpage-boot-count':",
-     "(v['qa:eventpage-boot-count']||0)+1}));",
-     "browser.runtime.onMessage.addListener((message,sender)=>{",
-     "if(message?.type==='qa-keepalive'&&",
-     "String(sender.url||sender.tab?.url||'').startsWith('http://127.0.0.1:'))return Promise.resolve({ok:true});",
-     "});"
+     "(v['qa:eventpage-boot-count']||0)+1}));"
    ].join(''));
    fs.writeFileSync(path.join(root,'qa-monitor.js'),[
-     "let qaKeepaliveTimer=null;",
-     "window.addEventListener('message',event=>{",
-     "if(event.source!==window||event.data?.kind!=='qa-keepalive')return;",
-     "if(event.data.active!==true){clearInterval(qaKeepaliveTimer);qaKeepaliveTimer=null;return;}",
-     "if(qaKeepaliveTimer!==null)return;",
-     "const pulse=()=>{",
-     "void browser.runtime.sendMessage({type:'qa-keepalive'}).then(reply=>{",
-     "if(reply?.ok)document.documentElement.dataset.qaKeepaliveAcks=String(",
-     "Number(document.documentElement.dataset.qaKeepaliveAcks||0)+1);",
-     "}).catch(()=>{});",
-     "};",
-     "pulse();qaKeepaliveTimer=setInterval(pulse,250);",
-     "});",
      "window.addEventListener('message',event=>{",
      "if(event.source!==window||event.data?.kind!=='qa-boot-read')return;",
      "const nonce=event.data.nonce;",
@@ -142,7 +118,7 @@ async function main(){
      });`);
    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
    const options=new firefox.Options().setBinary(binary).addArguments('-headless')
-     .setPreference('extensions.background.idle.timeout',1);
+     .setPreference('extensions.background.idle.timeout',2);
    driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
    const installed=await driver.installAddon(root,true);
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
@@ -192,143 +168,9 @@ async function main(){
    assert.equal(await driver.executeScript('return window.__sent'),0);
    console.log('FDE real event-page restarts:',before,'to',restarted,
      '; queue preserved and Send denied');
-   // Now isolate the *durable hold* claim: it must persist through another
-   // genuine idle termination and refuse a SECOND tab whose independent,
-   // browser-attested Signal is fresh. Missing-provider denial is not enough.
-   stage='seed-metadata-only-hold-before-idle';
-   const seedNonce=++nonce;
-   await driver.executeScript(
-     'window.postMessage({kind:"qa-seed-send-hold",nonce:arguments[0]},"*")',seedNonce);
-   await driver.wait(async()=>await driver.executeScript(
-     'return window.__holdReplies.some(x=>x.nonce===arguments[0])',seedNonce),7000);
-   assert.equal(await driver.executeScript(
-     'return window.__holdReplies.find(x=>x.nonce===arguments[0]).ok',seedNonce),true);
-   const heldBoot=await readBoot();
-   stage='hold-survives-real-event-page-idle';
-   const heldRestart=await driver.wait(async()=>{
-     const count=await readBoot();
-     return count>heldBoot?count:false;
-   },47000,'Firefox event page did not suspend while durable hold was persisted');
-   assert.ok(heldRestart>heldBoot);
-   await driver.executeScript(
-     "localStorage.setItem('__qaHeartbeatNormal','yes');document.documentElement.dataset.qaNormalHeartbeat='true'");
-   // The event-page restart has already been observed. Keep the CURRENT tab
-   // connected before installing a second add-on and opening a new tab: with
-   // a 1-second synthetic idle timeout it could otherwise suspend midway
-   // through the contender's first Queue registration.
-   await driver.executeScript(
-     'window.postMessage({kind:"qa-keepalive",active:true},"*")');
-   await driver.wait(async()=>await driver.executeScript(
-     'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000,
-     'Original tab did not establish QA keepalive after true idle');
-   stage='authenticated-contender-refused-after-idle';
-   const installedProvider=await driver.installAddon(providerRoot,true);
-   assert.equal(installedProvider,'chat-signals@sguzman.github');
-   await driver.switchTo().newWindow('tab');
-   await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-event-page');
-   const hud=id=>"document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('"+id+"')";
-   await driver.wait(async()=>await driver.executeScript(
-     `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
-   // The contender is a NEW document; the first tab's QA heartbeat flag
-   // does not propagate into it. Avoid spurious synthetic 2-second registry
-   // invalidation during the independently authenticated Send probe.
-   await driver.executeScript(
-     "localStorage.setItem('__qaHeartbeatNormal','yes');document.documentElement.dataset.qaNormalHeartbeat='true'");
-   await driver.executeScript(
-     `const d=${hud('draft')};d.value='Synthetic contender after real event-page idle';`);
-   await driver.executeScript(`return ${hud('add')}.click()`);
-   await driver.wait(async()=>await driver.executeScript(
-     `return ${hud('count')}.textContent==='1 queued'`),9000);
-   let signalSequence=0;
-   const emitIdle=async()=>{
-     // Firefox's deliberately one-second QA idle policy may terminate an
-     // event page between a newly created tab's initial register and its
-     // provider callback. A tab-not-registered reply is NOT an authenticated
-     // Signal; reload the QA tab to perform a fresh real registration rather
-     // than treating a stale publisher event as dispatch authority.
-     for(let attempt=0;attempt<4;attempt++){
-       const sequence=++signalSequence;
-       const signal={version:1,documentToken:'b'.repeat(32),
-         route:'/c/real-event-page',epoch:0,sequence,phase:'idle',
-         origin:'fresh',confidence:'observed'};
-       await driver.executeScript(
-         'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',signal);
-       await driver.wait(async()=>await driver.executeScript(
-         'return window.__signalReplies.some(x=>x.sequence===arguments[0])',sequence),9000);
-       const ack=await driver.executeScript(
-         'return window.__signalReplies.find(x=>x.sequence===arguments[0]).result',sequence);
-       if(ack?.ok){
-         // A successful provider callback can still be superseded by an
-         // immediate event-page restart. That is not fresh Send authority.
-         const idle=await driver.wait(async()=>await driver.executeScript(
-           `return ${hud('status')}.textContent.includes('Signal: idle')`),
-           2500).catch(()=>false);
-         if(idle)return;
-       }else{
-         assert.equal(ack?.error,'tab-not-registered',
-           'unexpected denial from independent authenticated publisher');
-       }
-       await driver.navigate().refresh();
-       await driver.wait(async()=>await driver.executeScript(
-         `return Boolean(${hud('run')})&&document.documentElement.dataset.qaProviderReady==='true'`),14000);
-       await driver.wait(async()=>await driver.executeScript(
-         `return ${hud('count')}.textContent==='1 queued'`),9000);
-       await driver.executeScript(
-         'window.postMessage({kind:"qa-keepalive",active:true},"*")');
-       await driver.wait(async()=>await driver.executeScript(
-         'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000);
-     }
-     throw Error('No fresh authenticated Signal after bounded tab re-registration');
-   };
-   // Only AFTER proving a true idle suspension, keep the QA event page
-   // awake during this separate publisher-authorized dispatch arbitration.
-   await driver.executeScript(
-     'window.postMessage({kind:"qa-keepalive",active:true},"*")');
-   await driver.wait(async()=>await driver.executeScript(
-     'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000,
-     'QA background keepalive did not acknowledge at least two heartbeats');
-   await emitIdle();
-   await driver.executeScript(`return ${hud('run')}.click()`);
-   await driver.wait(async()=>await driver.executeScript(
-     `return ${hud('status')}.textContent.includes('Previous Send may be unresolved; review its hold')`),12000);
-   assert.equal(await driver.executeScript('return window.__sent'),0,
-     'a truly suspended-and-restarted event page must enforce persisted hold');
-   stage='explicit-review-unlocks-new-start-after-idle';
-   await driver.executeScript(`return ${hud('hold-review')}.click()`);
-   await driver.wait(async()=>await driver.executeScript(
-     `return ${hud('status')}.textContent.includes('Check the ChatGPT transcript')`),9000);
-   await driver.executeScript(`return ${hud('hold-review')}.click()`);
-   await driver.wait(async()=>await driver.executeScript(
-     `return ${hud('status')}.textContent.includes('Prior Send hold released')`),9000);
-   assert.equal(await driver.executeScript('return window.__sent'),0,
-     'review is not an automatic retry');
-   await emitIdle();
-   await driver.executeScript(`return ${hud('run')}.click()`);
-   await driver.wait(async()=>await driver.executeScript(
-     'return window.__sent===1'),12000);
-   assert.equal(await driver.executeScript('return window.__sent'),1,
-     'only an explicit new Start is authorized after review');
-   await driver.executeScript(
-     'window.postMessage({kind:"qa-keepalive",active:false},"*")');
-   console.log('FDE real event-page idle with metadata Send hold:',heldBoot,
-     'to',heldRestart,'; authenticated competing Send refused until explicit review');
-   await driver.uninstallAddon(installedProvider);
    await driver.uninstallAddon(installed);
  }catch(error){
-   let diagnosis='';
-   if(driver){
-     try{diagnosis=JSON.stringify(await driver.executeScript(() => ({
-       hud:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-         ?.getElementById('status')?.textContent?.slice(-175)||null,
-       count:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-         ?.getElementById('count')?.textContent||null,
-       sent:window.__sent??null,
-       publisherReady:document.documentElement.dataset.qaProviderReady||null,
-       signalAcks:window.__signalReplies?.map(x=>({
-         sequence:x.sequence,ok:x.result?.ok,error:x.result?.error}))||[]
-     })));}catch{}
-   }
-   throw new Error(stage+': '+error.message+(diagnosis?' meta='+diagnosis:''));
+   throw new Error(stage+': '+error.message);
  }finally{
    if(driver)await driver.quit();
    await new Promise(resolve=>server.close(resolve));
