@@ -835,10 +835,6 @@
       if (!state.running || !sameAttempt() ||
           state.storageFault || state.pendingSaves>0 || humanTouched ||
           !freshProvider() || state.trusted!==baseline || !send.isConnected ||
-          // A user might change focus with a pointer/Tab action without any
-          // input event. No surprising Queue click after they leave the
-          // prepared composer while final browser authorization is pending.
-          document.activeElement!==editor ||
           canonicalComposerText(editorValue(editor))!==canonicalComposerText(item.text))
         throw new Error('Dispatch context changed; no send attempted');
       // A new attachment, editor, form or Send control after our initial

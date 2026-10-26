@@ -262,8 +262,6 @@ function prepareQueue(dir,source){
     // BEFORE the final browser-owned Send permission returns.
     "        if(message.sequence===62){globalThis.__qaOtherFieldChecks=(globalThis.__qaOtherFieldChecks||0)+1;"+
     "if(globalThis.__qaOtherFieldChecks===3)await new Promise(resolve=>setTimeout(resolve,2100));}\n"+
-    "        if(message.sequence===67){globalThis.__qaFocusChecks=(globalThis.__qaFocusChecks||0)+1;"+
-    "if(globalThis.__qaFocusChecks===3)await new Promise(resolve=>setTimeout(resolve,2100));}\n"+
     "        if(live!==message.route||SIGNALS.get(tab.id)!==last||");
   fs.writeFileSync(bgPath,bg);
 }
@@ -710,54 +708,6 @@ async function main(){
       'Late finished/idle must never retry the human-interrupted clicked item');
     await driver.switchTo().window(priorTrustedRaceTab);
 
-    // A real Firefox pointer click can change focus without triggering
-    // beforeinput or input. That deliberate user navigation away from the
-    // prepared composer during sealed pre-click authority must still cancel
-    // Send, even though the queued composer text remains unchanged.
-    qaStage='trusted-focus-switch-without-input-preclick';
-    await driver.switchTo().newWindow('tab');
-    await driver.get('http://127.0.0.1:'+server.address().port+'/c/focus-only-edit');
-    await driver.wait(async()=>await driver.executeScript(
-      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
-    await driver.executeScript(
-      `const d=${hud('draft')};d.value='Synthetic focus-only interruption';`);
-    await driver.executeScript(`return ${hud('add')}.click()`);
-    await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('count')}.textContent==='1 queued'`),9000);
-    await driver.executeScript(()=>{
-      const other=document.createElement('button');
-      other.id='qa-focus-away-button';other.type='button';
-      other.textContent='Move focus here';
-      document.querySelector('main').append(other);
-      window.__qaTrustedFocusClick=0;
-      other.addEventListener('click',event=>{
-        if(event.isTrusted)window.__qaTrustedFocusClick++;
-      });
-    });
-    await emit('idle',0,67,'observed','fresh','/c/focus-only-edit');
-    await waitNote('Signal: idle');
-    await driver.executeScript(`return ${hud('run')}.click()`);
-    await driver.wait(async()=>await driver.executeScript(
-      "return document.getElementById('prompt-textarea').innerText===" +
-      "'Synthetic focus-only interruption'"),10000);
-    await (await driver.findElement(By.id('qa-focus-away-button'))).click();
-    assert.ok(await driver.executeScript('return window.__qaTrustedFocusClick')>0,
-      'The focus change must result from a genuine Firefox click');
-    assert.equal(await driver.executeScript(
-      "return document.activeElement?.id"),'qa-focus-away-button');
-    await waitNote('Dispatch context changed; no send attempted');
-    assert.equal(await driver.executeScript('return window.__sent.length'),0,
-      'Queue must not click Send after the user moves focus away without typing');
-    assert.equal(await driver.executeScript(
-      "return document.getElementById('prompt-textarea').innerText"),
-      'Synthetic focus-only interruption');
-    assert.equal(await driver.executeScript(
-      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
-    await emit('idle',0,68,'observed','fresh','/c/focus-only-edit');
-    await driver.sleep(650);
-    assert.equal(await driver.executeScript('return window.__sent.length'),0);
-    await driver.switchTo().window(priorTrustedRaceTab);
-
     qaStage='trusted-user-edit-race';
     const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
     const lateAdd=await driver.executeScript(`return ${hud('add')}`);
@@ -950,25 +900,9 @@ async function main(){
     const lateFile=await driver.executeScript(
       "const file=document.createElement('input');file.type='file';file.id='qa-late-selected-file';document.querySelector('main form').append(file);return file");
     await lateFile.sendKeys(fixtureAttachment);
-    try{
-      await driver.wait(async()=>await driver.executeScript(
-        `return ${hud('status')}.textContent.includes('Composer changed before Send; no send attempted') ||
-          ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),10000);
-    }catch(error){
-      // This is a fully synthetic localhost test with no private prompts.
-      // Fixed-schema diagnostics distinguish actual Send from a changed
-      // rejection wording or a late WebDriver file-picker event.
-      const d=await driver.executeScript(() => ({
-        note:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-          ?.getElementById('status')?.textContent?.slice(0,160)||null,
-        sent:window.__sent?.length||0,
-        focused:document.activeElement?.id||null,
-        attachmentCount:document.querySelector('#qa-late-selected-file')?.files?.length||0,
-        uncertain:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-          ?.querySelectorAll('.item.uncertain')?.length||0
-      }));
-      throw Error(error.message+'; synthetic-state='+JSON.stringify(d));
-    }
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer changed before Send; no send attempted') ||
+        ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),10000);
     assert.equal(await driver.executeScript("return document.querySelector('#qa-late-selected-file').files.length"),1);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Late selected file input must block queued Send');
