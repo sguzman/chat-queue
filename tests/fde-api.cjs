@@ -60,6 +60,18 @@ function createQueue(dest,root){
  assert.equal(bg.split(grantListener).length,2);
  bg=bg.replace(grantListener,grantListener+
    "\n    if(globalThis.__qaSkipGrantChangeNotice&&area==='local'&&changes[grants.KEY])return;");
+ // QA-only: freeze the first external Append ACL snapshot and resolve it
+ // after a durable revocation that has not yet notified the event page.
+ // Production does not interpret qaHoldInitial or delay authorization.
+ const initialGrantRead="    const config = await api.storage.local.get(grants.KEY);";
+ assert.equal(bg.split(initialGrantRead).length,2);
+ bg=bg.replace(initialGrantRead,
+   "    const config = await ((message.action==='enqueue'&&"+
+   "message.payload?.qaHoldInitial===true)?"+
+   "(async()=>{const snapshot=await api.storage.local.get(grants.KEY);"+
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
+   "await new Promise(resolve=>setTimeout(resolve,2200));"+
+   "return snapshot;})():api.storage.local.get(grants.KEY));");
  // QA-only: delay one stale tab metadata state before URL inspection.
  const section=bg.indexOf("    if (message.action === 'state') {");
  assert.ok(section>=0);
@@ -309,6 +321,35 @@ async function main(){
   await driver.wait(async()=>await driver.executeScript(
     'return window.__grantResults.some(x=>x.nonce===arguments[0])',restoreNonce),10000);
   assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
+  stage='native-silent-append-revocation-before-forward';
+  const staleAppendNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-api-request",nonce:arguments[0],request:{type:"chat-queue/v1",action:"enqueue",tabId:arguments[1],payload:{text:"Synthetic revoked Append must not enter queue",qaHoldInitial:true}}},"*")',
+    staleAppendNonce,tabId);
+  const revokeAppendNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set-silent",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","read","edit"]}}},"*")',
+    revokeAppendNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',revokeAppendNonce),10000);
+  const revokedAppendAck=await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result',revokeAppendNonce);
+  assert.equal(revokedAppendAck.ok,true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',staleAppendNonce),10000);
+  const deniedAppend=await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result',staleAppendNonce);
+  assert.equal(deniedAppend.error,'authorization-changed');
+  assert.equal(await driver.executeScript(
+    'return document.querySelector("#chat-queue-extension-root").shadowRoot.getElementById("count").textContent'),
+    '1 queued','revoked first-read Append cannot mutate the destination queue');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  const restoreAppendNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',
+    restoreAppendNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',restoreAppendNonce),10000);
   // The fallback must detect Firefox URL change events when History API updates the route.
   stage='scoped-rules-revocation';
   const scopedLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
