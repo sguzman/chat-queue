@@ -266,8 +266,9 @@ async function main(){
      for(const name of ['prefs.js','user.js']){
        const file=path.join(profile,name);
        const data=fs.existsSync(file)?fs.readFileSync(file,'utf8'):'';
-       prefEvidence[name]=[...data.matchAll(/user_pref\\("extensions\\.background\\.idle\\.timeout",\\s*(\\d+)\\)/g)]
-         .map(x=>Number(x[1]));
+       prefEvidence[name]=data.split(String.fromCharCode(10))
+         .filter(x=>x.includes('extensions.background.idle.timeout'))
+         .map(x=>x.trim().slice(0,120));
      }
      throw Error('Normal-lifetime idle preference ineffective; boot='+
        secondSessionBoot+'→'+afterStabilization+', pref='+JSON.stringify(prefEvidence));
