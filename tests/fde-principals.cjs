@@ -52,7 +52,7 @@ async function main(){
      'const qaPrivateText='+JSON.stringify(SECRET)+';',
      'void (async()=>{',
      "const route='/c/private-principal';",
-     "const response=await browser.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route});",
+     "const response=await browser.runtime.sendMessage({type:'chat-queue-internal/v1',action:'register',route,registrationVersion:2});",
      'if(!response?.ok)return;',
      "const key='chatqueue:v1:tab:'+response.tabId+':'+route;",
      'await browser.storage.local.set({[key]:{version:1,items:[{id:"qa-private-message",text:qaPrivateText,status:"pending"}]}});',
