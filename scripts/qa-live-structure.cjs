@@ -79,7 +79,7 @@ function disarmQueueDispatch(content){
      content.split(click).length!==2)
     throw Error('Queue dispatch source contract changed; live probe blocked');
   return content.replace(entry,
-    entry+'\\n    return; // Read-only QA: never prepare, journal, insert, or Send');
+    entry+String.fromCharCode(10)+'    return; // Read-only QA: never prepare, journal, insert, or Send');
 }
 function pinnedProvider(dir){
   if(!path.isAbsolute(dir||''))throw Error('pinned provider source must be absolute');

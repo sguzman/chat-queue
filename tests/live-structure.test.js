@@ -51,10 +51,10 @@ test('live structural probe disarms all Queue dispatch before any browser load',
     'Production source must retain exactly one Send pipeline entry');
   const qa=disarmQueueDispatch(production);
   new vm.Script(qa);
-  assert.ok(qa.includes(originalEntry+'\\n    return; // Read-only QA: never prepare, journal, insert, or Send'));
+  assert.ok(qa.includes(originalEntry+String.fromCharCode(10)+'    return; // Read-only QA: never prepare, journal, insert, or Send'));
   assert.ok(!production.includes('Read-only QA: never prepare, journal, insert, or Send'),
     'Production must never include the QA-only dispatch interlock');
-  assert.equal((qa.match(/send\\.click\\(\\)/g)||[]).length,1,
+  assert.equal((qa.match(/send[.]click[(][)]/g)||[]).length,1,
     'The only known scripted Send click is unreachable behind the early return');
   assert.throws(()=>disarmQueueDispatch(production.replace('      send.click(); clicked=true;',
     '      alternateSendAction();')),/source contract changed/);
