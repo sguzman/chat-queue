@@ -20,6 +20,8 @@
     editing: null, collapsed: false, position:{right:20,bottom:84}, clearArmed: false, theme: 'system', destroyed: false, scheduler: null, revision: 0, etag: uid(), saveChain: Promise.resolve(), routing: false, blockedRecord: false, pendingImport: null, importing: false, historyClearArmed: false, pendingRecovery: null, recoveredSources: [], requestHighWatermarks: Object.create(null), storageFault: false, pendingSaves: 0, registryRecovering: false, inflightProof: null, adding: false, rulesEnabled: false, rulesLoading: false, ruleLibrary: [], ruleOffer: null, ruleSeen: [], ruleAudit: [], ruleCompleted: [], ruleConsentGeneration: 0, ruleClock: null, ruleClosedEpoch: null };
   let routeGeneration=0;
   let holdReviewArmed=false;
+  let holdReviewTarget=null;
+  let holdReviewRequest=0;
   // Deadlines only dismiss a pending manual review; they never authorize
   // execution, enqueue or Send. A stale timer cannot act on a newer offer.
   let ruleApprovalTimer=null;
@@ -1056,7 +1058,7 @@
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
     state.running=false;state.awaiting=false;state.awaitingUncertain=false;state.attempting=null;state.durableHoldId=null;state.unconfirmedClickLease=false;state.busySeen=false;
-    holdReviewArmed=false;
+    holdReviewArmed=false;holdReviewTarget=null;holdReviewRequest++;
     state.waiting=null;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     if (state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
@@ -1459,38 +1461,56 @@
     if(state.running||state.awaiting||state.attempting||state.routing||
        state.storageFault||state.pendingSaves>0||state.importing||
        !contract.assignedConversationRoute(routeKey())){
-      holdReviewArmed=false;
+      holdReviewArmed=false;holdReviewTarget=null;holdReviewRequest++;
       statusNote('Pause and finish active work before reviewing a Send hold');
       return;
     }
     const key=state.key,route=routeKey(),generation=routeGeneration;
     if(!holdReviewArmed){
+      const reviewRequest=++holdReviewRequest;
       try{
         const answer=await api.runtime.sendMessage({
           type:'chat-queue-internal/v1',action:'send-hold-status',route});
-        if(state.key!==key||routeGeneration!==generation)return;
+        if(state.key!==key||routeGeneration!==generation||
+           holdReviewRequest!==reviewRequest)return;
         if(!answer?.ok){statusNote('Could not check Send hold');return;}
         if(!answer.held){statusNote('No previous Send hold for this conversation');return;}
+        if(typeof answer.holdId!=='string'){statusNote('Invalid Send hold; review unavailable');return;}
+        holdReviewTarget=answer.holdId;
         holdReviewArmed=true;
         statusNote('Check the ChatGPT transcript for a prior Send, then click Review prior Send hold again to release the blocker. No retry occurs.');
       }catch{statusNote('Could not check Send hold');}
       return;
     }
     holdReviewArmed=false;
+    const reviewedHoldId=holdReviewTarget;
+    holdReviewTarget=null;holdReviewRequest++;
     try{
       const answer=await api.runtime.sendMessage({
-        type:'chat-queue-internal/v1',action:'review-send-hold',route,confirmed:true});
+        type:'chat-queue-internal/v1',action:'review-send-hold',route,
+        confirmed:true,holdId:reviewedHoldId});
       if(state.key!==key||routeGeneration!==generation)return;
       if(!answer?.ok){
         statusNote(answer?.error==='active-send-hold'
           ? 'An active Send still owns this conversation; resolve it first'
-          : 'Send hold was not released; review again');
+          : answer?.error==='send-hold-changed'
+            ? 'Previous Send hold changed; inspect and review again'
+            : 'Send hold was not released; review again');
         return;
       }
       state.durableHoldId=null;
       statusNote('Prior Send hold released after deliberate review; queue remains paused');
     }catch{statusNote('Send hold was not released; review again');}
   });
+  shadow.addEventListener('click',event=>{
+    // Two consecutive clicks on this control belong to the same review
+    // intent. Another HUD click invalidates that earlier consent.
+    if(event.target!==els['hold-review']){
+      holdReviewArmed=false;
+      holdReviewTarget=null;
+      holdReviewRequest++;
+    }
+  },true);
   els['history-clear'].addEventListener('click',async()=>{
     // History writes must not overlap an Add or other durable queue write.
     // Otherwise a failed first write can leave a phantom prompt in the
