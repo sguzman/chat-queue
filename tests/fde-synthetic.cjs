@@ -816,11 +816,13 @@ async function main(){
     await driver.executeScript(`return ${jsEl('recovery-confirm')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('count')}.textContent==='1 queued'`),8000);
-    assert.equal(await driver.executeScript(()=>
+    const aliasPreview=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
-        .querySelector('.item.uncertain .preview')?.textContent),
-      'Synthetic prior alias message',
-      'Only the matching previous tab queue may be recovered as uncertain');
+        .querySelector('.item.uncertain .preview')?.textContent);
+    assert.ok(aliasPreview?.endsWith('Synthetic prior alias message') &&
+      aliasPreview.includes('Submission uncertain') &&
+      !aliasPreview.includes('Different conversation must remain secret'),
+      'Only matching previous-tab text appears, under an uncertainty warning');
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Explicit recovery must not imply Send or resume');
     await driver.navigate().refresh();
