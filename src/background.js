@@ -186,8 +186,16 @@
       if (!signalContract.validRoute(message.route)) return Promise.resolve({ok:false,error:'invalid-route'});
       if(message.registrationVersion!==undefined&&message.registrationVersion!==2)
         return Promise.resolve({ok:false,error:'unsupported-registration-version'});
+      // An obsolete unversioned content document must not replace a newer
+      // versioned registration OR supersede one still checking Firefox's URL.
+      // Doing so would drop the successor's document freshness checks.
+      if(message.registrationVersion!==2&&
+         (STRICT_STATE_REGISTRATIONS.has(tab.id)||
+          REGISTER_ATTEMPTS.get(tab.id)?.registrationVersion===2))
+        return Promise.resolve({ok:false,error:'registration-downgrade-denied'});
       const attempt=++nextRegisterAttempt;
-      REGISTER_ATTEMPTS.set(tab.id,{attempt,route:message.route});
+      REGISTER_ATTEMPTS.set(tab.id,{attempt,route:message.route,
+        registrationVersion:message.registrationVersion===2?2:1});
       return currentRoute(sender).then(live=>{
         if(live!==message.route)return {ok:false,error:'route-mismatch'};
         if(REGISTER_ATTEMPTS.get(tab.id)?.attempt!==attempt)
