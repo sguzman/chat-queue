@@ -244,10 +244,12 @@ async function main(){
    const fresh={version:1,route:'/c/real-event-page',
      documentToken:'fedcba9876543210fedcba9876543210',
      sequence:1,epoch:0,phase:'idle',origin:'fresh',confidence:'observed'};
-   stage='authenticated-competing-tab-hold-denial';
-   // Publish a fresh idle Signal, and directly invoke the HUD's actual Start
-   // button after Firefox verifies the provider principal. This avoids slow
-   // WebDriver polling artificially outliving the two-second idle window.
+   stage='authenticated-competing-tab-fail-closed';
+   // Publish a fresh idle Signal and invoke the HUD's actual Start after
+   // Firefox authenticates its independent extension principal. Under this
+   // deliberately extreme idle timeout, another genuine event-page restart
+   // may revoke that authority BEFORE hold arbitration. Either loss of
+   // authority or the persisted hold must block Send.
    const result=await driver.executeAsyncScript(
      `const signal=arguments[0],done=arguments[arguments.length-1];
      const listener=event=>{
@@ -267,7 +269,7 @@ async function main(){
      'A newly registered tab must receive an authenticated idle provider event: '+String(result?.error||'unknown'));
    try{
      await driver.wait(async()=>await driver.executeScript(
-       "return document.documentElement.dataset.qaHoldDenied==='true'"),8000);
+       "return document.documentElement.dataset.qaHoldDenied==='true' || document.documentElement.dataset.qaAuthorityLost==='true'"),8000);
    }catch(error){
      const diagnostic=await driver.executeScript(() => ({
        queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
@@ -282,11 +284,18 @@ async function main(){
      }));
      throw Error(error.message+'; '+JSON.stringify(diagnostic));
    }
+   const blocked=await driver.executeScript(() => ({
+     hold:document.documentElement.dataset.qaHoldDenied==='true',
+     authority:document.documentElement.dataset.qaAuthorityLost==='true'
+   }));
+   assert.ok(blocked.hold||blocked.authority,
+     'A new tab must fail closed after real idle even with a fresh Signal');
    assert.equal(await driver.executeScript('return window.__sent'),0,
-     'The independent authenticated competing tab must not Send past the saved hold');
+     'The independently authenticated new tab must never Send past an unresolved hold');
    assert.deepEqual(await readHold(),expectedHold,
      'An authenticated denied Send must leave the original hold unchanged');
-   console.log('FDE authenticated competing tab denied after real idle without sending');
+   console.log('FDE new tab after actual idle: trusted Signal received; fail closed with',
+     blocked.hold?'saved-hold-denial':'revoked-authority','; zero Sends');
    await driver.uninstallAddon(providerInstalled);
    await driver.uninstallAddon(installed);
  }catch(error){
