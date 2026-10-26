@@ -12,11 +12,12 @@ const firefox=require('selenium-webdriver/firefox');
 const page='<!doctype html><html><body><main><form>'+
   '<div id="prompt-textarea" contenteditable="true" style="display:block;min-height:44px;width:280px"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
-  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];window.__holdReadReplies=[];'+
+  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];window.__holdReadReplies=[];window.__probeReplies=[];'+
   'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data);'+
   'if(e.data?.kind==="qa-hold-reply")window.__holdReplies.push(e.data);'+
   'if(e.data?.kind==="qa-hold-read-reply")window.__holdReadReplies.push(e.data);'+
-  'if(e.data?.kind==="qa-signal-reply")window.__signalReplies.push(e.data)})</script>'+
+  'if(e.data?.kind==="qa-signal-reply")window.__signalReplies.push(e.data);'+
+  'if(e.data?.kind==="qa-probe-reply")window.__probeReplies.push(e.data)})</script>'+
   '</body></html>';
 
 async function main(){
@@ -111,6 +112,20 @@ async function main(){
      ".then(v=>window.postMessage({kind:'qa-hold-read-reply',nonce,",
      "record:v['chatqueue:send-hold:v1:real-event-page']||null},'*'))",
      ".catch(()=>window.postMessage({kind:'qa-hold-read-reply',nonce,record:null},'*'));",
+     "});",
+     // QA-only direct probe of production Send arbitration, never a
+     // Send grant or page-accessible production IPC action.
+     "window.addEventListener('message',event=>{",
+     "if(event.source!==window||event.data?.kind!=='qa-hold-probe')return;",
+     "const nonce=event.data.nonce;",
+     "browser.runtime.sendMessage({type:'chat-queue-internal/v1',",
+     "action:'dispatch-check',route:'/c/real-event-page',",
+     "documentToken:'fedcba9876543210fedcba9876543210',",
+     "epoch:0,sequence:1,stage:'probe'})",
+     ".then(result=>window.postMessage({kind:'qa-probe-reply',nonce,",
+     "result:{ok:result?.ok===true,error:result?.error||null}},'*'))",
+     ".catch(()=>window.postMessage({kind:'qa-probe-reply',nonce,",
+     "result:{ok:false,error:'probe-ipc-unavailable'}},'*'));",
      "});"
    ].join(''));
    // Minimal genuine SECOND add-on that authenticates as Chat Signals.
@@ -258,6 +273,9 @@ async function main(){
        window.removeEventListener('message',listener);
        const reply=event.data.result;
        if(reply?.ok){
+         // The real provider is acknowledged before probing the production
+         // arbiter; no WebDriver interprocess latency before the probe.
+         window.postMessage({kind:'qa-hold-probe',nonce:7},'*');
          document.querySelector('#chat-queue-extension-root').shadowRoot
            .getElementById('run').click();
        }
@@ -267,6 +285,15 @@ async function main(){
      window.postMessage({kind:'qa-signal',signal},'*');`,fresh);
    assert.equal(result?.ok,true,
      'A newly registered tab must receive an authenticated idle provider event: '+String(result?.error||'unknown'));
+   stage='direct-persisted-arbitration-after-real-idle';
+   await driver.wait(async()=>await driver.executeScript(
+     'return window.__probeReplies.some(x=>x.nonce===7)'),6500,
+     'QA content-script arbitration probe never returned');
+   const probe=await driver.executeScript(
+     'return window.__probeReplies.find(x=>x.nonce===7).result');
+   assert.deepEqual(probe,{ok:false,error:'unresolved-durable-send'},
+     'Fresh authenticated competing Send must be rejected specifically because of the persisted hold');
+   stage='authenticated-competing-tab-fail-closed';
    try{
      await driver.wait(async()=>await driver.executeScript(
        "return document.documentElement.dataset.qaHoldDenied==='true' || document.documentElement.dataset.qaAuthorityLost==='true'"),8000);
@@ -294,8 +321,9 @@ async function main(){
      'The independently authenticated new tab must never Send past an unresolved hold');
    assert.deepEqual(await readHold(),expectedHold,
      'An authenticated denied Send must leave the original hold unchanged');
-   console.log('FDE new tab after actual idle: trusted Signal received; fail closed with',
-     blocked.hold?'saved-hold-denial':'revoked-authority','; zero Sends');
+   console.log('FDE new tab after actual idle: authenticated persisted Send-hold probe denied;',
+     'HUD failed closed with',blocked.hold?'saved-hold-denial':'revoked-authority',
+     '; zero Sends');
    await driver.uninstallAddon(providerInstalled);
    await driver.uninstallAddon(installed);
  }catch(error){
