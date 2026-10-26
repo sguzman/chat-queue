@@ -255,9 +255,9 @@
     // moved item; if the current direction becomes disabled at the boundary,
     // focus its other enabled arrow. Never focus an unrelated item.
     const focusedControl=shadow.activeElement;
-    const focusedMoveLabel=focusedControl?.getAttribute?.('aria-label');
-    const focusedMoveItem=['Move earlier','Move later'].includes(focusedMoveLabel)
-      ? focusedControl.closest('.item')?.dataset.itemId:null;
+    const focusedActionLabel=focusedControl?.getAttribute?.('aria-label');
+    const focusedActionItem=focusedActionLabel
+      ? focusedControl.closest?.('.item')?.dataset.itemId:null;
     const oldRow=state.editing?[...els.items.children].find(row=>
       row.dataset.itemId===state.editing):null;
     const oldEditor=oldRow?.querySelector('textarea');
@@ -410,13 +410,22 @@
         nextEditor.focus({preventScroll:true});
         nextEditor.setSelectionRange(...selection);
       }
-    }else if(focusedMoveItem){
-      const movedRow=[...els.items.children].find(row=>row.dataset.itemId===focusedMoveItem);
-      const buttons=[...(movedRow?.querySelectorAll('.controls button')||[])];
+    }else if(focusedActionItem){
+      // A local persistence save re-renders the item's controls more than
+      // once. Keep the existing keyboard action focused while it remains
+      // valid, or return Save/Cancel to Edit when the editor closes.
+      // Never focus another item or the ChatGPT page as a fallback.
+      const sameRow=[...els.items.children].find(row=>row.dataset.itemId===focusedActionItem);
+      const buttons=[...(sameRow?.querySelectorAll('.controls button')||[])];
       const target=buttons.find(button=>!button.disabled&&
-        button.getAttribute('aria-label')===focusedMoveLabel)||
-        buttons.find(button=>!button.disabled&&
-          ['Move earlier','Move later'].includes(button.getAttribute('aria-label')));
+        button.getAttribute('aria-label')===focusedActionLabel)||
+        (['Save edit','Cancel edit'].includes(focusedActionLabel)
+          ? buttons.find(button=>!button.disabled&&button.getAttribute('aria-label')==='Edit message')
+          : null)||
+        (['Move earlier','Move later'].includes(focusedActionLabel)
+          ? buttons.find(button=>!button.disabled&&
+            ['Move earlier','Move later'].includes(button.getAttribute('aria-label'))
+          ):null);
       target?.focus({preventScroll:true});
     }
     paintedRows=rowsState;
