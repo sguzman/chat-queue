@@ -1212,7 +1212,7 @@
       type:'chat-queue-internal/v1',action:'register',route:routeKey(),registrationVersion:2});
     }catch{}
     if(generation!==routeGeneration||storageKey()!==newKey)return;
-    if(registration?.ok&&Number.isSafeInteger(registration.registrationGeneration))
+    if(registration?.ok&&validRegistrationGeneration(registration.registrationGeneration))
       state.registrationGeneration=registration.registrationGeneration;
     state.routing=false;render();host.style.removeProperty('visibility');publish();
     requestVerifiedProvider();
