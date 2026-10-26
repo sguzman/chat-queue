@@ -34,6 +34,9 @@
   // One writer per Firefox-attested peer ID per event page. Persistent
   // monotonic revisions make the record survive event-page recreation.
   const ruleWrites=new Map();
+  // Per-peer revision notifications can await Firefox storage reads in either
+  // order. Never deliver an older change after a newer publication was queued.
+  const RULE_NOTIFY_GENERATIONS=new Map();
   // JavaScript string.length counts UTF-16 code units, not bytes. Use
   // UTF-8 code-point widths for the documented 32 KiB IPC frame boundary.
   // Lone surrogates encode as replacement characters (three UTF-8 bytes).
@@ -59,17 +62,21 @@
       :{ok:false,error:'invalid-stored-rules'};
   }
   function notifyPeerRules(id,revision){
+    const generation=(RULE_NOTIFY_GENERATIONS.get(id)||0)+1;
+    RULE_NOTIFY_GENERATIONS.set(id,generation);
     // A discover-only subscriber must not learn even a rule revision after
     // the separate rules capability has been revoked. Revalidate the current
     // durable ACL at publication time, including in-flight write completions.
     const revisionAtRead=grantRevision;
     void api.storage.local.get(grants.KEY).then(async config=>{
       if(revisionAtRead!==grantRevision||
+         RULE_NOTIFY_GENERATIONS.get(id)!==generation||
          !grants.has(config[grants.KEY],id,'rules'))return;
       // The first grant snapshot may resolve after a silent durable revoke,
       // before Firefox delivers storage.onChanged. Verify current storage.
       const current=(await api.storage.local.get(grants.KEY))[grants.KEY];
       if(revisionAtRead!==grantRevision||
+         RULE_NOTIFY_GENERATIONS.get(id)!==generation||
          !grants.has(current,id,'rules')||
          !grants.has(current,id,'discover'))return;
       // Only fixed-schema metadata; no rule IDs, prompt text or event keys.
