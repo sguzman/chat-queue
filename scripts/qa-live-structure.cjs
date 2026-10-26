@@ -81,6 +81,36 @@ function disarmQueueDispatch(content){
   return content.replace(entry,
     entry+String.fromCharCode(10)+'    return; // Read-only QA: never prepare, journal, insert, or Send');
 }
+// Copy only the audited extension payload, not arbitrary local untracked
+// files or symlinks. If the production manifest starts referencing another
+// script, stop instead of silently omitting potentially security-relevant code.
+const PRODUCTION_FILES=[
+  'manifest.json','src/background.js','src/content.js','src/core.js',
+  'src/grants.js','src/rule-store.js','src/rules.js','src/signal.js',
+  'options/options.html','options/options.js','options/rule-preview.js'
+];
+function copyProductionBundle(destination,sourceRoot){
+  const manifest=JSON.parse(fs.readFileSync(path.join(sourceRoot,'manifest.json'),'utf8'));
+  const required=[
+    ...(manifest.background?.scripts||[]),
+    ...(manifest.content_scripts||[]).flatMap(c=>c.js||[]),
+    manifest.options_ui?.page
+  ];
+  const seen=new Set(PRODUCTION_FILES);
+  if(required.some(file=>!seen.has(file))||
+    JSON.stringify([...new Set(required)].sort())!==JSON.stringify(
+      PRODUCTION_FILES.filter(f=>f.startsWith('src/')||f==='options/options.html').sort()))
+    throw Error('production manifest files changed; revise QA allowlist');
+  for(const relative of PRODUCTION_FILES){
+    const input=path.join(sourceRoot,relative);
+    const stat=fs.lstatSync(input);
+    if(!stat.isFile()||stat.isSymbolicLink())
+      throw Error('unsafe production bundle source');
+    const output=path.join(destination,relative);
+    fs.mkdirSync(path.dirname(output),{recursive:true,mode:0o700});
+    fs.copyFileSync(input,output);
+  }
+}
 function pinnedProvider(dir){
   if(!path.isAbsolute(dir||''))throw Error('pinned provider source must be absolute');
   const manifest=JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'),'utf8'));
@@ -111,9 +141,7 @@ async function main(){
   const addonDir=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-readonly-'));
   let driver;
   try{
-    fs.copyFileSync(path.join(root,'manifest.json'),path.join(addonDir,'manifest.json'));
-    for(const part of ['src','options'])
-      fs.cpSync(path.join(root,part),path.join(addonDir,part),{recursive:true});
+    copyProductionBundle(addonDir,root);
     const contentFile=path.join(addonDir,'src/content.js');
     const disarmed=disarmQueueDispatch(fs.readFileSync(contentFile,'utf8'));
     fs.writeFileSync(contentFile,disarmed,{mode:0o600});
@@ -146,7 +174,7 @@ async function main(){
     finally{fs.rmSync(addonDir,{recursive:true,force:true});}
   }
 }
-module.exports={targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch};
+module.exports={targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProductionBundle};
 if(require.main===module)main().catch(()=>{
   // Browser exceptions often include session/profile URLs. Never print them.
   process.stderr.write('Read-only FDE QA blocked; details retained locally.\n');

@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const vm=require('node:vm');
-const {targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch}=
+const {targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProductionBundle}=
   require('../scripts/qa-live-structure.cjs');
 test('live read-only QA only accepts exact existing conversation URLs',()=>{
   const good='https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc';
@@ -60,4 +60,45 @@ test('live structural probe disarms all Queue dispatch before any browser load',
     '      alternateSendAction();')),/source contract changed/);
   assert.throws(()=>disarmQueueDispatch(production.replace(originalEntry,'  async function newDispatch() {')),
     /source contract changed/);
+});
+
+test('read-only QA addon includes only the audited production files',()=>{
+  const root=path.resolve(__dirname,'..');
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cq-prod-qa-'));
+  try{
+    copyProductionBundle(temp,root);
+    const selected=[];
+    const scan=(dir,base='')=>{
+      for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+        const name=path.posix.join(base,entry.name);
+        if(entry.isDirectory())scan(path.join(dir,entry.name),name);
+        else selected.push(name);
+      }
+    };
+    scan(temp);
+    assert.deepEqual(selected.sort(),[
+      'manifest.json','src/background.js','src/content.js','src/core.js',
+      'src/grants.js','src/rule-store.js','src/rules.js','src/signal.js',
+      'options/options.html','options/options.js','options/rule-preview.js'
+    ].sort());
+    const bad=fs.mkdtempSync(path.join(os.tmpdir(),'cq-src-fail-'));
+    try{
+      const newManifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+      newManifest.background.scripts.push('src/unreviewed.js');
+      fs.writeFileSync(path.join(bad,'manifest.json'),JSON.stringify(newManifest));
+      assert.throws(()=>copyProductionBundle(temp,bad),/manifest files changed/);
+    }finally{fs.rmSync(bad,{recursive:true,force:true});}
+    const bogus=fs.mkdtempSync(path.join(os.tmpdir(),'cq-src-link-'));
+    try{
+      const stat=fs.lstatSync(path.join(root,'src/content.js'));
+      assert.ok(stat.isFile());
+      // The hardcoded production-file inventory must not accept a symlink
+      // even when its destination looks like legitimate source.
+      fs.copyFileSync(path.join(root,'manifest.json'),path.join(bogus,'manifest.json'));
+      fs.mkdirSync(path.join(bogus,'src'));
+      fs.symlinkSync(path.join(root,'src/background.js'),
+        path.join(bogus,'src/background.js'));
+      assert.throws(()=>copyProductionBundle(temp,bogus),/unsafe production bundle source/);
+    }finally{fs.rmSync(bogus,{recursive:true,force:true});}
+  }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
