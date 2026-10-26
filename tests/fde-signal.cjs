@@ -1883,6 +1883,14 @@ async function main(){
     await driver.executeScript(`return ${hud('hold-review')}.click()`);
     await waitNote('Check the ChatGPT transcript');
     assert.equal(await driver.executeScript('return window.__sent.length'),0);
+    // Unrelated HUD interaction invalidates the earlier review consent:
+    // the next click must INSPECT again, not clear the still-unknown Send.
+    await driver.executeScript(`return ${hud('status')}.click()`);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await waitNote('Check the ChatGPT transcript');
+    assert.equal(await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Prior Send hold released')`),false,
+      'intervening UI interaction must cancel the pending orphan review');
     await driver.executeScript(`return ${hud('hold-review')}.click()`);
     await waitNote('Prior Send hold released after deliberate review');
     await driver.executeScript(`return ${hud('run')}.click()`);
