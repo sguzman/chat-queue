@@ -63,6 +63,7 @@ function createQueue(dest,root){
  bg=bg.replace(previewBoundary,
    "    if(message.action==='previewRules'&&message.payload?.qaHoldRules===true){"+
    "globalThis.__qaRulesPreviewHoldEntered=true;"+
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
    // Reuse the QA grant-revoke barrier for this separate Rules scope test.
    // It changes no production authorization logic or provider state.
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
