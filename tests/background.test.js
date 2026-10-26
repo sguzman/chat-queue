@@ -78,7 +78,7 @@ test('versioned state rejects a predecessor document after same-route re-registr
   const listed=await listeners.external({type:'chat-queue/v1',action:'listTabs'},
     {id:'approved@example.test'});
   const retained=listed.tabs.find(tab=>tab.tabId===111);
-  assert.equal(retained?.running,false);
+  assert.equal(retained?.running,true,'the replacement running state survives old callbacks');
   assert.equal(retained?.phase,'idle','old completion must not overwrite current metadata');
   assert.equal((await listeners.internal(register,other)).ok,true);
   assert.equal((await listeners.external(signal(112,'b'),provider)).ok,true);
