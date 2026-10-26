@@ -60,6 +60,18 @@ async function main(){
    content=content.replace(resyncMarker,resyncMarker+
      "\n    document.documentElement.dataset.qaProviderSyncCount=String("+
      "Number(document.documentElement.dataset.qaProviderSyncCount||0)+1);");
+   // Observe the exact production hold-denial status even if the intentionally
+   // accelerated idle timer subsequently overwrites the visible HUD note.
+   // No prompt, conversation transcript or arbitrary status text is exposed.
+   const statusNote="  function statusNote(message) { state.note = message; render();publish(); }";
+   assert.equal(content.split(statusNote).length,2);
+   content=content.replace(statusNote,
+     "  function statusNote(message) {"+
+     "if(message==='Previous Send may be unresolved; review its hold')"+
+     "document.documentElement.dataset.qaHoldDenied='true';"+
+     "if(message==='Signal authority lost; no Send attempted')"+
+     "document.documentElement.dataset.qaAuthorityLost='true';"+
+     "state.note=message;render();publish();}");
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
@@ -228,7 +240,7 @@ async function main(){
    await driver.executeScript(
      "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click()");
    await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'"),8000);
+     "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued' && !document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('backup-export').disabled"),8000);
    const fresh={version:1,route:'/c/real-event-page',
      documentToken:'fedcba9876543210fedcba9876543210',
      sequence:1,epoch:0,phase:'idle',origin:'fresh',confidence:'observed'};
@@ -255,7 +267,7 @@ async function main(){
      'A newly registered tab must receive an authenticated idle provider event: '+String(result?.error||'unknown'));
    try{
      await driver.wait(async()=>await driver.executeScript(
-       "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Previous Send may be unresolved; review its hold')"),8000);
+       "return document.documentElement.dataset.qaHoldDenied==='true'"),8000);
    }catch(error){
      const diagnostic=await driver.executeScript(() => ({
        queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
@@ -263,6 +275,8 @@ async function main(){
        providerReplies:window.__signalReplies.map(x=>({
          sequence:x.sequence,ok:x.result?.ok,error:x.result?.error||null})),
        sent:window.__sent,
+       holdDenied:document.documentElement.dataset.qaHoldDenied||null,
+       authorityLost:document.documentElement.dataset.qaAuthorityLost||null,
        queued:document.querySelector('#chat-queue-extension-root')?.shadowRoot
          ?.getElementById('count')?.textContent||null
      }));
