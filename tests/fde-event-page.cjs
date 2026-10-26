@@ -133,8 +133,18 @@ async function main(){
      "window.addEventListener('message',event=>{",
      "if(event.source!==window||event.data?.kind!=='qa-registry-ready')return;",
      "const nonce=event.data.nonce;",
-     "browser.runtime.sendMessage({type:'chat-queue-internal/v1',",
-     "action:'sync-provider',route:'/c/real-event-page'})",
+     "const type='chat-queue-internal/v1',route='/c/real-event-page';",
+     "browser.runtime.sendMessage({type,action:'sync-provider',route})",
+     ".then(async result=>{",
+     "if(result?.ok)return result;",
+     // A newly recreated background has lost its volatile registry. Exercise
+     // the same production register action as ordinary content startup, then
+     // independently require the production sync-provider route check to pass.
+     // No synthetic background state, forged Signals or QA-only keepalive.
+     "const registered=await browser.runtime.sendMessage({type,action:'register',route});",
+     "if(!registered?.ok)return registered;",
+     "return browser.runtime.sendMessage({type,action:'sync-provider',route});",
+     "})",
      ".then(result=>window.postMessage({kind:'qa-ready-reply',nonce,",
      "ok:result?.ok===true},'*'))",
      ".catch(()=>window.postMessage({kind:'qa-ready-reply',nonce,ok:false},'*'));",
