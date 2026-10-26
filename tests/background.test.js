@@ -542,6 +542,38 @@ test('durable uncertain journal blocks other tabs after volatile owner loss',asy
     'removing the reviewed durable obstruction permits a fresh check');
 });
 
+test('late journal read cannot authorize Send after A-B-A navigation',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/journal-route-race';
+  const tab={tab:{id:293,url},url};
+  await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/journal-route-race'},tab);
+  await listeners.external({type:'chat-queue-signal/v1',tabId:293,
+    signal:{version:1,route:'/c/journal-route-race',documentToken:'a'.repeat(32),
+      epoch:0,sequence:1,phase:'idle',origin:'fresh',confidence:'observed'}
+  },{id:'chat-signals@sguzman.github'});
+  const original=context.browser.storage.local.get;
+  let resume;
+  context.browser.storage.local.get=key=>key===null
+    ?new Promise(resolve=>{resume=()=>resolve(original(key));})
+    :original(key);
+  const pending=listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/journal-route-race',
+    documentToken:'a'.repeat(32),epoch:0,sequence:1,itemId:'current'},tab);
+  for(let i=0;i<8&&!resume;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof resume,'function');
+  listeners.updated(293,{url:'https://chatgpt.com/c/intervening'});
+  listeners.updated(293,{url});
+  resume();
+  assert.equal((await pending).error,'route-or-signal-changed',
+    'pathname returning to A does not recover the invalidated provider epoch');
+  context.browser.storage.local.get=original;
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:'/c/journal-route-race',
+    documentToken:'a'.repeat(32),epoch:0,sequence:1,itemId:'current'},tab)).error,
+    'signal-authority-lost');
+});
+
 test('durable journal read failure cannot authorize a new Send',async()=>{
   const {listeners,context}=create();
   const url='https://chatgpt.com/c/storage-fail-closed';
