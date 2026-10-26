@@ -350,7 +350,14 @@
             if(state.editing===id&&current?.value===text){state.editing=null;render();}
           });
         },state.importing||Boolean(state.attempting)),
-        button('Cancel','Cancel edit',()=>{if(state.importing)return;state.editing=null;render();},state.importing));row.append(ctrls);
+        button('Cancel','Cancel edit',()=>{
+           if(state.importing)return;
+           state.editing=null;render();
+           // The Cancel control was in a row replaced by render().
+           // Restore keyboard focus to this same item's Edit control.
+           const row=[...els.items.children].find(entry=>entry.dataset.itemId===item.id);
+           row?.querySelector('button[aria-label="Edit message"]')?.focus({preventScroll:true});
+         },state.importing));row.append(ctrls);
       } else {
         const preview=document.createElement('div');preview.className='preview';preview.textContent=(item.status==='uncertain'?'⚠ Submission uncertain. Review, then explicitly retry or discard.\n':'')+item.text;row.append(preview);
         const ctrls=document.createElement('div');ctrls.className='controls';
@@ -366,7 +373,14 @@
           button('↓','Move later',()=>editItems(()=>{
             state.items=core.nextPosition(state.items,item.id,1);
           }),index===state.items.length-1||locked),
-          button('Edit','Edit message',()=>{state.editing=item.id;render();},locked||item.status!=='pending'),
+          button('Edit','Edit message',()=>{
+             state.editing=item.id;render();
+             // Opening edit replaces its source button. Give the newly
+             // created editor the keyboard focus, rather than losing it
+             // to the host page or forcing another Tab traversal.
+             const row=[...els.items.children].find(entry=>entry.dataset.itemId===item.id);
+             row?.querySelector('textarea[aria-label="Edit queued message"]')?.focus({preventScroll:true});
+           },locked||item.status!=='pending'),
           button('Delete','Remove message',()=>editItems(()=>{
             state.items=state.items.filter(x=>x.id!==item.id);
           }),locked||item.status!=='pending'));
