@@ -239,9 +239,23 @@ async function main(){
      sequence:1,epoch:0,phase:'idle',origin:'fresh',confidence:'observed'};
    await driver.executeScript(
      'window.postMessage({kind:"qa-signal",signal:arguments[0]},"*")',fresh);
-   await driver.wait(async()=>await driver.executeScript(
-     'return window.__signalReplies.some(x=>x.sequence===1 && x.result?.ok===true)'),12000,
-     'Registered synthetic provider could not authenticate a new idle epoch');
+   try{
+     await driver.wait(async()=>await driver.executeScript(
+       'return window.__signalReplies.some(x=>x.sequence===1 && x.result?.ok===true)'),12000,
+       'Registered synthetic provider could not authenticate a new idle epoch');
+   }catch(error){
+     // Fixed-schema fixture diagnostics only: no queue contents, transcript,
+     // extension storage, browser profile, or user data in public CI output.
+     const diagnostic=await driver.executeScript(() => ({
+       replies:window.__signalReplies.map(x=>({
+         sequence:x.sequence,ok:x.result?.ok,error:x.result?.error||null})),
+       queueMounted:Boolean(document.querySelector('#chat-queue-extension-root')),
+       queueStatus:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+         ?.getElementById('status')?.textContent?.slice(0,120)||null,
+       providerReady:document.documentElement.dataset.qaProviderReady||null
+     }));
+     throw new Error(error.message+'; '+JSON.stringify(diagnostic));
+   }
    await driver.wait(async()=>await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('status').textContent.includes('Signal: idle •')"),8000);
    assert.deepEqual(await readHold(),expectedHold,
