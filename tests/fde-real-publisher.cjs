@@ -1040,7 +1040,20 @@ async function main(){
       'Without publisher, page-forged phase cannot authorize Send');
     await driver.uninstallAddon(qid);
     console.log('Actual Chat Signals publisher -> Chat Queue metadata, ordered synthetic sends, and missing-provider denial pass');
-  }catch(error){throw Error('stage '+stage+': '+error.message);}
+  }catch(error){
+    let diagnosis='';
+    if(driver){
+      try{diagnosis=JSON.stringify(await driver.executeScript(() => ({
+        phase:document.documentElement.dataset.chatSignalsState||null,
+        sendCount:window.__sendCount??null,
+        status:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent?.slice(-155)||null,
+        queueCount:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('count')?.textContent||null
+      })));}catch{}
+    }
+    throw Error('stage '+stage+': '+error.message+(diagnosis?' meta='+diagnosis:''));
+  }
   finally{
     if(driver)await driver.quit();
     await new Promise(resolve=>server.close(resolve));
