@@ -563,10 +563,13 @@
         // registration, even after rapid A-B-A SPA navigation. Browser-owned
         // URL evidence closes gaps when tabs.onUpdated is delivered late.
         let live;
-        try{live=new URL((await api.tabs.get(message.tabId))?.url).pathname;}
+        try{live=new URL((await api.tabs.get(message.tabId))?.url);}
         catch{return {ok:false,error:'tab-unavailable'};}
+        // Pathname alone is not a privacy boundary: another origin can
+        // navigate to the same /c/<id> before tabs.onUpdated is delivered.
         if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
-           ROUTES.get(message.tabId)!==targetRoute||live!==targetRoute)
+           ROUTES.get(message.tabId)!==targetRoute||
+           live.origin!=='https://chatgpt.com'||live.pathname!==targetRoute)
           return {ok:false,error:'route-or-registration-changed'};
         // Do the durable ACL read LAST: Firefox can commit a revoked grant
         // before its onChanged notification reaches this event page.
@@ -577,8 +580,16 @@
         catch{return {ok:false,error:'authorization-changed'};}
         if(grantRevision!==authorizedAt||!grants.has(current,requester,'read'))
           return {ok:false,error:'authorization-changed'};
+        // Durable ACL reads are asynchronous too. The browser can navigate
+        // away after the earlier tabs.get() but before that read resolves.
+        // Re-verify the browser-owned origin and path at disclosure time.
+        let finalUrl;
+        try{finalUrl=new URL((await api.tabs.get(message.tabId))?.url);}
+        catch{return {ok:false,error:'tab-unavailable'};}
         if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
-           ROUTES.get(message.tabId)!==targetRoute)
+           ROUTES.get(message.tabId)!==targetRoute||
+           finalUrl.origin!=='https://chatgpt.com'||finalUrl.pathname!==targetRoute||
+           grantRevision!==authorizedAt)
           return {ok:false,error:'route-or-registration-changed'};
       }
       return reply;

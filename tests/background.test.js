@@ -375,6 +375,64 @@ test('private status is withheld if live URL changes before late tab update noti
   assert.equal(JSON.stringify(reply).includes('synthetic stale private content'),false);
 });
 
+test('private status rejects same-path cross-origin navigation before tabs.onUpdated',async()=>{
+  const {listeners,context}=create();
+  const url='https://chatgpt.com/c/private-cross-origin';
+  const sender={tab:{id:108,url},url};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/private-cross-origin'},sender)).ok,true);
+  let release;
+  context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+  const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:108},
+    {id:'approved@example.test'});
+  for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof release,'function');
+  context.browser.tabs.get=async()=>({id:108,
+    url:'https://example.test/c/private-cross-origin'});
+  release({ok:true,items:[{id:'secret',text:'synthetic private cross-origin payload'}]});
+  const answer=await pending;
+  assert.equal(answer.error,'route-or-registration-changed');
+  assert.equal(JSON.stringify(answer).includes('synthetic private cross-origin payload'),false);
+});
+
+test('private status refuses navigation during final async stored-grant recheck',async()=>{
+  for(const urlAfter of [
+    'https://chatgpt.com/c/other-conversation',
+    'https://example.test/c/private-last-check'
+  ]){
+    const {listeners,context}=create();
+    const url='https://chatgpt.com/c/private-last-check';
+    const sender={tab:{id:109,url},url};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/private-last-check'},sender)).ok,true);
+    const originalGrantRead=context.browser.storage.local.get;
+    let releaseGrant,readCount=0,liveUrl=url,tabReads=0;
+    context.browser.tabs.get=async()=>({id:109,url:(tabReads++,liveUrl)});
+    context.browser.storage.local.get=key=>{
+      if(key==='chatqueue:api-grants:v2'&&++readCount===3)
+        return new Promise(resolve=>{releaseGrant=()=>{
+          resolve(originalGrantRead(key));
+        };});
+      return originalGrantRead(key);
+    };
+    context.browser.tabs.sendMessage=async()=>({
+      ok:true,items:[{id:'secret',text:'synthetic private final-recheck payload'}]});
+    const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:109},
+      {id:'approved@example.test'});
+    for(let i=0;i<12&&!releaseGrant;i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(typeof releaseGrant,'function',
+      'Pause the last stored ACL read after the earlier live tab URL check');
+    assert.equal(tabReads,1,'First browser-owned URL check must precede final grant read');
+    liveUrl=urlAfter; // No tab-update listener notification yet.
+    releaseGrant();
+    const answer=await pending;
+    assert.equal(answer.error,'route-or-registration-changed',
+      'A new route or origin must invalidate an otherwise authorized private response');
+    assert.equal(tabReads,2,'Disclosure requires a second browser URL lookup');
+    assert.equal(JSON.stringify(answer).includes('synthetic private final-recheck payload'),false);
+  }
+});
+
 test('private status rechecks stored read grant even before revocation event arrives',async()=>{
   const {listeners,state,context}=create();
   const url='https://chatgpt.com/c/quiet-revocation';
