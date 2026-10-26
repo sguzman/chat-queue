@@ -71,5 +71,5 @@ if(fail.length){
   process.exitCode=1;
 }else{
   console.log('CI supply-chain audit: '+allowedFiles.length+' audited workflows, '+
-    total+' immutable allowlisted references, explicit read-only tokens');
+    total+' immutable allowlisted references, reviewed least-privilege tokens');
 }

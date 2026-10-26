@@ -16,6 +16,8 @@ test('CI pins audited actions and rejects mutable, untrusted and broad-rights ch
     fs.copyFileSync(path.join(root,'.github/workflows/check.yml'),workflowFile);
     const launcherFile=path.join(dir,'.github/workflows/qa-launcher.yml');
     fs.copyFileSync(path.join(root,'.github/workflows/qa-launcher.yml'),launcherFile);
+    const codeqlFile=path.join(dir,'.github/workflows/codeql.yml');
+    fs.copyFileSync(path.join(root,'.github/workflows/codeql.yml'),codeqlFile);
     fs.copyFileSync(path.join(root,'scripts/ci-supply-chain-audit.mjs'),scriptFile);
     const check=()=>spawnSync(process.execPath,[scriptFile],{encoding:'utf8',timeout:10000});
     const baseline=fs.readFileSync(workflowFile,'utf8');
@@ -55,6 +57,27 @@ test('CI pins audited actions and rejects mutable, untrusted and broad-rights ch
     }
     fs.writeFileSync(launcherFile,launcher);
     fs.writeFileSync(workflowFile,baseline);
+    // CodeQL receives the sole reviewed security reporting write token.
+    // Refusing an altered 40-character SHA is stricter than mutable tags.
+    const codeql=fs.readFileSync(codeqlFile,'utf8');
+    const pin='6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee';
+    for(const mutation of [
+      x=>x.replace('github/codeql-action/init@'+pin,
+        'github/codeql-action/init@'+'f'.repeat(40)),
+      x=>x.replace('github/codeql-action/analyze@'+pin,
+        'untrusted/other@'+'f'.repeat(40)),
+      x=>x.replace('  security-events: write','  contents: write'),
+      x=>x.replace('  actions: read','  actions: write'),
+      x=>x.replace('  contents: read','  contents: write')
+    ]){
+      const changed=mutation(codeql);
+      assert.notEqual(changed,codeql,'CodeQL negative fixture must change');
+      fs.writeFileSync(codeqlFile,changed);
+      const denied=check();
+      assert.notEqual(denied.status,0,'Unreviewed CodeQL source or write scope must fail');
+      assert.match(denied.stderr,/CI supply-chain audit:/);
+    }
+    fs.writeFileSync(codeqlFile,codeql);
     const extra=path.join(dir,'.github/workflows/unreviewed.yml');
     fs.writeFileSync(extra,'name: unreviewed\n');
     const rejected=check();
