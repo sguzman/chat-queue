@@ -12,12 +12,13 @@ const firefox=require('selenium-webdriver/firefox');
 const page='<!doctype html><html><body><main><form>'+
   '<div id="prompt-textarea" contenteditable="true" style="display:block;min-height:44px;width:280px"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
-  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];window.__holdReadReplies=[];window.__probeReplies=[];'+
+  '</form></main><script>window.__sent=0;window.__bootReplies=[];window.__signalReplies=[];window.__holdReplies=[];window.__holdReadReplies=[];window.__probeReplies=[];window.__readyReplies=[];'+
   'window.addEventListener("message",e=>{if(e.data?.kind==="qa-boot-reply")window.__bootReplies.push(e.data);'+
   'if(e.data?.kind==="qa-hold-reply")window.__holdReplies.push(e.data);'+
   'if(e.data?.kind==="qa-hold-read-reply")window.__holdReadReplies.push(e.data);'+
   'if(e.data?.kind==="qa-signal-reply")window.__signalReplies.push(e.data);'+
-  'if(e.data?.kind==="qa-probe-reply")window.__probeReplies.push(e.data)})</script>'+
+  'if(e.data?.kind==="qa-probe-reply")window.__probeReplies.push(e.data);'+
+  'if(e.data?.kind==="qa-ready-reply")window.__readyReplies.push(e.data)})</script>'+
   '</body></html>';
 
 async function main(){
@@ -126,6 +127,17 @@ async function main(){
      "result:{ok:result?.ok===true,error:result?.error||null}},'*'))",
      ".catch(()=>window.postMessage({kind:'qa-probe-reply',nonce,",
      "result:{ok:false,error:'probe-ipc-unavailable'}},'*'));",
+     "});",
+     // Metadata-only inspection of the actual production route registry.
+     // It cannot forge registration, a trusted Signal, or Send permission.
+     "window.addEventListener('message',event=>{",
+     "if(event.source!==window||event.data?.kind!=='qa-registry-ready')return;",
+     "const nonce=event.data.nonce;",
+     "browser.runtime.sendMessage({type:'chat-queue-internal/v1',",
+     "action:'sync-provider',route:'/c/real-event-page'})",
+     ".then(result=>window.postMessage({kind:'qa-ready-reply',nonce,",
+     "ok:result?.ok===true},'*'))",
+     ".catch(()=>window.postMessage({kind:'qa-ready-reply',nonce,ok:false},'*'));",
      "});"
    ].join(''));
    // Minimal genuine SECOND add-on that authenticates as Chat Signals.
@@ -256,6 +268,28 @@ async function main(){
      "document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('add').click()");
    await driver.wait(async()=>await driver.executeScript(
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued' && !document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('backup-export').disabled"),8000);
+   // The HUD can mount before its asynchronous Firefox tab registration
+   // completes; the restarted event page can also lose the registry. Check
+   // real, exact-route registration before publishing the separate provider.
+   // At most two actual page reloads reattempt native content registration.
+   stage='competing-tab-production-registration';
+   let registered=false;
+   for(let attempt=0;attempt<3&&!registered;attempt++){
+     if(attempt){
+       await driver.navigate().refresh();
+       await driver.wait(async()=>await driver.executeScript(
+         "return Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('run')) && document.documentElement.dataset.qaProviderReady==='true' && document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent==='1 queued'"),15000);
+     }
+     const id=++nonce;
+     await driver.executeScript(
+       'window.postMessage({kind:"qa-registry-ready",nonce:arguments[0]},"*")',id);
+     await driver.wait(async()=>await driver.executeScript(
+       'return window.__readyReplies.some(x=>x.nonce===arguments[0])',id),5000);
+     registered=await driver.executeScript(
+       'return window.__readyReplies.find(x=>x.nonce===arguments[0]).ok',id);
+   }
+   assert.equal(registered,true,
+     'Real Queue route registry absent after bounded native tab recovery');
    const fresh={version:1,route:'/c/real-event-page',
      documentToken:'fedcba9876543210fedcba9876543210',
      sequence:1,epoch:0,phase:'idle',origin:'fresh',confidence:'observed'};
