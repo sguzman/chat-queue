@@ -265,6 +265,43 @@ test('rules-only external client can preview synthetics but cannot enumerate or 
   assert.equal(forwards.length,0,'pure previews must not contact any queue tab');
 });
 
+test('silent persisted revocation prevents delayed external commands from reaching tabs',async()=>{
+  const cases=[
+    {id:'approved@example.test',action:'start',revoked:['discover','append','edit']},
+    {id:'approved@example.test',action:'resolve',payload:{id:'uncertain',decision:'discard'},
+      revoked:['discover','read','control']},
+    {id:'poster@example.test',action:'enqueue',payload:{text:'synthetic harmless prompt'},
+      revoked:[]}
+  ];
+  for(const fixture of cases){
+    const {listeners,state,context,forwards}=create();
+    const url='https://chatgpt.com/c/revoked-mutation';
+    const tab={tab:{id:93,url},url};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/revoked-mutation'},tab)).ok,true);
+    const original=context.browser.storage.local.get;
+    const oldPolicy=state['chatqueue:api-grants:v2'];
+    let release,reads=0;
+    context.browser.storage.local.get=key=>{
+      if(key==='chatqueue:api-grants:v2'&&++reads===1)
+        return new Promise(resolve=>{release=()=>resolve({'chatqueue:api-grants:v2':oldPolicy});});
+      return original(key);
+    };
+    const pending=listeners.external({type:'chat-queue/v1',
+      action:fixture.action,tabId:93,payload:fixture.payload},{id:fixture.id});
+    assert.equal(typeof release,'function');
+    state['chatqueue:api-grants:v2']={version:2,
+      grants:{[fixture.id]:fixture.revoked}};
+    // Durable ACL is already revoked; no storage.onChanged notification yet.
+    release();
+    const answer=await pending;
+    assert.equal(answer.error,'authorization-changed',fixture.action);
+    assert.equal(reads,2,'a second stored ACL read is mandatory before a mutation');
+    assert.equal(forwards.length,0,
+      fixture.action+' must not reach a tab after durable revocation');
+  }
+});
+
 test('revoking read scope during an in-flight status request withholds private prompt text',async()=>{
   const {listeners,state,context}=create();
   const page={tab:{id:83,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
