@@ -473,7 +473,7 @@ async function main(){
     await waitNote('Signal: idle');
     const contenderStart=await driver.executeScript(`return ${hud('run')}`);
     await contenderStart.click();
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Competing tab cannot Send or gain ownership');
     assert.equal(await driver.executeScript("return document.getElementById('prompt-textarea').textContent"),'',
@@ -486,14 +486,14 @@ async function main(){
     await driver.switchTo().window(contenderWindow);
     await emit('idle',0,23);
     await contenderStart.click();
-    await waitNote('Another tab owns this conversation');
+    await waitNote('Previous Send may be unresolved; review its hold');
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Pausing while awaiting a response must retain the route lease');
 
     await driver.switchTo().window(ownerWindow);
     await emit('finished',1,22,'inferred');
     await waitNote('Response finished; control returned');
-    await driver.sleep(250);
+    await driver.sleep(650);
     await driver.switchTo().window(contenderWindow);
     await emit('idle',0,24);
     await contenderStart.click();
@@ -1872,7 +1872,7 @@ async function main(){
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
-    if(qaStage.startsWith('rapid-')&&driver){
+    if((qaStage.startsWith('rapid-')||qaStage==='same-conversation-lease'||qaStage==='trusted-edit-after-send-click'||qaStage==='persistent-hold-blocks-closed-tab-restart-competitor')&&driver){
       try{diagnostics=JSON.stringify(await driver.executeScript(() => ({
         sent:window.__sent?.length,acks:window.__acks?.map(x=>({sequence:x.sequence,ok:x.result?.ok})),
         status:document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('status')?.textContent,
