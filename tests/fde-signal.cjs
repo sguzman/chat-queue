@@ -250,6 +250,8 @@ function prepareQueue(dir,source){
     "await new Promise(resolve=>setTimeout(resolve,2100));\n"+
     "        if(message.route==='/c/enqueue-inflight')"+
     "await new Promise(resolve=>setTimeout(resolve,2300));\n"+
+    "        if(message.route==='/c/early-human-edit')"+
+    "await new Promise(resolve=>setTimeout(resolve,2000));\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
     "if(globalThis.__qaLateChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
@@ -1910,6 +1912,37 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'An arbitrary input with a matching editor ID cannot receive a queued prompt');
     assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    qaStage='trusted-type-and-clear-during-first-authorization';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/early-human-edit');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic protected preflight message';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,590,'observed','fresh','/c/early-human-edit');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Preparing next message');
+    await driver.executeScript("window.__qaEarlyTrusted=0;document.getElementById('prompt-textarea').addEventListener('input',e=>{if(e.isTrusted)window.__qaEarlyTrusted++})");
+    const earlyEditor=await driver.findElement(By.id('prompt-textarea'));
+    await earlyEditor.sendKeys('Human draft',...Array(11).fill(Key.BACK_SPACE));
+    assert.ok(await driver.executeScript('return window.__qaEarlyTrusted')>0,
+      'Use real browser-trusted keyboard input, not a synthetic script event');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText.trim()"),'',
+      'User returned editor to empty before the delayed authorization resolved');
+    await waitNote('Human interaction before composer handoff; no Send attempted');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Empty editor after real human takeover cannot authorize Queue Send');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'The previously prepared item needs explicit uncertainty review');
+    await emit('finished',1,591,'observed','fresh','/c/early-human-edit');
+    await driver.sleep(600);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A later provider completion cannot auto-retry after human interference');
+
     qaStage='enqueue-refused-during-dispatch-authorization';
     await driver.switchTo().newWindow('tab');
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/enqueue-inflight');

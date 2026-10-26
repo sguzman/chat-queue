@@ -808,8 +808,15 @@
     let acceptedHistoryWritePending=false;
     let acceptedHistoryBefore=null;
     let editor,send,proof,composerForm;
-    let humanTouched=false;
-    const onHumanInput=event=>{if(event.isTrusted)humanTouched=true;};
+    let humanTouched=false,queueFilling=false;
+    // Start observing at the FIRST asynchronous dispatch boundary, not
+    // after filling the composer. A real user may type and then erase text
+    // during provider authorization or journal storage; a later empty editor
+    // is not evidence the user has relinquished control.
+    const onHumanInput=event=>{if(event.isTrusted&&!queueFilling)humanTouched=true;};
+    document.addEventListener('beforeinput',onHumanInput,true);
+    document.addEventListener('input',onHumanInput,true);
+    document.addEventListener('change',onHumanInput,true);
     try {
       if(!sameAttempt())
         throw new Error('Conversation changed before composer handoff');
@@ -825,15 +832,20 @@
           : ownership?.error==='send-hold-storage-unavailable'
             ? 'Saved Send hold unavailable; no Send attempted'
             : 'Signal authority lost; no Send attempted');
-      if(!state.running||!sameAttempt())
-        throw new Error('Dispatch context changed before composer handoff');
+      if(!state.running||!sameAttempt()||humanTouched)
+        throw new Error(humanTouched
+          ? 'Human interaction before composer handoff; no Send attempted'
+          : 'Dispatch context changed before composer handoff');
       const found=findComposer();
       // Journal uncertainty BEFORE exposing queue text in the page composer.
       // A human click during async preflight must not send unjournaled text.
       item.status='uncertain';
       await save();
-      if(!state.running||!sameAttempt()||state.storageFault||state.pendingSaves>0)
-        throw new Error('Dispatch changed during uncertainty journal');
+      if(!state.running||!sameAttempt()||state.storageFault||state.pendingSaves>0||
+         humanTouched)
+        throw new Error(humanTouched
+          ? 'Human interaction before composer handoff; no Send attempted'
+          : 'Dispatch changed during uncertainty journal');
       // Another browser/user input may have appeared while storage committed.
       const current=findComposer();
       if(current.editor!==found.editor||current.form!==found.form)
@@ -850,22 +862,29 @@
         ? 'Previous Send may be unresolved; review its hold'
         : 'Could not persist Send hold; no Send attempted');
       state.durableHoldId=holdId;
-      if(!sameAttempt()||!state.running||state.storageFault)
-        throw new Error('Dispatch context changed after Send hold');
+      if(!sameAttempt()||!state.running||state.storageFault||humanTouched)
+        throw new Error(humanTouched
+          ? 'Human interaction before composer handoff; no Send attempted'
+          : 'Dispatch context changed after Send hold');
       // Reserving durable metadata is asynchronous. Check the composer
       // *again* after the storage round-trip: a real user may have typed
       // their own draft while Firefox committed the hold.
       const afterHold=findComposer();
       if(afterHold.editor!==editor||afterHold.form!==composerForm)
         throw new Error('Composer changed during Send hold; no Send attempted');
-      fillComposer(editor,item.text);
+      // Firefox's execCommand('insertText') can emit a browser-trusted
+      // input event for Queue's OWN insertion. Ignore only that synchronous
+      // handoff, never a user's earlier or later trusted edit.
+      if(humanTouched)
+        throw new Error('Human interaction before composer handoff; no Send attempted');
+      queueFilling=true;
+      try{fillComposer(editor,item.text);}
+      finally{queueFilling=false;}
       send=findSend(current.form);
       // A user may switch to another editable field while the browser-owned
       // sealed authorization is pending. Real edits elsewhere on this page
       // also mean the user has resumed control and must cancel Queue Send.
       // Synthetic page events are untrusted and cannot trip this guard.
-      document.addEventListener('beforeinput',onHumanInput,true);
-      document.addEventListener('input',onHumanInput,true);
       send.addEventListener('click',onHumanInput,true);
       // A real file-picker change can happen after the click without any
       // input event on the editor or Send button. Treat it as user interference.
@@ -957,6 +976,7 @@
       if(state.inflightProof===proof)state.inflightProof=null;
       document.removeEventListener('beforeinput',onHumanInput,true);
       document.removeEventListener('input',onHumanInput,true);
+      document.removeEventListener('change',onHumanInput,true);
       if(send)send.removeEventListener('click',onHumanInput,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
