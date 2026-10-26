@@ -615,12 +615,20 @@
       }
       return reply;
     } catch {
-      TABS.delete(message.tabId);
-      SIGNALS.delete(message.tabId);
-      ROUTES.delete(message.tabId);
-      ORIGINS.delete(message.tabId);
-      STATE_SEQUENCES.delete(message.tabId);
-      REGISTRATIONS.delete(message.tabId);
+      // The forwarded request belonged to the registration captured above.
+      // A new content document can re-register this same tab/route before an
+      // old tabs.sendMessage() rejection arrives. Never erase its new tab
+      // state, Signal epoch or registration on that stale callback.
+      if(TABS.get(message.tabId)===target&&
+         REGISTRATIONS.get(message.tabId)===targetGeneration&&
+         ROUTES.get(message.tabId)===targetRoute){
+        TABS.delete(message.tabId);
+        SIGNALS.delete(message.tabId);
+        ROUTES.delete(message.tabId);
+        ORIGINS.delete(message.tabId);
+        STATE_SEQUENCES.delete(message.tabId);
+        REGISTRATIONS.delete(message.tabId);
+      }
       return { ok: false, error: 'tab-unavailable' };
     }
   });

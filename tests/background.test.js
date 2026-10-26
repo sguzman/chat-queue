@@ -351,6 +351,57 @@ test('external enqueue is refused if navigation occurs during its async authoriz
   assert.equal(forwards.length,0,'No old-conversation enqueue may reach a moved tab');
 });
 
+test('late failed peer API response cannot erase newer same-tab registrations',async()=>{
+  for(const sameRoute of [true,false]){
+    const {listeners,context,forwards}=create();
+    const first='https://chatgpt.com/c/failed-forward-a';
+    const second=sameRoute?first:'https://chatgpt.com/c/failed-forward-b';
+    const initial={tab:{id:114,url:first},url:first};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/failed-forward-a'},initial)).ok,true);
+    let rejectOld;
+    context.browser.tabs.sendMessage=(_tab,message)=>{
+      forwards.push({tabId:114,message});
+      if(message.action==='enqueue')
+        return new Promise((_resolve,reject)=>{rejectOld=reject;});
+      return Promise.resolve({ok:true});
+    };
+    const pending=listeners.external({type:'chat-queue/v1',
+      action:'enqueue',tabId:114,payload:{text:'Synthetic stale callback race'}},
+      {id:'approved@example.test'});
+    for(let i=0;i<12&&!rejectOld;i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(typeof rejectOld,'function','The old API send must be in flight');
+    if(!sameRoute)listeners.updated(114,{url:second});
+    const fresh={tab:{id:114,url:second},url:second};
+    const newRoute=new URL(second).pathname;
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:newRoute},fresh)).ok,true);
+    const signal={version:1,route:newRoute,documentToken:'c'.repeat(32),
+      epoch:2,sequence:1,phase:'finished',origin:'fresh',confidence:'observed'};
+    assert.equal((await listeners.external({type:'chat-queue-signal/v1',
+      tabId:114,signal},{id:'chat-signals@sguzman.github'})).ok,true,
+      'The new registration must own a fresh provider epoch');
+    rejectOld(new Error('synthetic old document no receiver'));
+    const result=await pending;
+    assert.equal(result.error,'tab-unavailable');
+    const listed=await listeners.external({type:'chat-queue/v1',
+      action:'listTabs'},{id:'approved@example.test'});
+    assert.equal(listed.ok,true);
+    assert.equal(listed.tabs.length,1,
+      'An old rejected peer request must not erase a newer same-tab registration');
+    assert.equal(listed.tabs[0].tabId,114);
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'state',sequence:1,phase:'finished',size:0,running:false},fresh)).ok,true);
+    const newerSignal={...signal,sequence:2};
+    assert.equal((await listeners.external({type:'chat-queue-signal/v1',
+      tabId:114,signal:newerSignal},
+      {id:'chat-signals@sguzman.github'})).ok,true,
+      'Stale API failure cannot delete the new provider epoch');
+    assert.equal(forwards.filter(x=>x.message.action==='enqueue').length,1,
+      'No automatic retry occurs after an ambiguous old API handoff');
+  }
+});
+
 test('revoking read scope during an in-flight status request withholds private prompt text',async()=>{
   const {listeners,state,context}=create();
   const page={tab:{id:83,url:'https://chatgpt.com/c/synthetic'},url:'https://chatgpt.com/c/synthetic'};
