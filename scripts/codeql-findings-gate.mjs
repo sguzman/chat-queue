@@ -14,8 +14,15 @@ try{
   names=fs.readdirSync(root).filter(f=>f.endsWith('.sarif')).sort();
   if(names.length!==1)throw Error('expected exactly one report');
   const filename=path.join(root,names[0]);
-  if(!fs.lstatSync(filename).isFile())throw Error('not a regular report');
-  const sarif=JSON.parse(fs.readFileSync(filename,'utf8'));
+  // Open once with O_NOFOLLOW, then inspect and read through the SAME fd.
+  // lstat(path) followed by readFile(path) admits a symlink-swap race.
+  const fd=fs.openSync(filename,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  let raw;
+  try{
+    if(!fs.fstatSync(fd).isFile())throw Error('not a regular report');
+    raw=fs.readFileSync(fd,'utf8');
+  }finally{fs.closeSync(fd);}
+  const sarif=JSON.parse(raw);
   if(sarif.version!=='2.1.0'||!Array.isArray(sarif.runs)||sarif.runs.length<1)
     throw Error('invalid report');
   let checked=0,findings=0;

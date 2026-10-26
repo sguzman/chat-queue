@@ -44,4 +44,10 @@ test('missing and malformed security results do not appear clean',()=>{
     fs.writeFileSync(path.join(dir,'b.sarif'),JSON.stringify(sarif));
   });
   assert.notEqual(duplicate.status,0);
+  const symlink=fixture(({dir,sarif})=>{
+    const source=path.join(dir,'source.txt');
+    fs.writeFileSync(source,JSON.stringify(sarif));
+    fs.symlinkSync(source,path.join(dir,'javascript.sarif'));
+  });
+  assert.notEqual(symlink.status,0,'SARIF symlinks must be rejected');
 });
