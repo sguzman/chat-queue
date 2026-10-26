@@ -372,18 +372,18 @@ async function main(){
     // Save traverses two serialized storage/render boundaries before closing
     // the editor. A keyboard user should land on the same item's Edit
     // button, not the document body or an unrelated queue item.
-    const editAgain=await driver.executeScript(()=>
+    const keyboardSaveEditAgain=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .querySelector('.item:first-child button[aria-label="Edit message"]'));
-    await editAgain.sendKeys(Key.ENTER);
+    await keyboardSaveEditAgain.sendKeys(Key.ENTER);
     const savedEditor=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .querySelector('.item:first-child textarea[aria-label="Edit queued message"]'));
     await savedEditor.sendKeys(' - saved edit');
-    const saveEdit=await driver.executeScript(()=>
+    const keyboardSaveAction=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .querySelector('.item:first-child button[aria-label="Save edit"]'));
-    await saveEdit.sendKeys(Key.ENTER);
+    await keyboardSaveAction.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript((expected)=>{
       const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
       const row=sh.querySelector('.item:first-child');
