@@ -660,6 +660,54 @@ async function main(){
       'Subsequent ready evidence cannot resurrect a human-interrupted Send');
     await driver.switchTo().window(priorTrustedRaceTab);
 
+    // A Send button was clicked once, but the busy epoch has not arrived.
+    // User edits another independent text field on the same page. That real
+    // trusted keyboard input must invalidate acceptance even if the original
+    // composer has already become empty and a fresh busy/terminal arrives.
+    qaStage='trusted-unrelated-field-edit-after-click';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/other-edit-after-click');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    for(const text of [
+      'Synthetic already clicked before other human edit',
+      'Synthetic next item must not start'
+    ]){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+    }
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='2 queued'`),10000);
+    await emit('idle',0,64,'observed','fresh','/c/other-edit-after-click');
+    await waitNote('Signal: idle');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await driver.executeScript(()=>{
+      const other=document.createElement('input');
+      other.id='qa-after-click-other-input';other.type='text';
+      document.querySelector('main').append(other);
+      window.__qaAfterClickTrusted=0;
+      other.addEventListener('input',event=>{
+        if(event.isTrusted)window.__qaAfterClickTrusted++;
+      });
+    });
+    await (await driver.findElement(By.id('qa-after-click-other-input'))).sendKeys('Human takeover');
+    assert.ok(await driver.executeScript('return window.__qaAfterClickTrusted')>0);
+    await emit('generating',1,65,'observed','fresh','/c/other-edit-after-click');
+    await emit('finished',1,66,'observed','fresh','/c/other-edit-after-click');
+    await waitNote('Human interaction during submission verification; manual review required');
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'A real edit outside the original composer must not dispatch the second item');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('qa-after-click-other-input').value"),'Human takeover');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'Late finished/idle must never retry the human-interrupted clicked item');
+    await driver.switchTo().window(priorTrustedRaceTab);
+
     qaStage='trusted-user-edit-race';
     const lateDraft=await driver.executeScript(`return ${hud('draft')}`);
     const lateAdd=await driver.executeScript(`return ${hud('add')}`);
