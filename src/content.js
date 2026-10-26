@@ -901,7 +901,18 @@
   }
   async function releaseDurableHold(){
     const id=state.durableHoldId,key=state.key,route=routeKey();
-    if(!id)return true;
+    if(!id){
+      // After a content-script reload, the old Send's random hold ID is
+      // intentionally not reconstructed from a private queue record. Do not
+      // claim release succeeded merely because the volatile field is empty.
+      // A surviving durable hold requires separate explicit local review.
+      try{
+        const current=await api.runtime.sendMessage({
+          type:'chat-queue-internal/v1',action:'send-hold-status',route});
+        return current?.ok===true&&current.held===false&&
+          state.key===key&&routeKey()===route;
+      }catch{return false;}
+    }
     let reply;
     try{reply=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
       action:'release-send-hold',route,holdId:id});}
