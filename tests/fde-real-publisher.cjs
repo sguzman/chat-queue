@@ -553,6 +553,17 @@ async function main(){
     await driver.executeScript(`return ${hud('rules-toggle')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Conditional previews disabled')`),9000);
+    // The failed first Queue Send remains a durable, potentially accepted
+    // remote action. A later *human* ChatGPT Send does not certify whether
+    // that earlier prompt was delivered. Explicit transcript review is now
+    // required before another automatic Queue Send in this conversation.
+    stage='real-provider-recovery-reviewed-prior-send-hold';
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Check the ChatGPT transcript')`),9000);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Prior Send hold released after deliberate review')`),9000);
     stage='real-provider-recovery-explicit-queue-start';
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript('return window.__sendCount===3'),12000);
