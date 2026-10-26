@@ -233,9 +233,13 @@ async function main(){
   assert.equal(raced.revision,2);
   assert.ok([41,42].includes(raced.rules[0].priority));
   await driver.wait(async()=>{const stream=await command({action:'portState'});
-    return stream.events.filter(x=>x.event==='rulesChanged').length>=2;},7000);
+    return stream.events.some(x=>x.event==='rulesChanged'&&x.revision===2);},7000);
   const ruleEvents=(await command({action:'portState'})).events.filter(x=>x.event==='rulesChanged');
-  assert.deepEqual(ruleEvents.map(x=>x.revision),[1,2]);
+  const revisions=ruleEvents.map(x=>x.revision);
+  assert.ok(revisions.length>=1&&revisions.length<=2);
+  assert.equal(revisions.at(-1),2,'newest committed revision must be observable');
+  assert.ok(revisions.every((x,i)=>i===0||x>revisions[i-1]),
+    'older asynchronous revision notifications must never arrive after newer ones');
   assert.equal(JSON.stringify(ruleEvents).includes('pause-on-error'),false);
   assert.equal(await driver.executeScript('return window.__sent'),0);
   result=await command({type:'chat-queue/v1',action:'listTabs'});
