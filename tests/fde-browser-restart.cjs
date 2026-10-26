@@ -54,6 +54,7 @@ async function main(){
     fs.writeFileSync(bgFile,bg.replace(nav,"!change.url.startsWith('http://127.0.0.1:')"));
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const url=`http://127.0.0.1:${server.address().port}/c/full-browser-restart`;
+    const aliasUrl=`http://127.0.0.1:${server.address().port}/g/restartqa/c/full-browser-restart`;
     const open=()=>new Builder().forBrowser('firefox').setFirefoxOptions(
       new firefox.Options().setBinary(binary)
         .addArguments('-headless','-profile',profile)
@@ -99,10 +100,13 @@ async function main(){
     await driver.switchTo().newWindow('tab');
     const secondWindow=await driver.getWindowHandle();
     assert.notEqual(secondWindow,originalWindow);
-    await driver.get(url);
+    // The second browser tab uses a DIFFERENT recognized URL shape with the
+    // same assigned conversation ID. A prior direct-route tab record must
+    // never auto-load, but explicit manual recovery may offer it as uncertain.
+    await driver.get(aliasUrl);
     await driver.wait(async()=>driver.executeScript(`return Boolean(${el('count')})`),15000);
     assert.equal(await driver.executeScript(`return ${el('count')}.textContent`),'0 queued',
-      'A new tab must not silently adopt the other tab ID queue');
+      'A new project-alias tab must not silently adopt the prior direct-route queue');
     assert.equal(await driver.executeScript('return window.__sent'),0);
     await driver.executeScript(`document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;${el('recovery-find')}.click()`);
     await driver.wait(async()=>driver.executeScript(`return ${el('recovery-confirm')}?.hidden===false`),10000);
@@ -131,7 +135,7 @@ async function main(){
     assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript('return window.__sent'),0);
     console.log('Full Firefox Developer Edition restart: original queue paused, reused-tab-key='+reusedTabKey+
-      ', new-tab explicit recovery uncertain and durable, no Send');
+      ', project-alias second tab explicit recovery uncertain and durable, no Send');
   }catch(error){
     throw new Error(stage+': '+error.message);
   }finally{
