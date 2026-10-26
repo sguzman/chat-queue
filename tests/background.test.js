@@ -40,6 +40,19 @@ function create(persisted={}) {
   return {listeners,forwards,syncRequests,state,context};
 }
 
+test('production content never drops the versioned registration contract',()=>{
+  const content=fs.readFileSync(require.resolve('../src/content.js'),'utf8');
+  const count=word=>content.split(word).length-1;
+  assert.equal(count('registrationVersion:2'),3,
+    'initial load, navigation and event-page recovery must register in strict mode');
+  assert.equal(count('registrationGeneration:attemptRegistration'),3,
+    'every preflight/reserve/sealed Send authorization must keep the attempt generation');
+  assert.equal(count('registrationGeneration:state.registrationGeneration'),6,
+    'state, hold status/release/review and provider sync must keep current generation');
+  assert.match(content,/state[.]registrationGeneration===attemptRegistration/,
+    'the original Send attempt cannot inherit a later registration');
+});
+
 test('versioned state rejects a predecessor document after same-route re-registration',async()=>{
   const {listeners}=create();
   const route='/c/rebound-private-owner';
