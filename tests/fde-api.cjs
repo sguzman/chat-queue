@@ -80,6 +80,16 @@ function createQueue(dest,root){
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2200));"+
    "return snapshot;})():api.storage.local.get(grants.KEY));");
+ // QA-only: pause external Enqueue immediately before the browser URL
+ // lookup after its first two durable grant reads. Production ignores
+ // qaHoldWriteUrl; a silent permission revoke must withhold the mutation.
+ const mutationLookup="      let live;\n      try{live=new URL((await api.tabs.get(message.tabId))?.url);}";
+ assert.equal(bg.split(mutationLookup).length,2);
+ bg=bg.replace(mutationLookup,
+   "      if(message.action==='enqueue'&&message.payload?.qaHoldWriteUrl===true){"+
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
+   "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
+   mutationLookup);
  // QA-only: delay the final browser URL verification, not the earlier
  // response hold or permission check. Test that a silent durable Read revoke
  // committed during this last await is still denied before prompt disclosure.
@@ -409,6 +419,42 @@ async function main(){
     restoreAppendNonce,clientId);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__grantResults.some(x=>x.nonce===arguments[0])',restoreAppendNonce),10000);
+  stage='native-silent-append-revocation-during-tab-lookup';
+  const delayedWriteNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-api-request",nonce:arguments[0],request:{type:"chat-queue/v1",action:"enqueue",tabId:arguments[1],payload:{text:"Synthetic late-revoked Append",qaHoldWriteUrl:true}}},"*")',
+    delayedWriteNonce,tabId);
+  const delayedRevokeNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set-silent",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","read","edit"]}}},"*")',
+    delayedRevokeNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    delayedRevokeNonce),10000);
+  assert.equal(await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result.ok',
+    delayedRevokeNonce),true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',
+    delayedWriteNonce),10000);
+  const withheldWrite=await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result',
+    delayedWriteNonce);
+  assert.equal(withheldWrite.error,'authorization-changed',
+    'Silently revoked Append must not cross the final URL lookup');
+  assert.equal(await driver.executeScript(
+    'return document.querySelector("#chat-queue-extension-root").shadowRoot.getElementById("count").textContent'),
+    '1 queued','Late-revoked mutation must not alter queued prompts');
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  const finalWriteRestoreNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',
+    finalWriteRestoreNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    finalWriteRestoreNonce),10000);
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
+
   // The fallback must detect Firefox URL change events when History API updates the route.
   stage='scoped-rules-revocation';
   const scopedLibrary=await command({type:'chat-queue/v1',action:'rulesGet'});
