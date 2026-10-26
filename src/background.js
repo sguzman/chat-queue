@@ -402,6 +402,8 @@
     }
     const target = TABS.get(message.tabId);
     if (!target) return { ok: false, error: 'tab-not-registered' };
+    const targetRoute=ROUTES.get(message.tabId);
+    const targetGeneration=REGISTRATIONS.get(message.tabId);
     // Firefox can commit a revoked capability before storage.onChanged reaches
     // this event page. A delayed *first* ACL read otherwise authorizes a
     // previously permitted mutating verb (including Start/Resolve). Recheck
@@ -425,6 +427,17 @@
       // Re-read the durable grant immediately before returning it; errors
       // also fail closed. Mutations already forwarded return their true result.
       if(message.action==='status'){
+        // A delayed private status response must still belong to the SAME
+        // registration, even after rapid A-B-A SPA navigation. Browser-owned
+        // URL evidence closes gaps when tabs.onUpdated is delivered late.
+        let live;
+        try{live=new URL((await api.tabs.get(message.tabId))?.url).pathname;}
+        catch{return {ok:false,error:'tab-unavailable'};}
+        if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
+           ROUTES.get(message.tabId)!==targetRoute||live!==targetRoute)
+          return {ok:false,error:'route-or-registration-changed'};
+        // Do the durable ACL read LAST: Firefox can commit a revoked grant
+        // before its onChanged notification reaches this event page.
         if(grantRevision!==authorizedAt)
           return {ok:false,error:'authorization-changed'};
         let current;
@@ -432,6 +445,9 @@
         catch{return {ok:false,error:'authorization-changed'};}
         if(grantRevision!==authorizedAt||!grants.has(current,requester,'read'))
           return {ok:false,error:'authorization-changed'};
+        if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
+           ROUTES.get(message.tabId)!==targetRoute)
+          return {ok:false,error:'route-or-registration-changed'};
       }
       return reply;
     } catch {
