@@ -708,7 +708,7 @@ async function main(){
   const initialGeneration=await driver.executeScript(
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.registrationGeneration',
     generationNonce);
-  assert.ok(Number.isSafeInteger(initialGeneration),
+  assert.match(initialGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i,
     'versioned Firefox registration must return one private generation');
   const staleNonce=++nonce,latestNonce=++nonce;
   const oldState={type:'chat-queue-internal/v1',action:'state',
@@ -752,7 +752,7 @@ async function main(){
   const successorGeneration=await driver.executeScript(
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.registrationGeneration',
     registerNonce);
-  assert.ok(Number.isSafeInteger(successorGeneration));
+  assert.match(successorGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
   assert.notEqual(successorGeneration,initialGeneration);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',

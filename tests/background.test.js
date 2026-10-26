@@ -32,7 +32,7 @@ function create(persisted={}) {
     storage:{local:{get:async()=>state,set:async changes=>{Object.assign(state,changes);},remove:async key=>{delete state[key];}},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
   Object.assign(state,persisted);
-  const context=vm.createContext({browser,URL});
+  const context=vm.createContext({browser,URL,crypto:require('node:crypto').webcrypto});
   vm.runInContext(signals,context);
   vm.runInContext(grants,context);
   vm.runInContext(rules,context);
@@ -62,7 +62,7 @@ test('versioned state rejects a predecessor document after same-route re-registr
     route,registrationVersion:2};
   const oldReg=await listeners.internal(register,first);
   assert.equal(oldReg.ok,true);
-  assert.ok(Number.isSafeInteger(oldReg.registrationGeneration));
+  assert.match(oldReg.registrationGeneration,/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
   const incoming={type:'chat-queue-internal/v1',action:'state',
     phase:'generating',running:true,awaiting:true,sequence:1,
     registrationGeneration:oldReg.registrationGeneration};
@@ -70,6 +70,12 @@ test('versioned state rejects a predecessor document after same-route re-registr
   const newReg=await listeners.internal(register,first);
   assert.equal(newReg.ok,true);
   assert.notEqual(newReg.registrationGeneration,oldReg.registrationGeneration);
+  // A restarted event-page VM must never reuse an old document identity.
+  // Numeric counters restart at zero; random UUIDs do not.
+  const restarted=create();
+  const afterRestart=await restarted.listeners.internal(register,first);
+  assert.notEqual(afterRestart.registrationGeneration,oldReg.registrationGeneration);
+  assert.notEqual(afterRestart.registrationGeneration,newReg.registrationGeneration);
   const replacement={...incoming,phase:'idle',sequence:1,
     registrationGeneration:newReg.registrationGeneration};
   assert.equal((await listeners.internal(replacement,first)).ok,true);

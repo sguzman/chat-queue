@@ -10,6 +10,8 @@
   const ruleStore = globalThis.ChatQueueRuleStore;
   if (!api?.runtime?.sendMessage || !core || !contract || !rulesEngine || !ruleStore) return;
   const uid = () => crypto.randomUUID();
+  const validRegistrationGeneration=x=>typeof x==='string'&&
+    /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(x);
   const UI_KEY='chatqueue:ui:v1';
   const uiValid=x=>x?.version===1&&Number.isSafeInteger(x.right)&&x.right>=0&&x.right<=10000&&Number.isSafeInteger(x.bottom)&&x.bottom>=0&&x.bottom<=10000&&typeof x.collapsed==='boolean';
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
@@ -470,7 +472,7 @@
         type:'chat-queue-internal/v1',action:'register',route,registrationVersion:2});
       if(answer?.ok&&state.key===key&&routeKey()===route&&!state.destroyed){
         state.tabId=answer.tabId;
-        state.registrationGeneration=Number.isSafeInteger(answer.registrationGeneration)
+        state.registrationGeneration=validRegistrationGeneration(answer.registrationGeneration)
           ?answer.registrationGeneration:null;
         restored=true;
       }
@@ -1939,7 +1941,7 @@
       }
       if(!response?.ok)throw new Error('Registration unavailable after route changes');
       // A missing generation must never authorize background state updates.
-      state.registrationGeneration=Number.isSafeInteger(response.registrationGeneration)
+      state.registrationGeneration=validRegistrationGeneration(response.registrationGeneration)
         ?response.registrationGeneration:null;
       state.tabId=response.tabId;
       state.key=`chatqueue:v1:tab:${state.tabId}:${initialRoute}`;

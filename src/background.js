@@ -33,7 +33,6 @@
   const matchingRegistration=(tabId,message)=>Boolean(
     REGISTRATIONS.get(tabId)&&(!STRICT_STATE_REGISTRATIONS.has(tabId)||
       message.registrationGeneration===REGISTRATIONS.get(tabId)));
-  let nextRegistration=0;
   // An earlier asynchronous tabs.get() must not reinstate a superseded
   // registration after a newer document or route has registered this tab.
   const REGISTER_ATTEMPTS = new Map();
@@ -200,7 +199,7 @@
         ROUTES.set(tab.id,message.route);
         ORIGINS.set(tab.id,new URL(sender.url||tab.url).origin);
         STATE_SEQUENCES.set(tab.id,0);
-        const registrationGeneration=++nextRegistration;
+        const registrationGeneration=crypto.randomUUID();
         REGISTRATIONS.set(tab.id,registrationGeneration);
         if(message.registrationVersion===2)STRICT_STATE_REGISTRATIONS.add(tab.id);
         else STRICT_STATE_REGISTRATIONS.delete(tab.id);
@@ -346,7 +345,7 @@
           const owner=OWNERS.get(conversationId);
           const oldGeneration=OWNER_REGISTRATIONS.get(conversationId);
           const retiredSameTabOwner=owner===tab.id&&
-            Number.isSafeInteger(oldGeneration)&&
+            typeof oldGeneration==='string'&&
             oldGeneration!==REGISTRATIONS.get(tab.id);
           if(message.action==='review-send-hold'&&
              (message.confirmed!==true||
