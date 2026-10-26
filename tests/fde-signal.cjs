@@ -1898,10 +1898,47 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sent.length'),1,
       'only deliberate review unlocks one separately authorized new Send');
 
+    qaStage='same-tab-reload-explicitly-reviews-retired-send-hold';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/same-tab-rebound');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic first Send before same-tab reload';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,950,'observed','fresh','/c/same-tab-rebound');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    await emit('generating',1,951,'observed','fresh','/c/same-tab-rebound');
+    await waitNote('Waiting for confirmed response completion');
+    // The Firefox tab ID survives refresh while the prior content document
+    // and its volatile holdId do not. A still-loaded event page retains its
+    // earlier generation's owner, so only a deliberately reviewed retired
+    // same-tab hold may be removed.
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),13000);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await waitNote('Check the ChatGPT transcript');
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await waitNote('Prior Send hold released after deliberate review');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'same-tab reload and prior hold review must not automatically retry');
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic new Send after same-tab review';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await emit('idle',0,952,'observed','fresh','/c/same-tab-rebound');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitSends(1);
+    assert.equal(await driver.executeScript('return window.__sent.length'),1,
+      'new authenticated Start sends once only after explicit prior review');
+
     console.log('Headless FDE synthetic Signal: authenticated opt-in proposals, preemptive pause, and guarded sending and rule-revocation races, and failed/limit/interrupted policy review, and approved dependency/skip enforcement, and monotonic bounded duration evidence, and durable prerequisite rollback, and terminal clock freeze');
   }catch(error){
     let diagnostics='';
-    if((qaStage.startsWith('rapid-')||qaStage==='same-conversation-lease'||qaStage==='trusted-edit-after-send-click'||qaStage==='persistent-hold-blocks-closed-tab-restart-competitor')&&driver){
+    if((qaStage.startsWith('rapid-')||qaStage==='same-conversation-lease'||qaStage==='trusted-edit-after-send-click'||qaStage==='persistent-hold-blocks-closed-tab-restart-competitor'||qaStage==='same-tab-reload-explicitly-reviews-retired-send-hold')&&driver){
       try{diagnostics=JSON.stringify(await driver.executeScript(() => ({
         sent:window.__sent?.length,acks:window.__acks?.map(x=>({sequence:x.sequence,ok:x.result?.ok})),
         status:document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('status')?.textContent,
