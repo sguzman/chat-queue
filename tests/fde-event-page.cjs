@@ -62,6 +62,13 @@ async function main(){
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=2;');
+   // Only accelerate detection of a genuine idle restart. The contender
+   // stage should use the production heartbeat interval instead of causing
+   // artificial provider invalidation every two seconds.
+   const watchCheck='++heartbeatTicks>=REGISTRY_HEARTBEAT_TICKS';
+   assert.equal(content.split(watchCheck).length,2);
+   content=content.replace(watchCheck,
+     "++heartbeatTicks>=(document.documentElement.dataset.qaNormalHeartbeat==='true'?60:REGISTRY_HEARTBEAT_TICKS)");
    fs.writeFileSync(path.join(root,'src/content.js'),content);
    // QA-only counter increments whenever the ACTUAL event page is created.
    fs.writeFileSync(path.join(root,'qa-startup.js'),[
@@ -199,6 +206,8 @@ async function main(){
      return count>heldBoot?count:false;
    },47000,'Firefox event page did not suspend while durable hold was persisted');
    assert.ok(heldRestart>heldBoot);
+   await driver.executeScript(
+     "document.documentElement.dataset.qaNormalHeartbeat='true'");
    stage='authenticated-contender-refused-after-idle';
    const installedProvider=await driver.installAddon(providerRoot,true);
    assert.equal(installedProvider,'chat-signals@sguzman.github');
