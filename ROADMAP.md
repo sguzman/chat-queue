@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 81/96 verified (84%) · ████████░░ · 12 implemented awaiting acceptance.**
+**Overall: 82/96 verified (85%) · ████████░░ · 11 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -129,7 +129,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 
 - [~] `M4-01` 🎯 Locate exactly one current ChatGPT composer and Send control _(implemented; acceptance pending)_
 - [x] `M4-02` ✉️ Reject occupied drafts and existing attachments without mutation
-- [~] `M4-03` 🧷 Insert exact prompt without invoking unrelated editors _(implemented; acceptance pending)_
+- [x] `M4-03` 🧷 Insert exact prompt without invoking unrelated editors
 - [~] `M4-04` 🔎 Verify prepared text and enabled Send at dispatch time _(implemented; acceptance pending)_
 - [~] `M4-05` 👆 Attempt one Send click, never blindly retry _(implemented; acceptance pending)_
 - [ ] `M4-06` 🧪 Verify real ProseMirror/React behavior in authenticated FDE
@@ -145,7 +145,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M4-11` 🛑 Refuse automatic resumption after browser or event-page restart
 - [~] `M4-12` 🧪 Test duplicate avoidance, error recovery and wrong-conversation races _(implemented; acceptance pending)_
 
-**M4 acceptance:** 3/12 verified (25%) · ██░░░░░░░░ · 8 implemented but not accepted.
+**M4 acceptance:** 4/12 verified (33%) · ███░░░░░░░ · 7 implemented but not accepted.
 
 ### 🔌 M5 — External extension API
 
