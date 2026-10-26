@@ -21,9 +21,15 @@ test('live QA reports count-only structure and preserves draft',()=>{
      'localStorage','sessionStorage','location.href','console.log','click()'])
     assert.equal(txt.includes(forbidden),false,forbidden);
   const ok={exactRoute:true,composerCandidates:1,formPresent:true,
-    sendCandidates:1,draftOccupied:false,queueMounted:true,signalPagePresent:true};
+    sendCandidates:1,sendDisabled:true,attachmentPresent:false,
+    draftOccupied:false,queueMounted:true,signalPagePresent:true};
   assert.deepEqual(qualify(ok),{qualified:true,reason:'read-only-structure-only'});
   assert.equal(qualify({...ok,draftOccupied:true}).qualified,false);
+  assert.deepEqual(qualify({...ok,attachmentPresent:true}),
+    {qualified:false,reason:'existing-attachment-preserved'});
+  assert.equal(qualify({...ok,attachmentPresent:undefined}).qualified,false);
+  assert.equal(qualify({...ok,sendDisabled:true}).qualified,true,
+    'Empty ChatGPT draft may legitimately leave its visible Send disabled');
   assert.equal(qualify({...ok,composerCandidates:2}).qualified,false);
   assert.equal(qualify({...ok,sendCandidates:0}).qualified,false);
   assert.equal(qualify({...ok,queueMounted:false}).qualified,false);
@@ -101,4 +107,24 @@ test('read-only QA addon includes only the audited production files',()=>{
       assert.throws(()=>copyProductionBundle(temp,bogus),/unsafe production bundle source/);
     }finally{fs.rmSync(bogus,{recursive:true,force:true});}
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
+});
+
+test('read-only selector probe tracks production editor and Send selectors',()=>{
+  const production=fs.readFileSync(path.join(__dirname,'../src/content.js'),'utf8');
+  const probe=inspectCounts.toString();
+  const expected=[
+    ['editorSelector','composer'],
+    ['sendSelector','send']
+  ];
+  for(const [variable,label] of expected){
+    const match=production.match(new RegExp(
+      'const '+variable+'\\s*=\\s*(\\x27[^\\x27]+\\x27)'));
+    assert.ok(match,'Production '+label+' selector must have known audited form');
+    assert.ok(probe.includes(match[1].slice(1,-1)),
+      'Probe '+label+' selector must match production literally');
+  }
+  for(const required of ['elementFromPoint','getBoundingClientRect',
+    'aria-disabled','input[type="file"]','isContentEditable']){
+    assert.ok(probe.includes(required),'Probe must carry '+required+' safety check');
+  }
 });

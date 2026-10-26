@@ -35,24 +35,44 @@ function inspectCounts(){
   // never click or enable it. Do not transfer account or prompt metadata.
   const editorSelector='#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector='button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
-  const visible=e=>{
+  // Match Queue's actionableControl geometry/visibility and usableComposer
+  // shape checks without any click or mutation. Disabled Send is allowed as
+  // mere STRUCTURE evidence because ChatGPT disables it for empty drafts.
+  const actionable=(e,requireEnabled)=>{
     if(!e.isConnected||!e.getClientRects().length||
-       e.closest('[hidden],[inert],[aria-hidden="true" i]'))return false;
+       e.closest('[hidden],[inert],[aria-hidden="true" i]')||
+       (requireEnabled&&(e.disabled||e.readOnly||e.getAttribute('aria-disabled')==='true'||
+         e.closest('[aria-disabled="true" i],fieldset:disabled'))))return false;
     for(let p=e;p;p=p.parentElement){
       const s=getComputedStyle(p);
-      if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)<=0)return false;
+      if(s.display==='none'||s.visibility!=='visible'||!(Number(s.opacity)>0))return false;
     }
-    return true;
+    const r=e.getBoundingClientRect();
+    if(r.width<=0||r.height<=0||r.right<=0||r.bottom<=0||
+       r.left>=innerWidth||r.top>=innerHeight||
+       getComputedStyle(e).pointerEvents==='none')return false;
+    const hit=document.elementFromPoint(
+      (Math.max(0,r.left)+Math.min(innerWidth,r.right))/2,
+      (Math.max(0,r.top)+Math.min(innerHeight,r.bottom))/2);
+    return Boolean(hit&&(hit===e||e.contains(hit)));
   };
-  const editors=[...document.querySelectorAll(editorSelector)]
-    .filter(e=>visible(e)&&(e.isContentEditable||
-      e instanceof HTMLTextAreaElement||e instanceof HTMLInputElement));
+  const editors=[...document.querySelectorAll(editorSelector)].filter(e=>{
+    const text=e instanceof HTMLTextAreaElement||
+      (e instanceof HTMLInputElement&&['text','search'].includes(e.type));
+    return actionable(e,true)&&(text||e.isContentEditable===true);
+  });
   const form=editors.length===1?editors[0].closest('form'):null;
-  const controls=form?[...form.querySelectorAll(sendSelector)].filter(visible):[];
+  const controls=form?[...form.querySelectorAll(sendSelector)]
+    .filter(e=>actionable(e,false)):[];
+  const attachments=Boolean(form&&[...form.querySelectorAll('input[type="file"]')]
+    .some(input=>input.files?.length));
   return {
     exactRoute:/^\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(location.pathname),
     composerCandidates:editors.length,formPresent:Boolean(form),
     sendCandidates:controls.length,
+    sendDisabled:controls.length===1?Boolean(controls[0].disabled||
+      controls[0].getAttribute('aria-disabled')==='true'):null,
+    attachmentPresent:attachments,
     draftOccupied:editors.length===1?Boolean((editors[0].value??editors[0].textContent??'').trim()):null,
     queueMounted:Boolean(document.getElementById('chat-queue-extension-root')),
     signalPagePresent:typeof document.documentElement.dataset.chatSignalsState==='string'
@@ -65,6 +85,8 @@ function qualify(o){
     return {qualified:false,reason:'ambiguous-composer-or-send'};
   if(o.draftOccupied!==false)
     return {qualified:false,reason:'existing-user-draft-preserved'};
+  if(o.attachmentPresent!==false)
+    return {qualified:false,reason:'existing-attachment-preserved'};
   return {qualified:true,reason:'read-only-structure-only'};
 }
 // The authenticated QA profile may already contain pending Queue data.
