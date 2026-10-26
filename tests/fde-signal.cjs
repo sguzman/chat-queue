@@ -950,9 +950,25 @@ async function main(){
     const lateFile=await driver.executeScript(
       "const file=document.createElement('input');file.type='file';file.id='qa-late-selected-file';document.querySelector('main form').append(file);return file");
     await lateFile.sendKeys(fixtureAttachment);
-    await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('status')}.textContent.includes('Composer changed before Send; no send attempted') ||
-        ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),10000);
+    try{
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('status')}.textContent.includes('Composer changed before Send; no send attempted') ||
+          ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),10000);
+    }catch(error){
+      // This is a fully synthetic localhost test with no private prompts.
+      // Fixed-schema diagnostics distinguish actual Send from a changed
+      // rejection wording or a late WebDriver file-picker event.
+      const d=await driver.executeScript(() => ({
+        note:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('status')?.textContent?.slice(0,160)||null,
+        sent:window.__sent?.length||0,
+        focused:document.activeElement?.id||null,
+        attachmentCount:document.querySelector('#qa-late-selected-file')?.files?.length||0,
+        uncertain:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.querySelectorAll('.item.uncertain')?.length||0
+      }));
+      throw Error(error.message+'; synthetic-state='+JSON.stringify(d));
+    }
     assert.equal(await driver.executeScript("return document.querySelector('#qa-late-selected-file').files.length"),1);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'Late selected file input must block queued Send');
