@@ -80,6 +80,16 @@ function createQueue(dest,root){
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2200));"+
    "return snapshot;})():api.storage.local.get(grants.KEY));");
+ // QA-only: delay the final browser URL verification, not the earlier
+ // response hold or permission check. Test that a silent durable Read revoke
+ // committed during this last await is still denied before prompt disclosure.
+ const finalUrlBoundary="        let finalUrl;\n        try{finalUrl=new URL((await api.tabs.get(message.tabId))?.url);}";
+ assert.equal(bg.split(finalUrlBoundary).length,2);
+ bg=bg.replace(finalUrlBoundary,
+   "        if(message.action==='status'&&message.payload?.qaHoldFinalUrl===true){"+
+   "globalThis.__qaPrivateStatusHoldEntered=true;"+
+   "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
+   finalUrlBoundary);
  // QA-only: delay one stale tab metadata state before URL inspection.
  const section=bg.indexOf("    if (message.action === 'state') {");
  assert.ok(section>=0);
@@ -336,6 +346,39 @@ async function main(){
     restoreNonce,clientId);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__grantResults.some(x=>x.nonce===arguments[0])',restoreNonce),10000);
+  assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
+  stage='silent-revocation-while-last-url-read-waits';
+  const lateStatusNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-api-request",nonce:arguments[0],request:{type:"chat-queue/v1",action:"status",tabId:arguments[1],payload:{qaHoldFinalUrl:true}}},"*")',
+    lateStatusNonce,tabId);
+  const lateRevokeNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set-silent",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append"]}}},"*")',
+    lateRevokeNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    lateRevokeNonce),9000);
+  assert.equal(await driver.executeScript(
+    'return window.__grantResults.find(x=>x.nonce===arguments[0]).result.ok',
+    lateRevokeNonce),true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__apiResults.some(x=>x.nonce===arguments[0])',
+    lateStatusNonce),10000);
+  const withheldLate=await driver.executeScript(
+    'return window.__apiResults.find(x=>x.nonce===arguments[0]).result',
+    lateStatusNonce);
+  assert.equal(withheldLate.error,'authorization-changed',
+    'Last async URL lookup cannot bypass silent durable Read revocation');
+  assert.equal(JSON.stringify(withheldLate).includes('Synthetic external enqueue'),false);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  const lateRestoreNonce=++nonce;
+  await driver.executeScript(
+    'window.postMessage({kind:"qa-grants-set",nonce:arguments[0],policy:{version:2,grants:{[arguments[1]]:["discover","append","read","edit"]}}},"*")',
+    lateRestoreNonce,clientId);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__grantResults.some(x=>x.nonce===arguments[0])',
+    lateRestoreNonce),10000);
   assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
   stage='native-silent-append-revocation-before-forward';
   const staleAppendNonce=++nonce;
