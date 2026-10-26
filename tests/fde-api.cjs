@@ -109,6 +109,16 @@ function createQueue(dest,root){
    "globalThis.__qaPrivateStatusHoldEntered=true;"+
    "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    finalUrlBoundary);
+ // QA-only: suspend a previous document's metadata-only hold release
+ // after capturing its generation but before the durable storage read.
+ // Production never interprets qaHoldOldRelease.
+ const holdRead="          try{hold=(await api.storage.local.get(key))[key];}";
+ assert.equal(bg.split(holdRead).length,2);
+ bg=bg.replace(holdRead,
+   "          if(message.action==='release-send-hold'&&message.qaHoldOldRelease===true){"+
+   "globalThis.__qaOldHoldReleaseEntered=true;"+
+   "await new Promise(resolve=>{globalThis.__qaOldHoldReleaseResume=resolve;});}\n"+
+   holdRead);
  // QA-only: delay one stale tab metadata state before URL inspection.
  const section=bg.indexOf("    if (message.action === 'state') {");
  assert.ok(section>=0);
@@ -128,6 +138,21 @@ function createQueue(dest,root){
    if(!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
    if(msg?.type==='qa-preview-hold-state')
      return Promise.resolve({ok:true,entered:globalThis.__qaRulesPreviewHoldEntered===true});
+   if(msg?.type==='qa-seed-send-hold'){
+     const route='/c/synthetic',holdId='12345678-aaaa-4444-bbbb-111111111111';
+     const key='chatqueue:send-hold:v1:synthetic';
+     return browser.storage.local.set({[key]:{version:1,route,
+       tabId:sender.tab.id,holdId}}).then(()=>({ok:true}));
+   }
+   if(msg?.type==='qa-old-hold-state')
+     return Promise.resolve({ok:true,entered:globalThis.__qaOldHoldReleaseEntered===true});
+   if(msg?.type==='qa-old-hold-resume'){
+     const resume=globalThis.__qaOldHoldReleaseResume;
+     if(typeof resume!=='function')return Promise.resolve({ok:false,error:'not-held'});
+     globalThis.__qaOldHoldReleaseResume=null;
+     globalThis.__qaOldHoldReleaseEntered=false;
+     resume();return Promise.resolve({ok:true});
+   }
    if(msg?.type==='qa-old-forward-state')
      return Promise.resolve({ok:true,entered:globalThis.__qaOldForwardEntered===true});
    if(msg?.type==='qa-old-forward-release'){
@@ -764,6 +789,37 @@ async function main(){
   assert.equal((await command({type:'chat-queue/v1',action:'status',tabId})).ok,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
 
+  stage='native-reload-stale-send-hold-release';
+  const holdId='12345678-aaaa-4444-bbbb-111111111111';
+  assert.equal((await metaCommand({type:'qa-seed-send-hold'})).ok,true);
+  const oldReleaseNonce=++nonce;
+  await driver.executeScript((i,token)=>
+    window.postMessage({kind:'qa-meta-send',nonce:i,message:{
+      type:'chat-queue-internal/v1',action:'release-send-hold',
+      route:'/c/synthetic',holdId:token,qaHoldOldRelease:true
+    }},'*'),oldReleaseNonce,holdId);
+  await driver.wait(async()=>(await metaCommand({
+    type:'qa-old-hold-state'}))?.entered===true,8000);
+  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/synthetic'})).ok,true);
+  assert.equal((await metaCommand({type:'qa-old-hold-resume'})).ok,true);
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    oldReleaseNonce),9000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.error',
+    oldReleaseNonce),'stale-registration',
+    'A prior document must not clear a newer document durable Send hold');
+  const held=await metaCommand({type:'chat-queue-internal/v1',
+    action:'send-hold-status',route:'/c/synthetic'});
+  assert.equal(held.held,true);
+  assert.equal(held.holdId,holdId);
+  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route:'/c/synthetic',holdId,confirmed:true})).ok,true,
+    'New registration retains the manual double-confirmed orphan recovery');
+  assert.equal((await metaCommand({type:'chat-queue-internal/v1',
+    action:'send-hold-status',route:'/c/synthetic'})).held,false);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
   stage='api-uncertain-item-resolution';
   const seedNonce=++nonce;
   await driver.executeScript('window.postMessage({kind:"qa-seed-uncertain",nonce:arguments[0]},"*")',seedNonce);
