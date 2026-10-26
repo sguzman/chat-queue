@@ -69,7 +69,7 @@ function createQueue(dest,root){
    "await new Promise(resolve=>setTimeout(resolve,2400));}\n"+
    previewBoundary);
  // QA-only: suspend one failed old peer forward until a new registration.
- const forwardBoundary="      const reply=await api.tabs.sendMessage(message.tabId, {";
+ const forwardBoundary="      const reply=await sendToRegisteredDocument(message.tabId, {";
  assert.equal(bg.split(forwardBoundary).length,2);
  bg=bg.replace(forwardBoundary,
    "      if(message.action==='enqueue'&&message.payload?.qaRejectOldForward===true){"+
