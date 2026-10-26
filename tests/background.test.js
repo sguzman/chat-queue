@@ -520,7 +520,7 @@ test('durable uncertain journal blocks other tabs after volatile owner loss',asy
   assert.equal((await check('different')).error,'unresolved-saved-send',
     'another unresolved item in this tab is not the current handoff');
   assert.equal((await check('current')).ok,true,
-    'same item's second pre-click check must accept its own durable journal');
+    'second pre-click check must accept the same durable journal item');
   state[own].items=[];
   assert.equal((await check('current')).ok,true,
     'removing the reviewed durable obstruction permits a fresh check');
