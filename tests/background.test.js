@@ -598,7 +598,7 @@ test('a Send hold contains metadata only and survives event-page restart',async(
   assert.equal((await check('reserve')).ok,true);
   assert.equal((await check('sealed')).ok,true);
   assert.equal((await first.listeners.internal({type:'chat-queue-internal/v1',
-    action:'review-send-hold',route,confirmed:true},tab)).error,'active-send-hold',
+    action:'review-send-hold',route,confirmed:true,holdId},tab)).error,'active-send-hold',
     'explicit review cannot clear another active dispatch owner');
   const key='chatqueue:send-hold:v1:durable-proof';
   assert.deepEqual(Object.keys(first.state[key]).sort(),
@@ -615,10 +615,23 @@ test('a Send hold contains metadata only and survives event-page restart',async(
     action:'dispatch-check',route:alias,documentToken:'b'.repeat(32),
     sequence:1,epoch:2},peer);
   assert.equal((await peerCheck()).error,'unresolved-durable-send');
+  const initial=await restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'send-hold-status',route:alias},peer);
+  assert.equal(initial.ok,true);
+  assert.equal(initial.holdId,holdId);
   assert.equal((await restarted.listeners.internal({type:'chat-queue-internal/v1',
-    action:'review-send-hold',route:alias},peer)).error,'active-send-hold');
+    action:'review-send-hold',route:alias,holdId},peer)).error,'active-send-hold');
+  // If another tab reserves a NEW hold between the two human clicks,
+  // stale consent cannot silently release that different potential Send.
+  const replacementId='334f1c6a-1111-4444-bbbb-333333333333';
+  restarted.state[key]={...restarted.state[key],holdId:replacementId};
   assert.equal((await restarted.listeners.internal({type:'chat-queue-internal/v1',
-    action:'review-send-hold',route:alias,confirmed:true},peer)).ok,true);
+    action:'review-send-hold',route:alias,confirmed:true,holdId},peer)).error,
+    'send-hold-changed');
+  assert.equal(restarted.state[key].holdId,replacementId);
+  assert.equal((await peerCheck()).error,'unresolved-durable-send');
+  assert.equal((await restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route:alias,confirmed:true,holdId:replacementId},peer)).ok,true);
   assert.equal(Object.hasOwn(restarted.state,key),false);
   assert.equal((await peerCheck()).ok,true);
 });
