@@ -332,7 +332,10 @@ test('delayed private status cannot disclose prior conversation after tab naviga
     assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
       action:'register',route:'/c/private-before-navigation'},sender)).ok,true);
     let release;
-    context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+    context.browser.tabs.sendMessage=(_id,message)=>
+      message?.type==='chat-queue-api/v1'
+        ?new Promise(resolve=>{release=resolve;})
+        :Promise.resolve({ok:true});
     const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:97},
       {id:'approved@example.test'});
     for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
