@@ -97,6 +97,19 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
+          if(msg.route==='/g/qa/c/recovery-alias'){
+            const oldKey='chatqueue:v1:tab:987654321:/c/recovery-alias';
+            const lookalike='chatqueue:v1:tab:987654322:/c/recovery-alias2';
+            return browser.storage.local.get([oldKey,lookalike]).then(saved=>{
+              if(Object.hasOwn(saved,oldKey))return {ok:true,tabId:sender.tab.id};
+              return browser.storage.local.set({
+                [oldKey]:{version:1,items:[
+                  {id:'aliasorphan01',text:'Synthetic prior alias message',status:'pending'}]},
+                [lookalike]:{version:1,items:[
+                  {id:'aliasother01',text:'Different conversation must remain secret',status:'pending'}]}
+              }).then(()=>({ok:true,tabId:sender.tab.id}));
+            });
+          }
           if(msg.route==='/c/recovery-record'||msg.route==='/c/recovery-mutate'||msg.route==='/c/recovery-save-fail'){
             const oldKey='chatqueue:v1:tab:987654321:'+msg.route;
             return browser.storage.local.get(oldKey).then(saved=>{
@@ -785,6 +798,43 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
     // Rejected recovery persistence must roll back both restored messages
     // and source-consumption markers, permitting only a *fresh* user retry.
+    qaStage='project-alias-explicit-uncertain-recovery';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/g/qa/c/recovery-alias');
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
+    await driver.executeScript(
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued',
+      'A project URL must not silently inherit queued prompts from a direct URL');
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('recovery-confirm')}.hidden===false`),5000);
+    assert.ok((await driver.executeScript(`return ${jsEl('data-note')}.textContent`))
+      .includes('1 earlier queue(s)'),
+      'Find may identify only the same exact conversation ID, not lookalikes');
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued',
+      'Find alone must never import across URL aliases');
+    await driver.executeScript(`return ${jsEl('recovery-confirm')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}.textContent==='1 queued'`),8000);
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelector('.item.uncertain .preview')?.textContent),
+      'Synthetic prior alias message',
+      'Only the matching previous tab queue may be recovered as uncertain');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Explicit recovery must not imply Send or resume');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('count')}?.textContent==='1 queued'`),10000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    await driver.executeScript(
+      "document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true");
+    await driver.executeScript(`return ${jsEl('recovery-find')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('data-note')}.textContent.includes('No other compatible queue')`),5000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+
     qaStage='recovery-write-rejected';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/recovery-save-fail`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('recovery-find')})`),10000);
