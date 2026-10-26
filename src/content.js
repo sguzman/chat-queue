@@ -1447,6 +1447,42 @@
       if(!state.destroyed)render();
     }
   });
+  els['hold-review'].addEventListener('click',async()=>{
+    if(state.running||state.awaiting||state.attempting||state.routing||
+       state.storageFault||state.pendingSaves>0||state.importing||
+       !contract.assignedConversationRoute(routeKey())){
+      holdReviewArmed=false;
+      statusNote('Pause and finish active work before reviewing a Send hold');
+      return;
+    }
+    const key=state.key,route=routeKey(),generation=routeGeneration;
+    if(!holdReviewArmed){
+      try{
+        const answer=await api.runtime.sendMessage({
+          type:'chat-queue-internal/v1',action:'send-hold-status',route});
+        if(state.key!==key||routeGeneration!==generation)return;
+        if(!answer?.ok){statusNote('Could not check Send hold');return;}
+        if(!answer.held){statusNote('No previous Send hold for this conversation');return;}
+        holdReviewArmed=true;
+        statusNote('Check the ChatGPT transcript for a prior Send, then click Review prior Send hold again to release the blocker. No retry occurs.');
+      }catch{statusNote('Could not check Send hold');}
+      return;
+    }
+    holdReviewArmed=false;
+    try{
+      const answer=await api.runtime.sendMessage({
+        type:'chat-queue-internal/v1',action:'review-send-hold',route,confirmed:true});
+      if(state.key!==key||routeGeneration!==generation)return;
+      if(!answer?.ok){
+        statusNote(answer?.error==='active-send-hold'
+          ? 'An active Send still owns this conversation; resolve it first'
+          : 'Send hold was not released; review again');
+        return;
+      }
+      state.durableHoldId=null;
+      statusNote('Prior Send hold released after deliberate review; queue remains paused');
+    }catch{statusNote('Send hold was not released; review again');}
+  });
   els['history-clear'].addEventListener('click',async()=>{
     // History writes must not overlap an Add or other durable queue write.
     // Otherwise a failed first write can leave a phantom prompt in the
