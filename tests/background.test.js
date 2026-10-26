@@ -104,6 +104,10 @@ test('versioned registration blocks stale privileged Send and hold IPC',async()=
     registrationVersion:2},tab);
   const obsolete={...base,registrationGeneration:old.registrationGeneration};
   const live={...base,registrationGeneration:current.registrationGeneration};
+  const provider={id:'chat-signals@sguzman.github'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:121,
+    signal:{version:1,route,documentToken:'a'.repeat(32),epoch:1,sequence:1,
+      phase:'idle',origin:'fresh',confidence:'observed'}},provider)).ok,true);
   for(const action of ['sync-provider','dispatch-check','send-hold-status',
     'release-send-hold','review-send-hold']){
     const message={...obsolete,action,documentToken:'a'.repeat(32),
@@ -116,10 +120,6 @@ test('versioned registration blocks stale privileged Send and hold IPC',async()=
   }
   assert.equal((await listeners.internal({...live,action:'sync-provider'},tab)).ok,true);
   assert.equal((await listeners.internal({...live,action:'send-hold-status'},tab)).held,false);
-  const provider={id:'chat-signals@sguzman.github'};
-  assert.equal((await listeners.external({type:'chat-queue-signal/v1',tabId:121,
-    signal:{version:1,route,documentToken:'a'.repeat(32),epoch:1,sequence:1,
-      phase:'idle',origin:'fresh',confidence:'observed'}},provider)).ok,true);
   const dispatch={...live,action:'dispatch-check',documentToken:'a'.repeat(32),
     epoch:1,sequence:1};
   assert.equal((await listeners.internal(dispatch,tab)).ok,true);
