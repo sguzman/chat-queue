@@ -636,6 +636,47 @@ test('a Send hold contains metadata only and survives event-page restart',async(
   assert.equal((await peerCheck()).ok,true);
 });
 
+test('same-tab document reload permits reviewed retired hold but not live owner',async()=>{
+  const {listeners,state}=create();
+  const route='/c/rebound-owner',url='https://chatgpt.com'+route;
+  const first={tab:{id:202,url},url};
+  const peer={tab:{id:203,url},url};
+  const provider={id:'chat-signals@sguzman.github'};
+  const token='12345678-aaaa-4444-bbbb-555555555555';
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route},first);
+  await listeners.external({type:'chat-queue-signal/v1',tabId:202,
+    signal:{version:1,route,documentToken:'a'.repeat(32),epoch:1,sequence:1,
+      phase:'idle',origin:'fresh',confidence:'observed'}},provider);
+  const check=stage=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route,documentToken:'a'.repeat(32),epoch:1,
+    sequence:1,stage,holdId:token},first);
+  assert.equal((await check('probe')).ok,true);
+  assert.equal((await check('reserve')).ok,true);
+  assert.equal((await check('sealed')).ok,true);
+  const key='chatqueue:send-hold:v1:rebound-owner';
+  const review=sender=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route,confirmed:true,holdId:token},sender);
+  assert.equal((await review(first)).error,'active-send-hold',
+    'the currently registered active owner may not release itself by review');
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route},peer);
+  assert.equal((await review(peer)).error,'active-send-hold',
+    'another tab must not use retired-owner review while that owner is live');
+  // Same Firefox tab re-registers after a content-document reload. The old
+  // volatile owner is retained for Send arbitration, but is not current.
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route},first)).ok,true);
+  assert.equal((await review(peer)).error,'active-send-hold',
+    'a different tab cannot override the old tab while it still exists');
+  const old=await listeners.internal({type:'chat-queue-internal/v1',
+    action:'send-hold-status',route},first);
+  assert.equal(old.holdId,token);
+  assert.equal((await review(first)).ok,true,
+    'local double-confirmed review can release its own retired registration');
+  assert.equal(Object.hasOwn(state,key),false);
+  assert.equal((await check('probe')).error,'signal-authority-lost',
+    'review does not restore provider authority for any new Send');
+});
+
 test('failed durable hold storage never permits the final Send preflight',async()=>{
   const {listeners,context}=create();
   const route='/c/hold-failure',url='https://chatgpt.com'+route;
