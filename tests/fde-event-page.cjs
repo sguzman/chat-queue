@@ -77,7 +77,7 @@ async function main(){
      "(v['qa:eventpage-boot-count']||0)+1}));",
      "browser.runtime.onMessage.addListener((message,sender)=>{",
      "if(message?.type==='qa-keepalive'&&",
-     "sender.tab?.url?.startsWith('http://127.0.0.1:'))return Promise.resolve({ok:true});",
+     "String(sender.url||sender.tab?.url||'').startsWith('http://127.0.0.1:'))return Promise.resolve({ok:true});",
      "});"
    ].join(''));
    fs.writeFileSync(path.join(root,'qa-monitor.js'),[
@@ -86,9 +86,13 @@ async function main(){
      "if(event.source!==window||event.data?.kind!=='qa-keepalive')return;",
      "if(event.data.active!==true){clearInterval(qaKeepaliveTimer);qaKeepaliveTimer=null;return;}",
      "if(qaKeepaliveTimer!==null)return;",
-     "qaKeepaliveTimer=setInterval(()=>{",
-     "void browser.runtime.sendMessage({type:'qa-keepalive'}).catch(()=>{});",
-     "},250);",
+     "const pulse=()=>{",
+     "void browser.runtime.sendMessage({type:'qa-keepalive'}).then(reply=>{",
+     "if(reply?.ok)document.documentElement.dataset.qaKeepaliveAcks=String(",
+     "Number(document.documentElement.dataset.qaKeepaliveAcks||0)+1);",
+     "}).catch(()=>{});",
+     "};",
+     "pulse();qaKeepaliveTimer=setInterval(pulse,250);",
      "});",
      "window.addEventListener('message',event=>{",
      "if(event.source!==window||event.data?.kind!=='qa-boot-read')return;",
@@ -246,6 +250,9 @@ async function main(){
    // awake during this separate publisher-authorized dispatch arbitration.
    await driver.executeScript(
      'window.postMessage({kind:"qa-keepalive",active:true},"*")');
+   await driver.wait(async()=>await driver.executeScript(
+     'return Number(document.documentElement.dataset.qaKeepaliveAcks||0)>=2'),9000,
+     'QA background keepalive did not acknowledge at least two heartbeats');
    await emitIdle();
    await driver.executeScript(`return ${hud('run')}.click()`);
    await driver.wait(async()=>await driver.executeScript(
