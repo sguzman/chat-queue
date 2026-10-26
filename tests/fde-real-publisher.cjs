@@ -956,6 +956,43 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Revealing Send must not silently retry the uncertain item');
 
+    // The Send button starts enabled, but the page reacts to Queue's
+    // insertion by disabling it in the editor's native input event. This
+    // mutation happens AFTER composer selection and BEFORE the guarded
+    // button lookup: a cached initial Send state would click unsafely.
+    stage='real-provider-send-disabled-during-insertion';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/late-disabled-send');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic late-disabled button';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(()=>{
+      const editor=document.getElementById('prompt-textarea');
+      editor.addEventListener('input',()=>{
+        if(editor.innerText==='Synthetic late-disabled button')
+          document.querySelector('[data-testid="send-button"]').disabled=true;
+      });
+    });
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('[data-testid=send-button]').disabled"),false,
+      'Send must initially be actionable to exercise the late disable');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.querySelector('[data-testid=send-button]').disabled"),11000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Send button missing, disabled or ambiguous')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A button disabled by composer input must never be clicked');
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),[],
+      'No Send payload may reach the site handler');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    await driver.executeScript(
+      "document.querySelector('[data-testid=send-button]').disabled=false");
+    await driver.sleep(750);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Re-enabling the control cannot revive the rejected dispatch');
+
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
     await ready();
