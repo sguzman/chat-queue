@@ -709,3 +709,9 @@ The corrected [CodeQL run 40406325054](https://github.com/sguzman/chat-queue/act
 The read-only authenticated-structure probe also now includes producer-selector consistency, the real viewport/hit-test checks, and a fail-closed file-attachment check. It still does **not** prove actual ChatGPT React/ProseMirror behavior, nor does any CodeQL scan substitute for an independent human release security audit. M4-01 and M7-09 remain `implemented`, not `verified`.
 
 **Canonical progress: 84/96 verified = 87.50%, delta +0.00 percentage points.**
+
+## Same-route document-generation and restart-identity regression
+
+`tests/background.test.js` explicitly attempts stale state, Send preflight, provider sync and Send-hold calls after a newer registration on the exact same conversation. It also models a newly created event-page VM to require fresh, non-reused registration UUIDs. `tests/fde-api.cjs` performs corresponding real Firefox internal-IPC registration and metadata ordering challenges on an isolated synthetic page, proving the old state cannot overwrite a newer registration. Existing synthetic browser-restart and real pinned Chat Signals integration suites remain independent gates.
+
+These tests must pass in the complete main-branch Firefox and CodeQL workflows before their evidence can be counted. They do **not** replace Q3 authenticated ChatGPT, real Assistive Technology or independent privacy/source release review. Do not advance M4-08, M4-12 or M7-09 to verified on these bounded regressions alone.
