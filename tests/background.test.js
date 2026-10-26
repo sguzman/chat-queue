@@ -1063,6 +1063,35 @@ test('project-route alias navigation preserves unresolved conversation ownership
     'tab closure must clear retained lease even when the registry is absent');
 });
 
+test('silent durable Rules revocation denies stale in-flight preview authorization',async()=>{
+  const {listeners,state,context,forwards}=create();
+  const client='sandbox@example.test',key='chatqueue:api-grants:v2';
+  const firstPolicy=structuredClone(state[key]);
+  const originalGet=context.browser.storage.local.get;
+  let resume,grantReads=0;
+  context.browser.storage.local.get=(requested)=>{
+    if(requested===key&&++grantReads===1)
+      return new Promise(resolve=>{resume=()=>resolve({[key]:firstPolicy});});
+    return originalGet(requested);
+  };
+  const signal={version:1,route:'/c/rules-preview-qa',
+    documentToken:'a'.repeat(32),epoch:1,sequence:1,
+    phase:'failed',origin:'fresh',confidence:'observed'};
+  const rule={version:1,id:'synthetic-preview',enabled:true,priority:1,
+    when:{phase:'failed'},then:{type:'pause'}};
+  const pending=listeners.external({type:'chat-queue/v1',action:'previewRules',
+    payload:{rules:[rule],signal}},{id:client});
+  for(let i=0;i<12&&!resume;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof resume,'function','Initial stored policy read must be suspended');
+  state[key]={version:2,grants:{[client]:['discover']}};
+  // Durable policy changes before storage.onChanged; initial read is stale.
+  resume();
+  const answer=await pending;
+  assert.equal(answer.error,'authorization-changed');
+  assert.equal(grantReads,2,'A current durable Rules scope recheck is required');
+  assert.equal(forwards.length,0,'A preview may never reach queue content');
+});
+
 test('rule-library reads reject durable revocation before its event notification',async()=>{
   const {listeners,state,context}=create();
   const client='sandbox@example.test';

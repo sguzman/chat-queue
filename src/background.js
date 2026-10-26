@@ -521,6 +521,14 @@
       // rules, publishes provider identity or changes the dispatch scheduler.
       const p=message.payload;
       if(!p||typeof p!=='object')return {ok:false,error:'invalid-preview'};
+      // The first persisted Rules grant can be a stale snapshot even when
+      // storage.onChanged has not fired yet. Re-read durable authority after
+      // that asynchronous boundary before evaluating a peer's rules.
+      let current;
+      try{current=(await api.storage.local.get(grants.KEY))[grants.KEY];}
+      catch{return {ok:false,error:'authorization-changed'};}
+      if(grantRevision!==authorizedAt||!grants.has(current,requester,'rules'))
+        return {ok:false,error:'authorization-changed'};
       const response=rulesEngine?.evaluate(p.rules,p.signal,p.consumedKeys??[],p.context);
       if(!response)return {ok:false,error:'rules-engine-unavailable'};
       // Additive, sanitized preview receipt. No live provider event, queue
