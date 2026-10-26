@@ -788,6 +788,12 @@
       state.durableHoldId=holdId;
       if(!sameAttempt()||!state.running||state.storageFault)
         throw new Error('Dispatch context changed after Send hold');
+      // Reserving durable metadata is asynchronous. Check the composer
+      // *again* after the storage round-trip: a real user may have typed
+      // their own draft while Firefox committed the hold.
+      const afterHold=findComposer();
+      if(afterHold.editor!==editor||afterHold.form!==composerForm)
+        throw new Error('Composer changed during Send hold; no Send attempted');
       fillComposer(editor,item.text);
       send=findSend(current.form);
       editor.addEventListener('beforeinput',onHumanInput,true);
