@@ -129,12 +129,24 @@
       id:entry.id,text:entry.text,at:entry.at,status:entry.status
     }));
   }
-  // Recovery discovery is metadata-only. Exact pathname matching prevents a
-  // queue from another conversation being offered after a tab-ID change.
-  // Never auto-resume old items; the HUD must explicitly stage and confirm.
+  // Only the two previously accepted, exact assigned-conversation URL
+  // shapes identify a queue across project aliases. Never infer identity
+  // from a parent path, group name, encoded text or arbitrary page route.
+  // Keep this grammar aligned with ChatQueueSignal.assignedConversationId.
+  function recoveryConversationId(route) {
+    if(typeof route!=='string')return null;
+    const direct=/^\/c\/([A-Za-z0-9_-]+)$/.exec(route);
+    if(direct)return direct[1];
+    const project=/^\/g\/[A-Za-z0-9_-]+\/c\/([A-Za-z0-9_-]+)$/.exec(route);
+    return project?project[1]:null;
+  }
+  // Recovery discovery is metadata-only. A named conversation may have both
+  // /c/<id> and /g/<group>/c/<id> URLs, but other conversations, home routes
+  // and lookalike IDs are never candidates. The HUD always needs explicit
+  // Find then Confirm, restoring prior items uncertain (never auto-Send).
   function recoveryCandidates(records,route,currentKey,alreadyRecovered=[]) {
-    if(!records||typeof records!=='object'||Array.isArray(records)||
-       typeof route!=='string'||!route.startsWith('/')||
+    const conversationId=recoveryConversationId(route);
+    if(!conversationId||!records||typeof records!=='object'||Array.isArray(records)||
        !Array.isArray(alreadyRecovered))return [];
     const excluded=new Set(alreadyRecovered.filter(x=>typeof x==='string'));
     const prefix='chatqueue:v1:tab:';
@@ -145,7 +157,8 @@
       const suffix=key.slice(prefix.length);
       const colon=suffix.indexOf(':');
       if(colon<0||!/^\d{1,16}$/.test(suffix.slice(0,colon))||
-         suffix.slice(colon+1)!==route||!savedRecordSupport(value).ok)continue;
+         recoveryConversationId(suffix.slice(colon+1))!==conversationId||
+         !savedRecordSupport(value).ok)continue;
       const items=normalizeSaved(value);
       if(items.length)candidates.push({key,count:items.length});
     }
