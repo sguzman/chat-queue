@@ -512,7 +512,23 @@ test('durable uncertain journal blocks other tabs after volatile owner loss',asy
   assert.equal((await check('new-item')).error,'unresolved-saved-send',
     'a project alias from an earlier tab blocks a new same-ID Send');
   assert.equal(JSON.stringify(await check('new-item')).includes('synthetic private orphan'),false);
+  const recovered='chatqueue:v1:tab:289:/c/durable-race';
+  state[recovered]={version:1,items:[
+    {id:'copied-review',text:'synthetic reviewed-copy',status:'uncertain'}],
+    recoveredSources:[orphan]};
+  assert.equal((await check('new-item')).error,'unresolved-saved-send',
+    'merely copying the old record does not count as reviewing it');
+  state[recovered].items=[];
+  assert.equal((await check('new-item')).ok,true,
+    'fully reviewed recovery can release a now-closed source journal');
+  const sourceUrl='https://chatgpt.com/g/project/c/durable-race';
+  const stillOpen={tab:{id:290,url:sourceUrl},url:sourceUrl};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/g/project/c/durable-race'},stillOpen)).ok,true);
+  assert.equal((await check('new-item')).error,'unresolved-saved-send',
+    'a live same-conversation source cannot be hidden by a prior review marker');
   delete state[orphan];
+  delete state[recovered];
   const own='chatqueue:v1:tab:291:/c/durable-race';
   state[own]={version:1,items:[
     {id:'current',text:'synthetic current journal',status:'uncertain'}],
