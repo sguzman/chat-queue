@@ -122,6 +122,8 @@ When an extension grant changes while a background authorization read is pending
 
 **Mutating operations already delivered to a queue tab cannot be cancelled retroactively.** Their actual result is returned, rather than reporting a fictitious rejection after a change may have happened. Callers must not automatically replay an operation whose completion is uncertain. This is a narrow revocation/response privacy hardening, not a distributed transaction guarantee.
 
+An external tab command is forwarded only if the live browser-owned origin and exact conversation pathname still match the original browser-authenticated Queue registration; changing the route, origin, protocol or port causes a fail-closed `route-or-registration-changed` response, even before Firefox delivers a tab-update notification. Private `status` additionally rechecks the live URL after the final asynchronous durable Read-grant check. These checks do not authorize automatic retries of failed or ambiguous commands.
+
 ## Version negotiation and stable error handling
 
 The wire **request protocol** is identified by `type: "chat-queue/v1"` (protocol version **1**). This is distinct from the **grant policy schema version 2** stored under `chatqueue:api-grants:v2`.
