@@ -6,7 +6,7 @@ const src=fs.readFileSync(require.resolve('../src/background.js'),'utf8');
 const signals=fs.readFileSync(require.resolve('../src/signal.js'),'utf8');
 const grants=fs.readFileSync(require.resolve('../src/grants.js'),'utf8');
 const rules=fs.readFileSync(require.resolve('../src/rules.js'),'utf8');
-function create() {
+function create(persisted={}) {
   const listeners={};
   const forwards=[];
   const syncRequests=[];
@@ -29,8 +29,9 @@ function create() {
         if(change.url)liveUrls.set(id,change.url);
         return fn(id,change);
       }}},
-    storage:{local:{get:async()=>state,set:async changes=>{Object.assign(state,changes);}},onChanged:{addListener:fn=>listeners.changed=fn}}
+    storage:{local:{get:async()=>state,set:async changes=>{Object.assign(state,changes);},remove:async key=>{delete state[key];}},onChanged:{addListener:fn=>listeners.changed=fn}}
   };
+  Object.assign(state,persisted);
   const context=vm.createContext({browser,URL});
   vm.runInContext(signals,context);
   vm.runInContext(grants,context);
@@ -576,6 +577,69 @@ test('silent durable Discover revocation denies delayed event-port ready metadat
   assert.equal(disconnected,1);
   assert.deepEqual(seen,[],
     'a revoked peer cannot see even registered tab metadata via ready');
+});
+
+test('a Send hold contains metadata only and survives event-page restart',async()=>{
+  const first=create();
+  const route='/c/durable-proof',url='https://chatgpt.com'+route;
+  const tab={tab:{id:194,url},url};
+  const provider={id:'chat-signals@sguzman.github'};
+  const signal={version:1,route,documentToken:'a'.repeat(32),
+    sequence:1,epoch:2,phase:'idle',origin:'fresh',confidence:'observed'};
+  assert.equal((await first.listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route},tab)).ok,true);
+  assert.equal((await first.listeners.external({type:'chat-queue-signal/v1',
+    tabId:194,signal},provider)).ok,true);
+  const holdId='234f1c6a-1111-4444-bbbb-333333333333';
+  const check=stage=>first.listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route,documentToken:signal.documentToken,
+    epoch:2,sequence:1,stage,holdId},tab);
+  assert.equal((await check('probe')).ok,true);
+  assert.equal((await check('reserve')).ok,true);
+  assert.equal((await check('sealed')).ok,true);
+  const key='chatqueue:send-hold:v1:durable-proof';
+  assert.deepEqual(Object.keys(first.state[key]).sort(),
+    ['holdId','route','tabId','version']);
+  assert.equal(first.state[key].holdId,holdId);
+  const restarted=create({[key]:{...first.state[key]}});
+  const alias='/g/project/c/durable-proof',aliasUrl='https://chatgpt.com'+alias;
+  const peer={tab:{id:195,url:aliasUrl},url:aliasUrl};
+  await restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:alias},peer);
+  await restarted.listeners.external({type:'chat-queue-signal/v1',tabId:195,
+    signal:{...signal,route:alias,documentToken:'b'.repeat(32)}},provider);
+  const peerCheck=()=>restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route:alias,documentToken:'b'.repeat(32),
+    sequence:1,epoch:2},peer);
+  assert.equal((await peerCheck()).error,'unresolved-durable-send');
+  assert.equal((await restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route:alias},peer)).error,'active-send-hold');
+  assert.equal((await restarted.listeners.internal({type:'chat-queue-internal/v1',
+    action:'review-send-hold',route:alias,confirmed:true},peer)).ok,true);
+  assert.equal(Object.hasOwn(restarted.state,key),false);
+  assert.equal((await peerCheck()).ok,true);
+});
+
+test('failed durable hold storage never permits the final Send preflight',async()=>{
+  const {listeners,context}=create();
+  const route='/c/hold-failure',url='https://chatgpt.com'+route;
+  const tab={tab:{id:196,url},url},provider={id:'chat-signals@sguzman.github'};
+  const signal={version:1,route,documentToken:'d'.repeat(32),
+    sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+  await listeners.internal({type:'chat-queue-internal/v1',action:'register',route},tab);
+  await listeners.external({type:'chat-queue-signal/v1',tabId:196,signal},provider);
+  const check=stage=>listeners.internal({type:'chat-queue-internal/v1',
+    action:'dispatch-check',route,documentToken:signal.documentToken,
+    epoch:1,sequence:1,stage,
+    holdId:'12345678-1111-4444-bbbb-333333333333'},tab);
+  assert.equal((await check('probe')).ok,true);
+  const original=context.browser.storage.local.set;
+  context.browser.storage.local.set=async()=>{throw Error('synthetic failure');};
+  assert.equal((await check('reserve')).error,'send-hold-storage-unavailable');
+  assert.equal((await check('sealed')).error,'durable-send-hold-missing');
+  context.browser.storage.local.set=original;
+  assert.equal((await check('reserve')).ok,true);
+  assert.equal((await check('sealed')).ok,true);
 });
 
 test('one exact conversation route has at most one live dispatch owner',async()=>{
