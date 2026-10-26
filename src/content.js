@@ -1260,8 +1260,7 @@
           state.unconfirmedClickLease=false;
           // This explicit choice has already been durably saved. A failed
           // metadata-release leaves the conservative blocker in place.
-          if(!await releaseDurableHold())
-            statusNote('Saved review; Send hold still active, review separately');
+          const released=await releaseDurableHold();
           // The deliberate decision is the only non-provider event allowed to
           // release a lease held for a failed post-click history write. A
           // rejected resolution write must keep the lease and review item.
@@ -1269,9 +1268,11 @@
             state.awaiting=false;state.awaitingUncertain=false;
             state.busySeen=false;state.waiting=null;
           }
-          statusNote(payload.decision==='retry'
-            ? 'Retry marked pending; press Start separately'
-            : 'Uncertain message discarded; queue remains paused');
+          statusNote(!released
+            ? 'Saved review; Send hold still active, review separately'
+            : payload.decision==='retry'
+              ? 'Retry marked pending; press Start separately'
+              : 'Uncertain message discarded; queue remains paused');
         }
         return result;
       }
