@@ -4,6 +4,7 @@
 // Only public boolean/count evidence is returned; not chat IDs, text or URLs.
 const fs=require('node:fs');
 const path=require('node:path');
+const os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..');
 const PIN='d17117047f5e582591e514240c008b166bf96d8a';
@@ -91,10 +92,16 @@ async function main(){
   const firefox=require('selenium-webdriver/firefox');
   const options=new firefox.Options().setBinary(binary)
     .addArguments('--headless','--no-remote','-profile',profile);
+  // Never package a checkout, Git history, QA artifacts, or any unreviewed
+  // local files into a live-site extension. Copy only the production bundle.
+  const addonDir=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-readonly-'));
   let driver;
   try{
+    fs.copyFileSync(path.join(root,'manifest.json'),path.join(addonDir,'manifest.json'));
+    for(const part of ['src','options'])
+      fs.cpSync(path.join(root,part),path.join(addonDir,part),{recursive:true});
     driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
-    const queueId=await driver.installAddon(root,true);
+    const queueId=await driver.installAddon(addonDir,true);
     const providerId=await driver.installAddon(process.env.CHAT_SIGNALS_PROVIDER_SOURCE,true);
     if(queueId!=='chat-queue@sguzman.github'||providerId!=='chat-signals@sguzman.github')
       throw Error('temporary add-on identity mismatch');
@@ -117,7 +124,10 @@ async function main(){
       authenticatedSubmissionVerified:false};
     process.stdout.write('FDE read-only live-structure QA: '+JSON.stringify(summary)+'\n');
     if(!summary.qualified)process.exitCode=1;
-  }finally{if(driver)await driver.quit();}
+  }finally{
+    try{if(driver)await driver.quit();}
+    finally{fs.rmSync(addonDir,{recursive:true,force:true});}
+  }
 }
 module.exports={targetUrl,profilePath,qualify,inspectCounts};
 if(require.main===module)main().catch(()=>{
