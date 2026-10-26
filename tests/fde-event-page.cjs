@@ -118,7 +118,7 @@ async function main(){
      });`);
    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
    const options=new firefox.Options().setBinary(binary).addArguments('-headless')
-     .setPreference('extensions.background.idle.timeout',2);
+     .setPreference('extensions.background.idle.timeout',1);
    driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
    const installed=await driver.installAddon(root,true);
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
