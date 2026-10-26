@@ -13,6 +13,12 @@
   const SIGNALS = new Map();
   // Separate route registry: never exposed through the public extension API.
   const ROUTES = new Map();
+  // Never disclose registered origins through discovery. An internal
+  // content-script registration is accepted only for the manifest-authorized
+  // host and confirmed against the browser-owned live URL. Bind that proven
+  // origin to the registration, so external API checks also work in isolated
+  // Firefox localhost fixtures without relaxing production host permissions.
+  const ORIGINS = new Map();
   // Do not expose ordering metadata through the public tab API.
   const STATE_SEQUENCES = new Map();
   // Unique per-registration lease generations prevent old async state reads
@@ -181,6 +187,7 @@
         // aliases for the SAME conversation ID. Release unrelated owners.
         releaseOwner(tab.id,signalContract.assignedConversationId(message.route));
         ROUTES.set(tab.id,message.route);
+        ORIGINS.set(tab.id,new URL(sender.url||tab.url).origin);
         STATE_SEQUENCES.set(tab.id,0);
         REGISTRATIONS.set(tab.id,++nextRegistration);
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
@@ -559,8 +566,7 @@
       catch{return {ok:false,error:'tab-unavailable'};}
       if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
          ROUTES.get(message.tabId)!==targetRoute||TABS.get(message.tabId)!==target||
-         live.protocol!=='https:'||live.hostname!=='chatgpt.com'||
-         live.port!==''||live.pathname!==targetRoute||
+         live.origin!==ORIGINS.get(message.tabId)||live.pathname!==targetRoute||
          grantRevision!==authorizedAt)
         return {ok:false,error:'route-or-registration-changed'};
     }
@@ -584,7 +590,7 @@
         // navigate to the same /c/<id> before tabs.onUpdated is delivered.
         if(!targetGeneration||REGISTRATIONS.get(message.tabId)!==targetGeneration||
            ROUTES.get(message.tabId)!==targetRoute||
-           live.protocol!=='https:'||live.hostname!=='chatgpt.com'||live.port!==''||live.pathname!==targetRoute)
+           live.origin!==ORIGINS.get(message.tabId)||live.pathname!==targetRoute)
           return {ok:false,error:'route-or-registration-changed'};
         // Do the durable ACL read LAST: Firefox can commit a revoked grant
         // before its onChanged notification reaches this event page.
@@ -603,7 +609,7 @@
         catch{return {ok:false,error:'tab-unavailable'};}
         if(REGISTRATIONS.get(message.tabId)!==targetGeneration||
            ROUTES.get(message.tabId)!==targetRoute||
-           finalUrl.protocol!=='https:'||finalUrl.hostname!=='chatgpt.com'||finalUrl.port!==''||finalUrl.pathname!==targetRoute||
+           finalUrl.origin!==ORIGINS.get(message.tabId)||finalUrl.pathname!==targetRoute||
            grantRevision!==authorizedAt)
           return {ok:false,error:'route-or-registration-changed'};
       }
@@ -612,6 +618,7 @@
       TABS.delete(message.tabId);
       SIGNALS.delete(message.tabId);
       ROUTES.delete(message.tabId);
+      ORIGINS.delete(message.tabId);
       STATE_SEQUENCES.delete(message.tabId);
       REGISTRATIONS.delete(message.tabId);
       return { ok: false, error: 'tab-unavailable' };
@@ -627,7 +634,7 @@
     // a later A->B->A must not resurrect the old callback.
     if(!preservePending)REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
-    ROUTES.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
+    ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);
     notify(tabId,null);
   }
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
