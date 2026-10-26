@@ -727,6 +727,7 @@
     if (!item) return;
     const attemptKey=state.key,attemptGeneration=routeGeneration;
     const attemptToken=uid();
+    const holdId=uid();
     const baseline=state.trusted;
     state.attempting=attemptToken;
     // A -> B -> A can restore the exact pathname while an older Firefox
@@ -755,7 +756,11 @@
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!ownership?.ok)throw new Error(ownership?.error==='conversation-owned-by-another-tab'
         ? 'Another tab owns this conversation; no Send attempted'
-        : 'Signal authority lost; no Send attempted');
+        : ownership?.error==='unresolved-durable-send'
+          ? 'Previous Send may be unresolved; review its hold'
+          : ownership?.error==='send-hold-storage-unavailable'
+            ? 'Saved Send hold unavailable; no Send attempted'
+            : 'Signal authority lost; no Send attempted');
       if(!state.running||!sameAttempt())
         throw new Error('Dispatch context changed before composer handoff');
       const found=findComposer();
@@ -770,6 +775,19 @@
       if(current.editor!==found.editor||current.form!==found.form)
         throw new Error('Composer replaced during uncertainty journal');
       editor=current.editor;composerForm=current.form;
+      // This marker contains only a random hold ID plus route/tab metadata.
+      // It must persist AFTER the private uncertainty journal but BEFORE
+      // exposing the prompt in ChatGPT's composer or clicking Send.
+      const reserved=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
+        action:'dispatch-check',stage:'reserve',holdId,
+        route:baseline.route,documentToken:baseline.documentToken,
+        epoch:baseline.epoch,sequence:baseline.sequence});
+      if(!reserved?.ok)throw new Error(reserved?.error==='unresolved-durable-send'
+        ? 'Previous Send may be unresolved; review its hold'
+        : 'Could not persist Send hold; no Send attempted');
+      state.durableHoldId=holdId;
+      if(!sameAttempt()||!state.running||state.storageFault)
+        throw new Error('Dispatch context changed after Send hold');
       fillComposer(editor,item.text);
       send=findSend(current.form);
       editor.addEventListener('beforeinput',onHumanInput,true);
@@ -781,7 +799,8 @@
       // Require the event page to still own this authenticated provider
       // epoch immediately pre-click; a restart invalidates its volatile ledger.
       const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
-        action:'dispatch-check',route:baseline.route,documentToken:baseline.documentToken,
+        action:'dispatch-check',stage:'sealed',holdId,
+        route:baseline.route,documentToken:baseline.documentToken,
         epoch:baseline.epoch,sequence:baseline.sequence});
       if(!permission?.ok)throw new Error('Signal authority lost; no Send attempted');
       if (!state.running || !sameAttempt() ||
