@@ -209,9 +209,11 @@ function prepareQueue(dir,source){
     .replace("    if(changes[ruleStore.KEY]){",
       "    if(changes[ruleStore.KEY]){document.documentElement.dataset.qaObservedRuleIds="+
       "String(changes[ruleStore.KEY].newValue?.rules?.map(rule=>rule.id).join(',')||'');"));
-  // QA-only assertion at the exact composer handoff boundary: an on-disk
-  // uncertain journal must predate any programmatically inserted prompt.
-  const journalHandoff="      fillComposer(editor,item.text);";
+  // QA-only assertion immediately BEFORE Queue's final no-human-edit
+  // check and synchronous guarded composer insertion. The awaited storage
+  // reads must not suppress trusted user input or bypass that final guard.
+  // An on-disk uncertain journal and hold must predate inserted prompt text.
+  const journalHandoff="      if(humanTouched)\n        throw new Error('Human interaction before composer handoff; no Send attempted');\n      queueFilling=true;";
   assert.equal(fs.readFileSync(contentPath,'utf8').split(journalHandoff).length,2);
   fs.writeFileSync(contentPath,fs.readFileSync(contentPath,'utf8').replace(journalHandoff,
     "      const qaStored=await api.storage.local.get(state.key);"+
