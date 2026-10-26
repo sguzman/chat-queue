@@ -75,7 +75,7 @@ async function main(){
      "state.note=message;render();publish();}");
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
-   content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=16;');
+   content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=36;');
    fs.writeFileSync(path.join(root,'src/content.js'),content);
    // QA-only counter increments whenever the ACTUAL event page is created.
    fs.writeFileSync(path.join(root,'qa-startup.js'),[
@@ -157,7 +157,7 @@ async function main(){
      });`);
    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
    const options=new firefox.Options().setBinary(binary).addArguments('-headless')
-     .setPreference('extensions.background.idle.timeout',8);
+     .setPreference('extensions.background.idle.timeout',20);
    driver=await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
    const installed=await driver.installAddon(root,true);
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
@@ -224,7 +224,7 @@ async function main(){
      "return document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('count').textContent"),'1 queued');
    assert.equal(await driver.executeScript('return window.__sent'),0);
    // The browser actually destroyed and recreated its event page above.
-   // Only assert metadata durability here: the deliberately forced eight-second
+   // Only assert metadata durability here: the deliberately forced twenty-second
    // idle policy can race live tab re-registration, which is NOT authenticated
    // hold-denial acceptance. A separate FDE suite tests hold arbitration.
    stage='persisted-hold-after-actual-idle';
