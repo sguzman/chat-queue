@@ -200,7 +200,13 @@ async function main(){
    // the saved orphan hold through its production internal API. One review
    // click is only a request to inspect; it must NOT delete the hold.
    stage='persisted-hold-after-actual-idle';
-   assert.deepEqual(await holdStatus(),{
+   // The UI warning is set BEFORE asynchronous register finishes. Wait for
+   // the new background's registered route, not just the warning text.
+   const persisted=await driver.wait(async()=>{
+     const answer=await holdStatus();
+     return answer?.ok?answer:false;
+   },15000,'Restarted event page did not restore internal registration for hold inspection');
+   assert.deepEqual(persisted,{
      ok:true,held:true,holdId:'12345678-aaaa-4444-bbbb-555555555555'
    });
    const reviewClick=()=>driver.executeScript(
