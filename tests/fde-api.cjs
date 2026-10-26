@@ -694,9 +694,26 @@ async function main(){
   const stream=await command({action:'portState'});
   assert.equal(stream.events.find(x=>x.event==='ready')?.protocolVersion,1);
   stage='native-firefox-metadata-ordering';
+  // This test is a real Firefox internal content-script IPC round trip.
+  // Bind state frames to the exact registration generation, as production
+  // does, before challenging their ordering and stale-document safety.
+  const generationNonce=++nonce;
+  await driver.executeScript((id,message)=>
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*'),
+    generationNonce,{type:'chat-queue-internal/v1',action:'register',
+      route:'/c/synthetic',registrationVersion:2});
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    generationNonce),8000);
+  const initialGeneration=await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.registrationGeneration',
+    generationNonce);
+  assert.ok(Number.isSafeInteger(initialGeneration),
+    'versioned Firefox registration must return one private generation');
   const staleNonce=++nonce,latestNonce=++nonce;
   const oldState={type:'chat-queue-internal/v1',action:'state',
-    sequence:100001,phase:'idle',running:false,awaiting:false,size:3,revision:100};
+    sequence:100001,phase:'idle',running:false,awaiting:false,size:3,revision:100,
+    registrationGeneration:initialGeneration};
   const newestState={...oldState,sequence:100002,phase:'generating',
     running:true,awaiting:true,revision:101};
   await driver.executeScript((a,b,m,n)=>{
@@ -726,12 +743,17 @@ async function main(){
     phase:'idle',running:false,awaiting:false,size:3,revision:200});
   await driver.executeScript((id,message)=>{
     window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
-  },registerNonce,{type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic'});
+  },registerNonce,{type:'chat-queue-internal/v1',action:'register',route:'/c/synthetic',registrationVersion:2});
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
     registerNonce),8000);
   assert.equal(await driver.executeScript(
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.ok',registerNonce),true);
+  const successorGeneration=await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.registrationGeneration',
+    registerNonce);
+  assert.ok(Number.isSafeInteger(successorGeneration));
+  assert.notEqual(successorGeneration,initialGeneration);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
     priorNonce),10000);
@@ -742,13 +764,31 @@ async function main(){
   await driver.executeScript((id,message)=>{
     window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
   },newNonce,{type:'chat-queue-internal/v1',action:'state',
-    sequence:1,phase:'generating',running:true,awaiting:true,size:3,revision:201});
+    sequence:1,phase:'generating',running:true,awaiting:true,size:3,revision:201,
+    registrationGeneration:successorGeneration});
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
     newNonce),8000);
   assert.equal(await driver.executeScript(
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.ok',
     newNonce),true);
+  assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
+  assert.equal(await driver.executeScript('return window.__sent'),0);
+  // Unlike an already-pending callback, this OLD document state begins
+  // AFTER successor registration; only its private generation can expose it.
+  const lateNonce=++nonce;
+  await driver.executeScript((id,message)=>
+    window.postMessage({kind:'qa-meta-send',nonce:id,message},'*'),
+    lateNonce,{type:'chat-queue-internal/v1',action:'state',sequence:999999,
+      phase:'finished',running:false,awaiting:false,leasePending:false,
+      registrationGeneration:initialGeneration});
+  await driver.wait(async()=>await driver.executeScript(
+    'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
+    lateNonce),8000);
+  assert.equal(await driver.executeScript(
+    'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.error',
+    lateNonce),'stale-registration',
+    'late old-document frame cannot replace live state');
   assert.equal((await command({type:'chat-queue/v1',action:'listTabs'})).tabs[0].running,true);
   assert.equal(await driver.executeScript('return window.__sent'),0);
 
