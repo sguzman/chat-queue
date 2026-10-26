@@ -957,6 +957,40 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Uncovering Send cannot retry an uncertain attempt automatically');
 
+    // A malicious or simply rerendering page can redirect focus from the
+    // otherwise visible ChatGPT composer to a different contenteditable.
+    // execCommand('insertText') operates on the active selection, so Queue
+    // must fail BEFORE leaking a private queued prompt to that other editor.
+    stage='real-provider-diverted-composer-focus-never-inserts';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/focus-diverted');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic focus-ownership message';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(() => {
+      const unrelated=document.createElement('div');
+      unrelated.id='qa-unrelated-editor';
+      unrelated.setAttribute('contenteditable','true');
+      unrelated.textContent='Independent user draft';
+      document.body.append(unrelated);
+      const composer=document.getElementById('prompt-textarea');
+      composer.addEventListener('focus',()=>unrelated.focus());
+    });
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Composer focus diverted; no insertion')`),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('qa-unrelated-editor').textContent"),
+      'Independent user draft','Focus redirection must never receive Queue text');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').textContent"),'',
+      'The composer remains empty after a diverted focus');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent`),'1 queued',
+      'Unsent prompt must remain journaled for explicit review');
+
     stage='real-provider-sixteen-tabs-hidden-retention';
     const sixteenStartTab=await driver.getWindowHandle();
     const loadTabs=[];
