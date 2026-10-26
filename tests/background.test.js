@@ -323,6 +323,54 @@ test('revoking read scope during an in-flight status request withholds private p
     {id:'approved@example.test'})).error,'forbidden-scope');
 });
 
+test('delayed private status cannot disclose prior conversation after tab navigation',async()=>{
+  for(const returnToOriginal of [false,true]){
+    const {listeners,context}=create();
+    const original='https://chatgpt.com/c/private-before-navigation';
+    const other='https://chatgpt.com/c/private-after-navigation';
+    const sender={tab:{id:97,url:original},url:original};
+    assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+      action:'register',route:'/c/private-before-navigation'},sender)).ok,true);
+    let release;
+    context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+    const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:97},
+      {id:'approved@example.test'});
+    for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(typeof release,'function');
+    listeners.updated(97,{url:other});
+    if(returnToOriginal){
+      listeners.updated(97,{url:original});
+      assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+        action:'register',route:'/c/private-before-navigation'},sender)).ok,true);
+    }
+    release({ok:true,items:[{id:'sensitive',text:'synthetic old-conversation prompt'}]});
+    const reply=await pending;
+    assert.equal(reply.error,'route-or-registration-changed',
+      returnToOriginal?'A-B-A must not revive old document status':'route B must invalidate A status');
+    assert.equal(JSON.stringify(reply).includes('synthetic old-conversation prompt'),false);
+  }
+});
+
+test('private status is withheld if live URL changes before late tab update notification',async()=>{
+  const {listeners,context}=create();
+  const oldUrl='https://chatgpt.com/c/a-live-url',other='https://chatgpt.com/c/b-live-url';
+  const sender={tab:{id:98,url:oldUrl},url:oldUrl};
+  assert.equal((await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route:'/c/a-live-url'},sender)).ok,true);
+  let release;
+  context.browser.tabs.sendMessage=()=>new Promise(resolve=>{release=resolve;});
+  const pending=listeners.external({type:'chat-queue/v1',action:'status',tabId:98},
+    {id:'approved@example.test'});
+  for(let i=0;i<8&&!release;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof release,'function');
+  // Browser URL changed, but tab update has not run the Queue listener yet.
+  context.browser.tabs.get=async()=>({id:98,url:other});
+  release({ok:true,items:[{id:'sensitive',text:'synthetic stale private content'}]});
+  const reply=await pending;
+  assert.equal(reply.error,'route-or-registration-changed');
+  assert.equal(JSON.stringify(reply).includes('synthetic stale private content'),false);
+});
+
 test('private status rechecks stored read grant even before revocation event arrives',async()=>{
   const {listeners,state,context}=create();
   const url='https://chatgpt.com/c/quiet-revocation';
