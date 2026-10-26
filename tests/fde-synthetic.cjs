@@ -313,6 +313,24 @@ async function main(){
     await upAfterLowerDrop.sendKeys(Key.ENTER);
     await driver.wait(async()=>await driver.executeScript(
       "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item:first-child .preview')?.textContent==='Synthetic first message'"),5000);
+    qaStage='accessible-queue-positions';
+    const accessibleOrder=await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const list=sh.getElementById('items');
+      return {role:list.getAttribute('role'),label:list.getAttribute('aria-label'),
+        rows:[...list.querySelectorAll('.item')].map(row=>({
+          role:row.getAttribute('role'),
+          position:row.getAttribute('aria-posinset'),
+          size:row.getAttribute('aria-setsize'),
+          text:row.querySelector('.preview')?.textContent
+        }))};
+    });
+    assert.deepEqual(accessibleOrder,{
+      role:'list',label:'Queued messages',rows:[
+        {role:'listitem',position:'1',size:'2',text:'Synthetic first message'},
+        {role:'listitem',position:'2',size:'2',text:'Synthetic second message'}
+      ]},
+      'Firefox must expose exact keyboard/pointer-sorted queue positions');
     qaStage='keyboard-edit-cancel-focus';
     // Editing a row rebuilds its buttons. Keyboard activation must hand
     // focus directly to the new textarea; Cancel must restore focus to the
