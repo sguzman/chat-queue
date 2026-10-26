@@ -759,7 +759,7 @@ async function main(){
     priorNonce),10000);
   assert.equal(await driver.executeScript(
     'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result.error',priorNonce),
-    'stale-state','older registration state must not affect newly registered tab');
+    'stale-registration','older registration state must not affect newly registered tab');
   const newNonce=++nonce;
   await driver.executeScript((id,message)=>{
     window.postMessage({kind:'qa-meta-send',nonce:id,message},'*');
