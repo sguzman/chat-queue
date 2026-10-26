@@ -814,7 +814,7 @@ async function main(){
     type:'qa-old-forward-state'}))?.entered===true,8000,
     'Old API forwarding must enter deliberate fault hold');
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'register',route:'/c/synthetic'})).ok,true,
+    action:'register',route:'/c/synthetic',registrationVersion:2})).ok,true,
     'A real Firefox message must create a newer registration');
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
     action:'state',sequence:1,phase:'idle',size:3,running:false,awaiting:false})).ok,true);
@@ -844,7 +844,7 @@ async function main(){
   await driver.wait(async()=>(await metaCommand({
     type:'qa-old-hold-state'}))?.entered===true,8000);
   assert.equal((await metaCommand({type:'chat-queue-internal/v1',
-    action:'register',route:'/c/synthetic'})).ok,true);
+    action:'register',route:'/c/synthetic',registrationVersion:2})).ok,true);
   assert.equal((await metaCommand({type:'qa-old-hold-resume'})).ok,true);
   await driver.wait(async()=>await driver.executeScript(
     'return window.__metadataResults.some(x=>x.nonce===arguments[0])',
