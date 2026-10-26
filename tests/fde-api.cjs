@@ -141,6 +141,9 @@ function createQueue(dest,root){
    if(!sender.tab||!sender.url?.startsWith('http://127.0.0.1:'))return;
    if(msg?.type==='qa-preview-hold-state')
      return Promise.resolve({ok:true,entered:globalThis.__qaRulesPreviewHoldEntered===true});
+   if(msg?.type==='qa-browser-document-id')
+     return Promise.resolve({ok:true,documentId:sender.documentId||null,
+       frameId:sender.frameId});
    if(msg?.type==='qa-seed-send-hold'){
      const route='/c/synthetic',holdId='12345678-aaaa-4444-bbbb-111111111111';
      const key='chatqueue:send-hold:v1:synthetic';
@@ -827,6 +830,13 @@ async function main(){
     return driver.executeScript(
       'return window.__metadataResults.find(x=>x.nonce===arguments[0]).result',id);
   };
+  // Firefox's browser-assigned documentId is independent of Queue's
+  // application-generated registration UUID.
+  const nativeDocument=await metaCommand({type:'qa-browser-document-id'});
+  assert.equal(nativeDocument.ok,true);
+  assert.match(nativeDocument.documentId,
+    /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i);
+  assert.equal(nativeDocument.frameId,0);
   await driver.wait(async()=>(await metaCommand({
     type:'qa-old-forward-state'}))?.entered===true,8000,
     'Old API forwarding must enter deliberate fault hold');

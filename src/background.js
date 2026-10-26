@@ -29,10 +29,18 @@
   // state frame from its predecessor cannot release the successor's Send lease.
   // Legacy synthetic browser fixtures do not opt in and remain test-only.
   const STRICT_STATE_REGISTRATIONS = new Set();
+  // Firefox 153+ provides an independent browser-attested ID for each
+  // loaded document. Never persist or expose it through the public API.
+  const DOCUMENT_IDS = new Map();
+  const DOCUMENT_ID=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
+  const documentIdOf=sender=>typeof sender?.documentId==='string'&&
+    DOCUMENT_ID.test(sender.documentId)?sender.documentId:null;
   // Per-document freshness guard, not a page-visible or peer API credential.
-  const matchingRegistration=(tabId,message)=>Boolean(
-    REGISTRATIONS.get(tabId)&&(!STRICT_STATE_REGISTRATIONS.has(tabId)||
-      message.registrationGeneration===REGISTRATIONS.get(tabId)));
+  const matchingRegistration=(tabId,message,sender)=>Boolean(
+    REGISTRATIONS.get(tabId)&&
+    (!STRICT_STATE_REGISTRATIONS.has(tabId)||
+      message.registrationGeneration===REGISTRATIONS.get(tabId))&&
+    (!DOCUMENT_IDS.has(tabId)||DOCUMENT_IDS.get(tabId)===documentIdOf(sender)));
   // An earlier asynchronous tabs.get() must not reinstate a superseded
   // registration after a newer document or route has registered this tab.
   const REGISTER_ATTEMPTS = new Map();
@@ -209,15 +217,22 @@
         STATE_SEQUENCES.set(tab.id,0);
         const registrationGeneration=crypto.randomUUID();
         REGISTRATIONS.set(tab.id,registrationGeneration);
-        if(message.registrationVersion===2)STRICT_STATE_REGISTRATIONS.add(tab.id);
-        else STRICT_STATE_REGISTRATIONS.delete(tab.id);
+        const browserDocumentId=documentIdOf(sender);
+        if(message.registrationVersion===2){
+          STRICT_STATE_REGISTRATIONS.add(tab.id);
+          if(browserDocumentId)DOCUMENT_IDS.set(tab.id,browserDocumentId);
+          else DOCUMENT_IDS.delete(tab.id);
+        }else{
+          STRICT_STATE_REGISTRATIONS.delete(tab.id);
+          DOCUMENT_IDS.delete(tab.id);
+        }
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
         SIGNALS.delete(tab.id);
         return {ok:true,tabId:tab.id,registrationGeneration};
       });
     }
     if(message.action==='sync-provider'){
-      if(!matchingRegistration(tab.id,message))
+      if(!matchingRegistration(tab.id,message,sender))
         return Promise.resolve({ok:false,error:'stale-registration'});
       // A verified provider resample is requested only once the receiving
       // content script has initialized, never inside register(). That way
@@ -228,7 +243,7 @@
       return currentRoute(sender).then(live=>{
         if(live!==message.route||ROUTES.get(tab.id)!==message.route||
            !TABS.has(tab.id))return {ok:false,error:'route-mismatch'};
-        if(!matchingRegistration(tab.id,message))
+        if(!matchingRegistration(tab.id,message,sender))
           return {ok:false,error:'stale-registration'};
         syncVerifiedProvider(tab.id,message.route);
         return {ok:true};
@@ -248,7 +263,7 @@
          last.epoch!==message.epoch || last.sequence!==message.sequence ||
          !signalContract.ready(last,message.route))
         return Promise.resolve({ok:false,error:'signal-authority-lost'});
-      if(!matchingRegistration(tab.id,message))
+      if(!matchingRegistration(tab.id,message,sender))
         return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(async live=>{
         if(live!==message.route||SIGNALS.get(tab.id)!==last||
@@ -314,7 +329,7 @@
       // A same-route reload is still a new principal: its old in-flight
       // release/review must not clear the new document's durable Send hold.
       const generation=REGISTRATIONS.get(tab.id);
-      if(!matchingRegistration(tab.id,message))
+      if(!matchingRegistration(tab.id,message,sender))
         return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(live=>{
         if(live!==message.route||ROUTES.get(tab.id)!==message.route||
@@ -389,7 +404,7 @@
       // starts its request AFTER the new document registered. Require its
       // explicit, privately returned registration generation as well.
       if(STRICT_STATE_REGISTRATIONS.has(tab.id)&&
-         message.registrationGeneration!==generation)
+         !matchingRegistration(tab.id,message,sender))
         return Promise.resolve({ok:false,error:'stale-registration'});
       return currentRoute(sender).then(live=>{
         if(ROUTES.get(tab.id)!==registered||live!==registered||!TABS.has(tab.id))
@@ -397,7 +412,7 @@
         if(REGISTRATIONS.get(tab.id)!==generation)
           return {ok:false,error:'stale-state'};
         if(STRICT_STATE_REGISTRATIONS.has(tab.id)&&
-           message.registrationGeneration!==generation)
+           !matchingRegistration(tab.id,message,sender))
           return {ok:false,error:'stale-registration'};
         // Test after the asynchronous browser URL read: the read's callbacks
         // may resolve out of order, including after a newer pause/Start.
@@ -711,6 +726,7 @@
         STATE_SEQUENCES.delete(message.tabId);
         REGISTRATIONS.delete(message.tabId);
         STRICT_STATE_REGISTRATIONS.delete(message.tabId);
+        DOCUMENT_IDS.delete(message.tabId);
       }
       return { ok: false, error: 'tab-unavailable' };
     }
@@ -725,7 +741,7 @@
     // a later A->B->A must not resurrect the old callback.
     if(!preservePending)REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
-    ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);STRICT_STATE_REGISTRATIONS.delete(tabId);
+    ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);STRICT_STATE_REGISTRATIONS.delete(tabId);DOCUMENT_IDS.delete(tabId);
     notify(tabId,null);
   }
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));

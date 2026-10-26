@@ -40,6 +40,38 @@ function create(persisted={}) {
   return {listeners,forwards,syncRequests,state,context};
 }
 
+test('browser-attested document ID prevents token reuse by another tab document',async()=>{
+  const {listeners}=create();
+  const route='/c/browser-document-identity';
+  const url='https://chatgpt.com'+route;
+  const current={tab:{id:619,url},url,documentId:'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'};
+  const retired={tab:{id:619,url},url,documentId:'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'};
+  const registered=await listeners.internal({type:'chat-queue-internal/v1',
+    action:'register',route,registrationVersion:2},current);
+  assert.equal(registered.ok,true);
+  const generation=registered.registrationGeneration;
+  // Even a caller supplied with the otherwise valid current generation
+  // cannot bypass Firefox's independent document principal.
+  for(const action of ['state','sync-provider','send-hold-status']){
+    const msg={type:'chat-queue-internal/v1',action,route,
+      registrationGeneration:generation,sequence:1,phase:'idle'};
+    assert.equal((await listeners.internal(msg,retired)).error,'stale-registration');
+    if(action==='state')assert.equal((await listeners.internal(msg,current)).ok,true);
+    if(action==='sync-provider')assert.equal((await listeners.internal(msg,current)).ok,true);
+    if(action==='send-hold-status')assert.equal((await listeners.internal(msg,current)).held,false);
+  }
+  const provider={id:'chat-signals@sguzman.github'};
+  const token='c'.repeat(32);
+  const accepted={version:1,route,documentToken:token,
+    sequence:1,epoch:1,phase:'idle',origin:'fresh',confidence:'observed'};
+  assert.equal((await listeners.external({type:'chat-queue-signal/v1',
+    tabId:619,signal:accepted},provider)).ok,true);
+  const dispatch={type:'chat-queue-internal/v1',action:'dispatch-check',
+    route,registrationGeneration:generation,documentToken:token,sequence:1,epoch:1};
+  assert.equal((await listeners.internal(dispatch,retired)).error,'stale-registration');
+  assert.equal((await listeners.internal(dispatch,current)).ok,true);
+});
+
 test('legacy document cannot downgrade current or pending v2 registration',async()=>{
   const {listeners,context}=create();
   const route='/c/strict-version-no-downgrade';
