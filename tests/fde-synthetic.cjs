@@ -548,9 +548,32 @@ async function main(){
     await driver.executeScript(`const el=${jsEl('theme')};el.value='light';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='light'"),5000);
     const lightToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
+    // Normal-size warning text on an enabled Danger button must meet
+    // WCAG AA 4.5:1 in the browser's *resolved* theme colors. Raw token
+    // inequality is not evidence that a warning is legible.
+    const warningContrast=async()=>driver.executeScript(() => {
+      const styles=getComputedStyle(document.querySelector('#chat-queue-extension-root'));
+      const rgb=token=>{
+        const value=styles.getPropertyValue(token).trim();
+        if(!/^#[0-9a-f]{6}$/i.test(value))throw Error('non-hex QA theme token');
+        return [1,3,5].map(i=>parseInt(value.slice(i,i+2),16)/255);
+      };
+      const luminance=triplet=>{
+        const linear=triplet.map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4);
+        return linear[0]*0.2126+linear[1]*0.7152+linear[2]*0.0722;
+      };
+      const foreground=luminance(rgb('--warning'));
+      const background=luminance(rgb('--button'));
+      return (Math.max(foreground,background)+0.05)/
+        (Math.min(foreground,background)+0.05);
+    });
+    assert.ok((await warningContrast())>=4.5,
+      'Light warning text against enabled Danger button must meet 4.5:1 contrast');
     await driver.executeScript(`const el=${jsEl('theme')};el.value='dark';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='dark'"),5000);
     const darkToken=await driver.executeScript("return getComputedStyle(document.querySelector('#chat-queue-extension-root')).getPropertyValue('--panel').trim()");
+    assert.ok((await warningContrast())>=4.5,
+      'Dark warning text against enabled Danger button must meet 4.5:1 contrast');
     assert.notEqual(lightToken,darkToken,'Light and Dark must apply independent semantic color tokens');
     await driver.executeScript(`const el=${jsEl('theme')};el.value='system';el.dispatchEvent(new Event('change',{bubbles:true}))`);
     await driver.wait(async()=>await driver.executeScript("return document.querySelector('#chat-queue-extension-root')?.dataset.theme==='system'"),5000);
