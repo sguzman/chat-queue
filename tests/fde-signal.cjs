@@ -254,6 +254,8 @@ function prepareQueue(dir,source){
     "await new Promise(resolve=>setTimeout(resolve,2300));\n"+
     "        if(message.route==='/c/early-human-edit')"+
     "await new Promise(resolve=>setTimeout(resolve,2000));\n"+
+    "        if(message.route==='/c/early-human-focus')"+
+    "await new Promise(resolve=>setTimeout(resolve,2000));\n"+
     "        if(message.sequence===27){globalThis.__qaLateChecks=(globalThis.__qaLateChecks||0)+1;"+
     "if(globalThis.__qaLateChecks===3)await new Promise(resolve=>setTimeout(resolve,1800));}\n"+
     "        if(message.sequence===30){globalThis.__qaRouteChecks=(globalThis.__qaRouteChecks||0)+1;"+
@@ -1951,6 +1953,46 @@ async function main(){
     await driver.sleep(600);
     assert.equal(await driver.executeScript('return window.__sent.length'),0,
       'A later provider completion cannot auto-retry after human interference');
+
+    qaStage='trusted-focus-takeover-before-composer-handoff';
+    await driver.switchTo().newWindow('tab');
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/early-human-focus');
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('run')}) && document.documentElement.dataset.qaSignalProviderReady==='true'`),12000);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic focus-takeover message';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(() => {
+      const other=document.createElement('input');
+      other.id='qa-focus-only-field';other.type='text';
+      other.style.cssText='position:fixed;top:85px;left:30px;z-index:20;width:230px;height:35px';
+      document.querySelector('main').append(other);
+      window.__qaFocusPointerTrusted=0;
+      other.addEventListener('pointerdown',event=>{
+        if(event.isTrusted)window.__qaFocusPointerTrusted++;
+      });
+    });
+    await emit('idle',0,592,'observed','fresh','/c/early-human-focus');
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await waitNote('Preparing next message');
+    await (await driver.findElement(By.id('qa-focus-only-field'))).click();
+    assert.ok(await driver.executeScript('return window.__qaFocusPointerTrusted')>0,
+      'User gesture must be a genuine Firefox pointer event');
+    assert.equal(await driver.executeScript(
+      'return document.activeElement.id'),'qa-focus-only-field',
+      'The person selected another editable field without typing');
+    await waitNote('Human interaction before composer handoff; no Send attempted');
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'Focus-only takeover during authorization forbids queued Send');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').innerText.trim()"),'',
+      'Queue must not overwrite the empty ChatGPT editor on focus-only takeover');
+    await emit('finished',1,593,'observed','fresh','/c/early-human-focus');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sent.length'),0,
+      'A later provider event cannot restart a preflight interrupted by pointer focus');
 
     qaStage='enqueue-refused-during-dispatch-authorization';
     await driver.switchTo().newWindow('tab');

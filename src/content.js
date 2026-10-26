@@ -817,6 +817,11 @@
     document.addEventListener('beforeinput',onHumanInput,true);
     document.addEventListener('input',onHumanInput,true);
     document.addEventListener('change',onHumanInput,true);
+    // A click into a different editor or keyboard navigation also means the
+    // person has reclaimed the page, even if no text was changed. Never
+    // refocus the ChatGPT composer behind an intentional user gesture.
+    document.addEventListener('pointerdown',onHumanInput,true);
+    document.addEventListener('keydown',onHumanInput,true);
     try {
       if(!sameAttempt())
         throw new Error('Conversation changed before composer handoff');
@@ -977,6 +982,8 @@
       document.removeEventListener('beforeinput',onHumanInput,true);
       document.removeEventListener('input',onHumanInput,true);
       document.removeEventListener('change',onHumanInput,true);
+      document.removeEventListener('pointerdown',onHumanInput,true);
+      document.removeEventListener('keydown',onHumanInput,true);
       if(send)send.removeEventListener('click',onHumanInput,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
