@@ -665,3 +665,11 @@ The HUD's existing `aria-label` checks now have an independent **Firefox browser
 The Light-theme warning/danger foreground `#bd702b` previously yielded approximately **3.20:1** contrast against the default enabled button background `#e6ecf3`, below WCAG AA's **4.5:1** normal-text target. Production now uses `#8c4e1b`, approximately **5.48:1** on that background and above 4.5:1 on the Light hover and panel surfaces. The native browser test computes resolved `--warning` versus `--button` contrast in both Light and Dark modes and requires a minimum 4.5:1; the Dark theme remains unchanged.
 
 These improvements advance the original **M7-06** without adding scope or counting the task verified. Real Orca/NVDA assistive-technology review and authenticated ChatGPT screen behavior are not represented by these synthetic tests. **Verified total remains 84/96 = 87.50%, delta +0.00 percentage points.**
+
+## 🔎 Four-hundred-percent Firefox reflow stress (2026-10-26)
+
+[Complete native Firefox Developer Edition run 40389606797](https://github.com/sguzman/chat-queue/actions/runs/40389606797) passed both jobs with no failed steps. An added **M7-06** WebDriver regression sets a disposable synthetic fixture to a 1280 × 900 browser window and applies `document.documentElement.style.zoom="4"` to simulate **400% document CSS zoom**, approximately 320 unzoomed CSS pixels across the viewport.
+
+The test measures the actual Firefox viewport and HUD client rectangles and requires the private HUD to remain inside all four edges, the panel to have no horizontal scroll overflow, and each enabled, displayed header/footer action to remain inside the HUD bounds. It restores the existing 175% test context afterward, and the full run continues its reduced-motion, contrast, private Shadow DOM, pinned independent Chat Signals, synthetic-send, restart and scoped API suites.
+
+This is repeatable **Gecko geometry evidence**, not actual Firefox toolbar-zoom acceptance or a real Orca/NVDA screen-reader session. No authenticated ChatGPT account, personal Firefox profile or Send was used. The original task M7-06 stays `implemented`: real assistive-technology and authenticated-site accessibility remain outstanding. Verified total remains **84/96 (87.50%), delta +0.00 percentage points**.
