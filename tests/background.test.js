@@ -727,6 +727,46 @@ test('rules-scoped per-client libraries are revisioned, durable and concurrent-w
   assert.equal(forwards.length,0);
 });
 
+test('out-of-order rulesChanged callbacks never deliver an older revision last',async()=>{
+  const {listeners,state,context}=create();
+  const peer='sandbox@example.test',acl='chatqueue:api-grants:v2';
+  const record='chatqueue:external-rules:v1:'+peer;
+  state[acl]={version:2,grants:{[peer]:['discover','rules']}};
+  const received=[];
+  listeners.connect({name:'chat-queue/v1',sender:{id:peer},
+    onDisconnect:{addListener:()=>{}},
+    postMessage:message=>received.push(message),disconnect:()=>{}});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(received[0]?.event,'ready');
+  const realGet=context.browser.storage.local.get;
+  const realSet=context.browser.storage.local.set;
+  let writes=0,resumeOld;
+  context.browser.storage.local.set=async changes=>{
+    await realSet(changes);
+    if(Object.hasOwn(changes,record))writes++;
+  };
+  context.browser.storage.local.get=key=>{
+    if(key===acl&&writes===1&&!resumeOld)
+      return new Promise(resolve=>{resumeOld=()=>resolve(realGet(key));});
+    return realGet(key);
+  };
+  const rule={id:'ordered-notice',version:1,enabled:true,priority:1,
+    when:{phase:'failed'},then:{type:'pause'}};
+  const inReceiver=value=>vm.runInContext(
+    'JSON.parse('+JSON.stringify(JSON.stringify(value))+')',context);
+  const put=revision=>listeners.external(inReceiver({type:'chat-queue/v1',
+    action:'rulesPut',payload:{revision,rules:[rule]}}),{id:peer});
+  assert.equal((await put(0)).revision,1);
+  assert.equal(typeof resumeOld,'function');
+  assert.equal((await put(1)).revision,2);
+  await new Promise(resolve=>setImmediate(resolve));
+  resumeOld();
+  await new Promise(resolve=>setImmediate(resolve));
+  const notifications=received.filter(message=>message.event==='rulesChanged');
+  assert.deepEqual(notifications.map(message=>message.revision),[2],
+    'the newer revision supersedes an older deferred notification');
+});
+
 test('silent rules-scope revocation stops a delayed rulesChanged notification',async()=>{
   const {listeners,state,context}=create();
   const peer='sandbox@example.test';
