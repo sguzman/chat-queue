@@ -489,6 +489,35 @@ async function main(){
     assert.ok(aria.visibleCount>=10,'Expected visible keyboard-operable HUD controls');
     assert.deepEqual(aria.unlabeled,[],
       'Every visible actionable HUD element needs an accessible name');
+    // Firefox's accessibility engine (W3C computed role/name), not only
+    // literal aria-label attributes, must see the private HUD controls.
+    qaStage='computed-accessible-roles-and-names';
+    const accessElements=await driver.executeScript(() => {
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      return [
+        shadow.querySelector('.panel'),
+        shadow.getElementById('status'),
+        shadow.getElementById('theme'),
+        shadow.getElementById('draft'),
+        shadow.getElementById('add'),
+        shadow.getElementById('toggle')
+      ];
+    });
+    const computed=await Promise.all(accessElements.map(async element=>({
+      role:await element.getAriaRole(),
+      name:await element.getAccessibleName()
+    })));
+    assert.deepEqual(computed.map(x=>x.role),
+      ['region','status','combobox','textbox','button','button'],
+      'Firefox must expose functional roles for the closed-HUD-equivalent fixture');
+    assert.equal(computed[0].name,'Chat Queue');
+    assert.equal(computed[2].name,'Chat Queue theme');
+    assert.equal(computed[3].name,'Add queued message');
+    assert.equal(computed[4].name,'Add to queue');
+    assert.equal(computed[5].name,'Collapse queue');
+    // Exact status text varies with provider epochs. Status role, not its
+    // current phrase, is the accessibility acceptance requirement.
+    assert.equal(typeof computed[1].name,'string');
     qaStage='toggle';
     assert.deepEqual(await driver.executeScript(() => {
       const b=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('toggle');
