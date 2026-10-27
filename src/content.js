@@ -172,6 +172,7 @@
   // The original textarea is only a hidden mirror for existing queue logic.
   let draftFrameReady=false;
   let draftPort=null;
+  let lastDraftTheme=null;
   let draftFrame=null;
   let draftReadSerial=0;
   const pendingDraftReads=new Map();
@@ -205,6 +206,8 @@
         if(draftFrameReady)return;
         draftFrameReady=true;draftPort=channel.port1;
         draftPort.postMessage({type:'set',value:els.draft.value});
+        draftPort.postMessage({type:'theme',value:state.theme});
+        lastDraftTheme=state.theme;
       }else if(data.type==='input'&&draftFrameReady){
         if(typeof data.value!=='string'||data.value.length>10000)return;
         els.draft.value=data.value;
@@ -363,6 +366,10 @@
     if(!state.ruleOffer)clearRuleApprovalTimer();
     if(!state.rulesEnabled)clearActiveRuleDeadlineTimer();
     host.dataset.theme=state.theme;els.theme.value=state.theme;
+    if(draftFrameReady&&lastDraftTheme!==state.theme){
+      draftPort.postMessage({type:'theme',value:state.theme});
+      lastDraftTheme=state.theme;
+    }
     els.count.textContent = `${state.items.length} queued`;
     els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
