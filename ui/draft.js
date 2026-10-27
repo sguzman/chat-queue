@@ -12,7 +12,10 @@ window.addEventListener('message',event=>{
   channel.onmessage=e=>{
     const data=e.data;
     if(!data||typeof data!=='object')return;
-    if(data.type==='set'&&typeof data.value==='string'&&data.value.length<=10000){
+    if(data.type==='theme'&&['system','light','dark'].includes(data.value)){
+      // Metadata only: never request DOM styles or data from the host page.
+      document.documentElement.dataset.theme=data.value;
+    }else if(data.type==='set'&&typeof data.value==='string'&&data.value.length<=10000){
       field.value=data.value;
     }else if(data.type==='read'&&Number.isSafeInteger(data.id)){
       channel.postMessage({type:'snapshot',id:data.id,value:field.value});
