@@ -45,10 +45,11 @@ try{
     ...(manifest.background?.scripts||[]),
     ...(manifest.content_scripts||[]).flatMap(script=>script.js||[]),
     manifest.options_ui?.page,
-    'src/rule-store.js','options/options.js','options/rule-preview.js'
+    'src/rule-store.js','options/options.js','options/rule-preview.js',
+    'ui/draft.html','ui/draft.js'
   ]);
   for(const rel of files){
-    if(typeof rel!=='string'||!/^(manifest\.json|(?:src|options)\/[a-z0-9-]+\.(?:js|html))$/.test(rel))
+    if(typeof rel!=='string'||!/^(manifest\.json|(?:src|options|ui)\/[a-z0-9-]+\.(?:js|html))$/.test(rel))
       throw Error('Unapproved signing source: '+String(rel));
     const from=path.join(root,rel),to=path.join(stage,rel);
     // A symlinked allowlisted script could otherwise copy unrelated private

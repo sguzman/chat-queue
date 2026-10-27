@@ -124,7 +124,8 @@ function disarmQueueDispatch(content){
 const PRODUCTION_FILES=[
   'manifest.json','src/background.js','src/content.js','src/core.js',
   'src/grants.js','src/rule-store.js','src/rules.js','src/signal.js',
-  'options/options.html','options/options.js','options/rule-preview.js'
+  'options/options.html','options/options.js','options/rule-preview.js',
+  'ui/draft.html','ui/draft.js'
 ];
 function copyProductionBundle(destination,sourceRoot){
   const manifest=JSON.parse(fs.readFileSync(path.join(sourceRoot,'manifest.json'),'utf8'));

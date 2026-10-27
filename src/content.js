@@ -51,6 +51,7 @@
   host.style.setProperty('bottom','84px');
   host.style.setProperty('width','min(370px, calc(100vw - 32px))');
   const shadow = host.attachShadow({mode:'closed'});
+  const isolatedDraft = location.origin==='https://chatgpt.com';
   // This listener must run on WINDOW CAPTURE: it precedes document capture,
   // where ChatGPT can intercept a keystroke and focus its own composer.
   // Blocking propagation is not cancelling the native textarea's default
@@ -164,6 +165,67 @@
     <div class="hint">Uses Chat Signals. Never overwrites an existing draft.</div></div></div>`;
   shadow.append(panel);
   const els = Object.fromEntries(['count','toggle','reset','theme','status','body','items','history','backup-export','backup-choose','backup-confirm','backup-file','history-clear','recovery-find','recovery-confirm','hold-review','data-note','rules-panel','rules-note','rules-toggle','rules-approve','rules-dismiss','rules-audit','rules-audit-count','draft','add','clear','run'].map(id => [id,shadow.getElementById(id)]));
+  // Live ChatGPT runs the editor in an extension-owned child frame. Key and
+  // clipboard events stay in that frame, outside the host page's event tree.
+  // The original textarea is only a hidden mirror for existing queue logic.
+  let draftFrameReady=false;
+  let draftPort=null;
+  let draftFrame=null;
+  let draftReadSerial=0;
+  const pendingDraftReads=new Map();
+  function setQueueDraft(value){
+    els.draft.value=value;
+    if(draftFrameReady)draftPort.postMessage({type:'set',value});
+  }
+  function readQueueDraft(){
+    if(!isolatedDraft)return Promise.resolve(els.draft.value);
+    if(!draftFrameReady)return Promise.resolve(null);
+    const id=++draftReadSerial;
+    return new Promise(resolve=>{
+      const timer=setTimeout(()=>{pendingDraftReads.delete(id);resolve(null);},2000);
+      pendingDraftReads.set(id,value=>{clearTimeout(timer);resolve(value);});
+      draftPort.postMessage({type:'read',id});
+    });
+  }
+  if(isolatedDraft){
+    const token=uid();
+    draftFrame=document.createElement('iframe');
+    draftFrame.id='isolated-draft-frame';
+    draftFrame.title='Add queued message';
+    draftFrame.style.cssText='display:block;width:100%;height:86px;border:1px solid var(--button-border);border-radius:7px;background:var(--input);margin-bottom:8px';
+    els.draft.hidden=true;
+    els.draft.after(draftFrame);
+    const channel=new MessageChannel();
+    channel.port1.onmessage=event=>{
+      const data=event.data;
+      if(!data||typeof data!=='object')return;
+      if(data.type==='ready'){
+        if(draftFrameReady)return;
+        draftFrameReady=true;draftPort=channel.port1;
+        draftPort.postMessage({type:'set',value:els.draft.value});
+      }else if(data.type==='input'&&draftFrameReady){
+        if(typeof data.value!=='string'||data.value.length>10000)return;
+        els.draft.value=data.value;
+        // The private version listener runs, but the event never bubbles
+        // into ChatGPT's document capture or main-world listeners.
+        els.draft.dispatchEvent(new Event('input'));
+      }else if(data.type==='snapshot'&&draftFrameReady){
+        if(!Number.isSafeInteger(data.id)||!pendingDraftReads.has(data.id))return;
+        const done=pendingDraftReads.get(data.id);
+        pendingDraftReads.delete(data.id);
+        done(typeof data.value==='string'&&data.value.length<=10000?data.value:null);
+      }
+    };
+    const src=api.runtime.getURL('ui/draft.html');
+    const origin=new URL(src).origin;
+    draftFrame.addEventListener('load',()=>{
+      // Port transfer goes directly to a cross-origin child. No prompt text
+      // is ever broadcast via the top-level ChatGPT page's postMessage.
+      try{draftFrame.contentWindow.postMessage(
+        {type:'queue-draft-init',token},origin,[channel.port2]);}catch{}
+    },{once:true});
+    draftFrame.src=src+'#'+token;
+  }
   // Unsaved HUD drafts must not migrate into another ChatGPT conversation.
   // Keep at most 32 volatile, exact-route drafts within this tab; never sync
   // or expose them to the page. Persisted queued items have separate storage.
@@ -508,7 +570,7 @@
         const neighbor=rows[Math.min(focusedActionIndex,rows.length-1)];
         const button=[...(neighbor?.querySelectorAll('.controls button')||[])]
           .find(candidate=>!candidate.disabled);
-        (button||els.draft).focus({preventScroll:true});
+        (button||(isolatedDraft?draftFrame:els.draft)).focus({preventScroll:true});
       }
     }
     paintedRows=rowsState;
@@ -1225,7 +1287,7 @@
     // A's draft has already been stashed. Do not overwrite it with the now
     // blank transition textarea on a second reentrant route change.
     if(!state.routing)rememberDraft(state.key);
-    els.draft.value='';
+    setQueueDraft('');
     const generation=++routeGeneration;
     state.registrationGeneration=null;
     state.routing=true;
@@ -1252,7 +1314,7 @@
       // prompts under a new route. Block editing without overwriting either
       // persistent record, and let a later navigation/reload retry.
       state.key=newKey;
-      els.draft.value='';
+      setQueueDraft('');
       state.storageFault=true;state.blockedRecord=true;
       state.items=[];state.history=[];state.recoveredSources=[];state.requestHighWatermarks=Object.create(null);
       state.revision=0;state.etag=uid();state.editing=null;
@@ -1263,7 +1325,7 @@
     }
     if(generation!==routeGeneration||storageKey()!==newKey)return;
     state.key=newKey;
-    els.draft.value=routeDrafts.get(newKey)||'';
+    setQueueDraft(routeDrafts.get(newKey)||'');
     state.storageFault=false;state.pendingSaves=0;
     state.revision=0;state.etag=uid(); // invalidate stale compare tokens across routes
     state.blockedRecord=!core.savedRecordSupport(stored[newKey]).ok;
@@ -1732,15 +1794,20 @@
     // A double click during a slow durable write must never enqueue the same
     // draft twice. Keep newer typing intact while the button is disabled.
     if(state.adding)return;
-    const text=els.draft.value,version=draftInputVersion;
     const draftKey=state.key,draftGeneration=routeGeneration;
+    const text=await readQueueDraft();
+    if(text===null||state.key!==draftKey||routeGeneration!==draftGeneration){
+      if(text===null)statusNote('Private editor unavailable; no message added');
+      return;
+    }
+    const version=draftInputVersion;
     state.adding=true;render();
     try{
       const response=await act('enqueue',{text},true);
       if(response.ok){
         if(draftInputVersion===version){
           if(state.key===draftKey&&routeGeneration===draftGeneration&&
-             els.draft.value===text)els.draft.value='';
+             els.draft.value===text)setQueueDraft('');
           else if(routeDrafts.get(draftKey)===text)routeDrafts.delete(draftKey);
         }
       }else statusNote(response.error);

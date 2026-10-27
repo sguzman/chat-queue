@@ -22,7 +22,8 @@ function exactKeys(value,keys,description){
 }
 exactKeys(manifest,[
   'manifest_version','name','version','description','permissions',
-  'background','options_ui','content_scripts','browser_specific_settings'
+  'background','options_ui','content_scripts','browser_specific_settings',
+  'web_accessible_resources'
 ],'manifest execution/privilege surface');
 exactKeys(manifest.background,['scripts'],'background context');
 exactKeys(manifest.options_ui,['page','open_in_tab'],'Options context');
@@ -41,8 +42,11 @@ if(!exactly(manifest.content_scripts[0].js,
 if(!exactly(manifest.permissions,['storage']))fail('Firefox permission scope changed');
 if('host_permissions' in manifest||'optional_permissions' in manifest||
    'optional_host_permissions' in manifest)fail('new host or optional permissions');
-if('externally_connectable' in manifest||'web_accessible_resources' in manifest)
+if('externally_connectable' in manifest)
   fail('new page-reachable extension surface');
+if(!exactly(manifest.web_accessible_resources,[{
+  resources:['ui/draft.html','ui/draft.js'],matches:['https://chatgpt.com/*']
+}]))fail('isolated draft resource scope changed');
 if('content_security_policy' in manifest)fail('custom CSP needs a separate review');
 if(manifest.browser_specific_settings?.gecko?.id!=='chat-queue@sguzman.github')
   fail('stable Firefox add-on ID changed');
@@ -62,7 +66,7 @@ if(manifest.options_ui?.page!=='options/options.html')fail('unexpected Options e
 const allJs=[
   ...(manifest.background?.scripts||[]),
   ...(manifest.content_scripts?.[0]?.js||[]),
-  'src/rule-store.js','options/rule-preview.js','options/options.js'
+  'src/rule-store.js','options/rule-preview.js','options/options.js','ui/draft.js'
 ];
 if(!Array.isArray(manifest.background?.scripts)||!manifest.background.scripts.length)
   fail('missing Firefox background script entries');
@@ -76,7 +80,7 @@ const forbidden=[
   [/\bimport\s*\(/,'dynamic import']
 ];
 for(const p of new Set(allJs)){
-  if(!/^(src|options)\/[a-z0-9-]+\.js$/.test(p))fail('unreviewed script path '+p);
+  if(!/^(src|options|ui)\/[a-z0-9-]+\.js$/.test(p))fail('unreviewed script path '+p);
   const body=read(p);
   for(const [regex,label] of forbidden)if(regex.test(body))fail(label+' added to '+p);
   const urls=body.match(/https?:\/\/[^\s"'`<>)]*/g)||[];
@@ -95,6 +99,8 @@ const optionsScripts=[...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["
   .map(match=>path.posix.normalize(path.posix.join('options',match[1])));
 if(!optionsScripts.length||optionsScripts.some(file=>!allJs.includes(file)))
   fail('unreviewed local Options script');
+const draftHtml=read('ui/draft.html');
+if(!/<script src="draft.js"><\/script>/.test(draftHtml)||/<script\b(?![^>]*\bsrc\s*=)/i.test(draftHtml)||/\bon(?:load|error|click|submit)=/i.test(draftHtml))fail('isolated draft HTML contract changed');
 if(pkg.private!==true||pkg.dependencies||pkg.devDependencies)
   fail('runtime dependency or package publication policy changed');
 console.log('Security audit: narrow ChatGPT scope, storage-only permission, local assets, no runtime network or dynamic JS passed');
