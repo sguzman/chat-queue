@@ -111,7 +111,7 @@ function qualify(o){
 // Fail closed when upstream restructures either the dispatcher or Send path.
 function disarmQueueDispatch(content){
   const entry='  async function dispatchOne() {';
-  const click='      send.click(); clicked=true;';
+  const click='      clickStarted=true;send.click(); clicked=true;';
   if(typeof content!=='string'||content.split(entry).length!==2||
      content.split(click).length!==2)
     throw Error('Queue dispatch source contract changed; live probe blocked');
