@@ -121,3 +121,24 @@ test('an unreviewed Firefox update URL must fail the manifest audit',()=>{
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/Firefox identity and update policy changed/);
 });
+
+test('isolated private draft rejects unreviewed resource, navigation and script surfaces',()=>{
+  for(const [scenario,injection] of [
+    ['remote CSS import','<style>@import url(https://bad.invalid/style.css);</style>'],
+    ['CSS image URL','<style>textarea{background:url(https://bad.invalid/pixel)}</style>'],
+    ['remote linked stylesheet','<link rel="stylesheet" href="https://bad.invalid/style.css">'],
+    ['image pixel','<img src="https://bad.invalid/pixel">'],
+    ['form submission','<form action="https://bad.invalid/collect"></form>'],
+    ['meta refresh','<meta http-equiv="refresh" content="0;url=https://bad.invalid/">'],
+    ['extra local script','<script src="second.js"></script>'],
+    ['inline script','<script>alert("oops")</script>'],
+    ['unexpected event handler','<textarea onfocus="alert(1)"></textarea>'],
+    ['video resource','<video src="https://bad.invalid/a"></video>']
+  ]){
+    const result=runAudit(dir=>{
+      fs.appendFileSync(path.join(dir,'ui/draft.html'),injection);
+    });
+    assert.notEqual(result.status,0,scenario+' must fail before packaging');
+    assert.match(result.stderr,/isolated draft HTML contract changed/,scenario);
+  }
+});
