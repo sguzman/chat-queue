@@ -41,7 +41,13 @@ async function main(){
     const content=fs.readFileSync(contentFile,'utf8');
     const closed="attachShadow({mode:'closed'})";
     assert.equal(content.split(closed).length,2,'Exactly one isolated QA Shadow DOM override');
-    fs.writeFileSync(contentFile,content.replace(closed,"attachShadow({mode:'open'})"));
+    let qaContent=content.replace(closed,"attachShadow({mode:'open'})");
+    // QA-only storage bridge to simulate an unresolved Send hold, restricted
+    // to this disposable localhost fixture and absent from production.
+    const qaHoldAnchor="  const UI_KEY='chatqueue:ui:v1';";
+    assert.equal(qaContent.split(qaHoldAnchor).length,2);
+    qaContent=qaContent.replace(qaHoldAnchor,qaHoldAnchor+"\n  window.addEventListener('message',async event=>{\n    if(event.source!==window||event.origin!==location.origin||\n       location.pathname!=='/c/full-browser-restart')return;\n    const data=event.data;\n    if(!data||!Number.isSafeInteger(data.nonce)||\n       !['qa-crash-hold-seed','qa-crash-hold-read'].includes(data.kind))return;\n    const key='chatqueue:send-hold:v1:full-browser-restart';\n    let record=null,ok=false;\n    try{\n      if(data.kind==='qa-crash-hold-seed')await api.storage.local.set({\n        [key]:{version:1,tabId:999,route:'/c/full-browser-restart',\n          holdId:'12345678-aaaa-4444-bbbb-555555555555'}\n      });\n      record=(await api.storage.local.get(key))[key]??null;\n      ok=true;\n    }catch{}\n    window.postMessage({kind:'qa-crash-hold-reply',nonce:data.nonce,ok,record},'*');\n  });\n");
+    fs.writeFileSync(contentFile,qaContent);
     // The production background needs only a QA localhost origin substitution.
     const bgFile=path.join(addon,'src/background.js');
     let bg=fs.readFileSync(bgFile,'utf8');
@@ -137,6 +143,34 @@ async function main(){
     // Unlike driver.quit(), an abrupt process death does not flush Firefox's
     // session via the normal shutdown lifecycle. Restrict SIGKILL to exactly
     // this disposable -profile process, never another browser or geckodriver.
+    stage='seed-potentially-clicked-send-hold-before-crash';
+    const holdRequest=kind=>driver.executeAsyncScript((eventKind,done)=>{
+      const nonce=Math.floor(Math.random()*1e9);
+      const timer=setTimeout(()=>{window.removeEventListener('message',receive);
+        done({ok:false,error:'hold-request-timeout'});},5000);
+      function receive(event){
+        if(event.source!==window||event.origin!==location.origin||
+           event.data?.kind!=='qa-crash-hold-reply'||
+           event.data.nonce!==nonce)return;
+        clearTimeout(timer);window.removeEventListener('message',receive);
+        done(event.data);
+      }
+      window.addEventListener('message',receive);
+      window.postMessage({kind:eventKind,nonce},location.origin);
+    },kind);
+    const expectedHold={version:1,tabId:999,route:'/c/full-browser-restart',
+      holdId:'12345678-aaaa-4444-bbbb-555555555555'};
+    let holdReply=await holdRequest('qa-crash-hold-seed');
+    assert.equal(holdReply.ok,true,'QA metadata hold must persist before click');
+    assert.deepEqual(holdReply.record,expectedHold);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    await driver.executeScript(()=>{
+      const input=document.getElementById('prompt-textarea');
+      input.textContent='Synthetic accepted site click before abrupt shutdown';
+      document.querySelector('[data-testid="send-button"]').click();
+    });
+    assert.equal(await driver.executeScript('return window.__sent'),1,
+      'The synthetic site click was accepted before process death');
     stage='unexpected-browser-process-death';
     const firefoxProfilePids=()=>{
       const matches=[];
@@ -166,6 +200,11 @@ async function main(){
     await driver.get(url);
     await driver.wait(async()=>driver.executeScript(
       `return Boolean(${el('count')})`),15000);
+    stage='durable-send-hold-after-process-death';
+    holdReply=await holdRequest('qa-crash-hold-read');
+    assert.equal(holdReply.ok,true,'Extension storage readable after SIGKILL');
+    assert.deepEqual(holdReply.record,expectedHold,
+      'Potentially clicked Send hold must survive process death');
     const afterCrash=await driver.executeScript(`return ${el('count')}.textContent`);
     assert.ok(['0 queued','1 queued'].includes(afterCrash),
       'Unrecognized queue state after abrupt shutdown: '+afterCrash);
