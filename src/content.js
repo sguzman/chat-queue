@@ -2182,22 +2182,15 @@
   // The next heartbeat detects route-mismatch, pauses and re-registers; it
   // never restores provider authority or automatically clicks Send.
   const REGISTRY_HEARTBEAT_TICKS=60;
-  const ACTIVE_REGISTRY_HEARTBEAT_TICKS=10;
   let heartbeatTicks=0;
   const routeWatch=setInterval(()=>{
     if(!state.initialized||state.destroyed)return;
     if(routeKey()!==state.keyRoute){
       heartbeatTicks=0;
       state.keyRoute=routeKey();void handleRouteChange();
-    }else if(!state.routing&&state.key===storageKey()){
-      // Active queue work may outlive Firefox's event-page idle timeout.
-      // Message only the authenticated, local extension event page while
-      // Running/awaiting/dispatching; never poll ChatGPT or Chat Signals.
-      // Browser timer throttling, crashes, and lost registration still fail
-      // closed through the existing registry-recovery path.
-      const ticks=(state.running||state.awaiting||state.attempting)
-        ? ACTIVE_REGISTRY_HEARTBEAT_TICKS : REGISTRY_HEARTBEAT_TICKS;
-      if(++heartbeatTicks>=ticks){heartbeatTicks=0;publish();}
+    }else if(!state.routing&&state.key===storageKey()&&
+             ++heartbeatTicks>=REGISTRY_HEARTBEAT_TICKS){
+      heartbeatTicks=0;publish();
     }
   },1000);
   window.addEventListener('popstate',()=>void handleRouteChange());

@@ -74,31 +74,6 @@ async function main(){
      "if(message==='Signal authority lost; no Send attempted')"+
      "document.documentElement.dataset.qaAuthorityLost='true';"+
      "state.note=message;render();publish();}");
-   // This disposable localhost fixture can mimic an in-flight response
-   // WITHOUT a publisher or any Send click. The native event page and
-   // production heartbeat implementation remain unchanged.
-   const hook='  function publish() {';
-   assert.equal(content.split(hook).length,2);
-   content=content.replace(hook,[
-     "  window.addEventListener('message',event=>{",
-     "if(event.source!==window||event.origin!==location.origin||",
-     "routeKey()!=='/c/real-event-page')return;",
-     "if(event.data?.kind==='qa-activate-response-heartbeat'){",
-     "state.running=true;state.awaiting=true;state.note='QA active response';render();publish();",
-     "}else if(event.data?.kind==='qa-disarm-response-heartbeat'){",
-     "state.running=false;state.awaiting=false;state.note='QA heartbeat disarmed';render();publish();",
-     "}",
-     "});"
-   ].join('')+"\n"+hook);
-   // Read-only QA counter of actual active-state heartbeat publications.
-   // Counts only; no private route, prompt, or provider data is exposed.
-   const publishMarker='if(++heartbeatTicks>=ticks){heartbeatTicks=0;publish();}';
-   assert.equal(content.split(publishMarker).length,2);
-   content=content.replace(publishMarker,
-     "if(++heartbeatTicks>=ticks){"+
-     "document.documentElement.dataset.qaHeartbeatCount=String("+
-     "Number(document.documentElement.dataset.qaHeartbeatCount||0)+1);"+
-     "heartbeatTicks=0;publish();}");
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=36;');
@@ -240,37 +215,6 @@ async function main(){
      return driver.executeScript(
        'return window.__bootReplies.find(x=>x.nonce===arguments[0]).count',id);
    };
-   stage='active-response-heartbeat-prevents-idle-suspension';
-   const activeBoot=await readBoot();
-   await driver.executeScript(
-     "window.postMessage({kind:'qa-activate-response-heartbeat'},location.origin)");
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot"+
-     ".getElementById('status').textContent.includes('QA active response')"),5000);
-   // QA Firefox has a 20-second event-page idle timeout. Twenty-eight
-   // seconds without an active publish would restart the event page. The
-   // active-only ten-second metadata heartbeat must keep the SAME instance,
-   // without generating an actual response or a single Send click.
-   await driver.sleep(28000);
-   const activeAfter=await readBoot();
-   const activeSnapshot=await driver.executeScript(() => ({
-     heartbeats:Number(document.documentElement.dataset.qaHeartbeatCount||0),
-     status:document.querySelector('#chat-queue-extension-root')?.shadowRoot
-       ?.getElementById('status')?.textContent?.slice(0,125)||null,
-     sent:window.__sent
-   }));
-   assert.equal(activeAfter,activeBoot,
-     'Active response heartbeat must retain the genuine Firefox event page: '+
-       JSON.stringify(activeSnapshot));
-   assert.equal(await driver.executeScript('return window.__sent'),0,
-     'Metadata heartbeat must never cause a Send');
-   await driver.executeScript(
-     "window.postMessage({kind:'qa-disarm-response-heartbeat'},location.origin)");
-   await driver.wait(async()=>await driver.executeScript(
-     "return document.querySelector('#chat-queue-extension-root').shadowRoot"+
-     ".getElementById('status').textContent.includes('QA heartbeat disarmed')"),5000);
-   // From here, the queue is idle again. Its slower idle heartbeat must
-   // permit a REAL event-page suspension and the existing fail-closed tests.
    // Install an orphan metadata-only hold BEFORE the actual Firefox event
    // page suspends. This is not a simulated background restart or a prompt
    // journal copied into privileged storage.
