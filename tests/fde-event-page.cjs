@@ -90,6 +90,15 @@ async function main(){
      "}",
      "});"
    ].join('')+"\n"+hook);
+   // Read-only QA counter of actual active-state heartbeat publications.
+   // Counts only; no private route, prompt, or provider data is exposed.
+   const publishMarker='if(++heartbeatTicks>=ticks){heartbeatTicks=0;publish();}';
+   assert.equal(content.split(publishMarker).length,2);
+   content=content.replace(publishMarker,
+     "if(++heartbeatTicks>=ticks){"+
+     "document.documentElement.dataset.qaHeartbeatCount=String("+
+     "Number(document.documentElement.dataset.qaHeartbeatCount||0)+1);"+
+     "heartbeatTicks=0;publish();}");
    const heartbeat='const REGISTRY_HEARTBEAT_TICKS=60;';
    assert.equal(content.split(heartbeat).length,2);
    content=content.replace(heartbeat,'const REGISTRY_HEARTBEAT_TICKS=36;');
@@ -243,8 +252,16 @@ async function main(){
    // active-only ten-second metadata heartbeat must keep the SAME instance,
    // without generating an actual response or a single Send click.
    await driver.sleep(28000);
-   assert.equal(await readBoot(),activeBoot,
-     'Active response heartbeat must retain the genuine Firefox event page');
+   const activeAfter=await readBoot();
+   const activeSnapshot=await driver.executeScript(() => ({
+     heartbeats:Number(document.documentElement.dataset.qaHeartbeatCount||0),
+     status:document.querySelector('#chat-queue-extension-root')?.shadowRoot
+       ?.getElementById('status')?.textContent?.slice(0,125)||null,
+     sent:window.__sent
+   }));
+   assert.equal(activeAfter,activeBoot,
+     'Active response heartbeat must retain the genuine Firefox event page: '+
+       JSON.stringify(activeSnapshot));
    assert.equal(await driver.executeScript('return window.__sent'),0,
      'Metadata heartbeat must never cause a Send');
    await driver.executeScript(
