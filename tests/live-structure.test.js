@@ -41,6 +41,23 @@ test('live QA reports count-only structure and preserves draft',()=>{
   assert.equal(qualify({...ok,sendCandidates:0}).qualified,false);
   assert.equal(qualify({...ok,queueMounted:false}).qualified,false);
 });
+test('serialized Selenium probe is self-contained on direct and project pages',()=>{
+  const source='('+inspectCounts.toString()+')';
+  assert.equal(source.includes('QA_CONVERSATION_ROUTE'),false,
+    'Selenium page context cannot access Node module-scope variables');
+  const pathnameRoute='/g/g-p-example123/c/12345678-1234-1234-1234-123456789abc';
+  const page={querySelectorAll:()=>[],getElementById:()=>null,
+    documentElement:{dataset:{chatSignalsState:'idle'}}};
+  const ctx=vm.createContext({document:page,location:{pathname:pathnameRoute}});
+  const isolated=vm.runInContext(source,ctx);
+  assert.equal(isolated().exactRoute,true);
+  ctx.location.pathname='/c/12345678-1234-1234-1234-123456789abc';
+  assert.equal(isolated().exactRoute,true);
+  ctx.location.pathname='/share/12345678-1234-1234-1234-123456789abc';
+  assert.equal(isolated().exactRoute,false);
+  assert.equal(isolated().queueMounted,false);
+});
+
 test('isolated QA profile exists with private permissions and no symlink escapes',()=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'cq-live-qa-'));
   try{

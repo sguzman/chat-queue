@@ -47,6 +47,9 @@ function inspectCounts(){
   // never click or enable it. Do not transfer account or prompt metadata.
   const editorSelector='#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
   const sendSelector='button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
+  // Selenium serializes this function into the page's JS world, which cannot
+  // access module-scope variables. Keep this route guard local and literal.
+  const pageRoute=/^\/(?:c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|g\/[A-Za-z0-9_-]{1,128}\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
   // Match Queue's actionableControl geometry/visibility and usableComposer
   // shape checks without any click or mutation. Disabled Send is allowed as
   // mere STRUCTURE evidence because ChatGPT disables it for empty drafts.
@@ -79,7 +82,7 @@ function inspectCounts(){
   const attachments=Boolean(form&&[...form.querySelectorAll('input[type="file"]')]
     .some(input=>input.files?.length));
   return {
-    exactRoute:QA_CONVERSATION_ROUTE.test(location.pathname),
+    exactRoute:pageRoute.test(location.pathname),
     composerCandidates:editors.length,formPresent:Boolean(form),
     sendCandidates:controls.length,
     sendDisabled:controls.length===1?Boolean(controls[0].disabled||
