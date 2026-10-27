@@ -1117,6 +1117,38 @@ async function main(){
     await driver.sleep(950);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'Idle time must not trigger an automatic retry after an ambiguous click');
+    // The site can report a response AFTER Queue has already timed out and
+    // journaled the Send as uncertain (for example, during a long network
+    // interruption). Drive real Chat Signals observation from late site DOM,
+    // not by forging a provider message. Neither a fresh busy epoch nor a
+    // later terminal event may resurrect the revoked Queue run grant.
+    stage='late-real-provider-response-after-unconfirmed-click';
+    await driver.executeScript(() => {
+      const form=document.querySelector('main form');
+      const stop=document.createElement('button');
+      stop.type='button';stop.dataset.testid='stop-button';stop.textContent='Stop';
+      form.append(stop);
+      const turn=document.createElement('article');
+      turn.dataset.testid='conversation-turn-1';
+      const assistant=document.createElement('div');
+      assistant.dataset.messageAuthorRole='assistant';
+      turn.append(assistant);
+      document.getElementById('response-turns').append(turn);
+      document.getElementById('prompt-textarea').textContent='';
+    });
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.chatSignalsState==='generating'),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.chatSignalsState==='finished'),10000);
+    await driver.sleep(800);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'A late real-publisher terminal must never dispatch or replay an ambiguous Send');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),1,
+      'A late site response cannot silently resolve the uncertain journal');
     await driver.navigate().refresh();
     await driver.wait(async()=>await driver.executeScript(
       `return Boolean(${hud('status')}) && ${hud('count')}?.textContent==='2 queued'`),13000);
