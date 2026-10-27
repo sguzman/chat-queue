@@ -1795,14 +1795,16 @@
     // draft twice. Keep newer typing intact while the button is disabled.
     if(state.adding)return;
     const draftKey=state.key,draftGeneration=routeGeneration;
-    const text=await readQueueDraft();
-    if(text===null||state.key!==draftKey||routeGeneration!==draftGeneration){
-      if(text===null)statusNote('Private editor unavailable; no message added');
-      return;
-    }
-    const version=draftInputVersion;
+    // Lock synchronously BEFORE requesting a cross-frame snapshot. Awaiting
+    // the private MessagePort otherwise permits duplicate Add clicks.
     state.adding=true;render();
     try{
+      const text=isolatedDraft?await readQueueDraft():els.draft.value;
+      if(text===null||state.key!==draftKey||routeGeneration!==draftGeneration){
+        if(text===null)statusNote('Private editor unavailable; no message added');
+        return;
+      }
+      const version=draftInputVersion;
       const response=await act('enqueue',{text},true);
       if(response.ok){
         if(draftInputVersion===version){
