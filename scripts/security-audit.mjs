@@ -100,7 +100,26 @@ const optionsScripts=[...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["
 if(!optionsScripts.length||optionsScripts.some(file=>!allJs.includes(file)))
   fail('unreviewed local Options script');
 const draftHtml=read('ui/draft.html');
-if(!/<script src="draft.js"><\/script>/.test(draftHtml)||/<script\b(?![^>]*\bsrc\s*=)/i.test(draftHtml)||/\bon(?:load|error|click|submit)=/i.test(draftHtml))fail('isolated draft HTML contract changed');
+// The iframe is web-accessible on chatgpt.com and owns unsent private text.
+// Do not let a future HTML edit silently create another network/resource
+// channel, e.g. CSS @import/url, IMG, LINK, META refresh or a form target.
+// The only allowed tags are the audited textarea, its local script, and
+// static markup/CSS; new controls need an explicit security review.
+const draftTags=[...draftHtml.matchAll(/<\s*\/?\s*([a-z][a-z0-9-]*)\b[^>]*>/gi)]
+  .map(match=>match[1].toLowerCase());
+const draftAllowlist=new Set(['html','head','meta','style','body','textarea','script']);
+const draftScripts=[...draftHtml.matchAll(/<script\b[^>]*>/gi)];
+if(draftTags.some(tag=>!draftAllowlist.has(tag))||
+   draftScripts.length!==1||
+   !/^<script src="draft\.js">$/i.test(draftScripts[0][0])||
+   !/<\/script\s*>/i.test(draftHtml)||
+   !/<textarea\s+id="draft"\b/i.test(draftHtml)||
+   /\bon[a-z][\w-]*\s*=/i.test(draftHtml)||
+   /\bhttp-equiv\s*=/i.test(draftHtml)||
+   /@import\b|\burl\s*\(/i.test(draftHtml)||
+   /\b(?:href|srcset|action|formaction|background|poster)\s*=/i.test(draftHtml)||
+   /\b(?:https?:|javascript:|data:)\/\//i.test(draftHtml))
+  fail('isolated draft HTML contract changed');
 if(pkg.private!==true||pkg.dependencies||pkg.devDependencies)
   fail('runtime dependency or package publication policy changed');
 console.log('Security audit: narrow ChatGPT scope, storage-only permission, local assets, no runtime network or dynamic JS passed');
