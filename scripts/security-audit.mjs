@@ -84,7 +84,7 @@ for(const p of new Set(allJs)){
   const body=read(p);
   for(const [regex,label] of forbidden)if(regex.test(body))fail(label+' added to '+p);
   const urls=body.match(/https?:\/\/[^\s"'`<>)]*/g)||[];
-  if(urls.some(url=>!url.startsWith('https://chatgpt.com/')))
+  if(urls.some(url=>url!=='https://chatgpt.com'&&!url.startsWith('https://chatgpt.com/')))
     fail('non-ChatGPT URL literal in '+p);
 }
 const html=read('options/options.html');
