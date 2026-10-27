@@ -52,6 +52,16 @@ function stageQueue(dir,root){
     "      clickStarted=true;send.click();"+
     "if(routeKey()==='/c/postclick-throws')throw new Error('QA fault after Send invocation');"+
     "clicked=true;");
+  // QA ONLY: delay the earliest ownership preflight, before any queue
+  // text reaches the real editable site field. A genuine WebDriver keypress
+  // must revoke Queue control during this asynchronous boundary.
+  qaQueueContent=patch(qaQueueContent,
+    "      const ownership=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
+    "      if(routeKey()==='/c/trusted-human-edit-during-ownership'){"+
+    "document.documentElement.dataset.qaOwnershipDelay='yes';"+
+    "await new Promise(resolve=>setTimeout(resolve,2400));"+
+    "}"+
+    "      const ownership=await api.runtime.sendMessage({type:'chat-queue-internal/v1',");
   // QA ONLY: widen the interval immediately before sealed Send authority
   // so WebDriver can perform a genuinely trusted edit to ChatGPT's composer.
   // This latency is present on one localhost route and never in production.
@@ -1305,6 +1315,38 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'Manual retry after pre-click failure must never duplicate Send');
 
+    stage='trusted-human-edit-before-ownership-never-overwrites';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/trusted-human-edit-during-ownership');
+    await ready();
+    await driver.executeScript(() => {
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      shadow.getElementById('draft').value='Queue should not replace my draft';
+      shadow.getElementById('add').click();
+    });
+    await driver.wait(async()=>driver.executeScript(() =>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='1 queued'),9000);
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('run').click());
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaOwnershipDelay==='yes'),10000);
+    await driver.findElement(By.id('prompt-textarea')).sendKeys('HUMAN DRAFT');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('status')?.textContent
+        .includes('Human interaction before composer handoff; no Send attempted')),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').textContent"),'HUMAN DRAFT');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent),'1 queued');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),0,
+      'No uncertain journal is necessary when the preflight never reached the composer');
+    await driver.sleep(450);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     stage='trusted-human-edit-during-sealed-preclick-never-sends';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/trusted-human-edit-during-seal');
     await ready();
