@@ -51,6 +51,17 @@
   host.style.setProperty('bottom','84px');
   host.style.setProperty('width','min(370px, calc(100vw - 32px))');
   const shadow = host.attachShadow({mode:'closed'});
+  // ChatGPT has page-wide keyboard/focus shortcuts. Shadow DOM retargets HUD
+  // events but does NOT stop their propagation to document/window, where a
+  // site shortcut may steal focus and direct typed text to its own composer.
+  // Keep native textarea input/defaults and all internal HUD handlers intact:
+  // only stop events from crossing the HUD's shadow boundary. Do not call
+  // preventDefault(), which would break typing, IME or accessible controls.
+  for(const type of ['keydown','keypress','keyup','beforeinput','input',
+    'compositionstart','compositionupdate','compositionend',
+    'pointerdown','mousedown','mouseup','click','focusin']){
+    shadow.addEventListener(type,event=>event.stopPropagation(),true);
+  }
   const style = document.createElement('style');
   style.textContent = `
     :host{color-scheme:light;contain:style;--panel:#fff;--text:#192432;--border:#bcc7d1;--header:#f4f6f9;--status:#f8fafc;--item:#f5f7fa;--button:#e6ecf3;--button-hover:#d9e4ed;--button-border:#9eafbf;--muted:#4c6074;--input:#fff;--accent:#204f8c;--accent-text:#fff;--focus:#1773bb;--shadow:#0002;--warning:#8c4e1b}

@@ -188,6 +188,44 @@ async function main(){
     assert.equal(await theme.getAttribute('value'),'system');
     const input=await driver.executeScript(`return ${jsEl('draft')}`);
     const add=await driver.executeScript(`return ${jsEl('add')}`);
+    // Reproduce host-page global shortcut behavior seen on authenticated
+    // ChatGPT: a document-level key/pointer handler that focuses the site's
+    // own composer whenever it hears typing or clicking in an extension HUD.
+    // Native Firefox must keep the keyboard in the Shadow DOM textarea.
+    qaStage='host-page-shortcut-must-not-steal-HUD-draft-focus';
+    await driver.executeScript(() => {
+      window.__qaHostShortcutCount=0;
+      const steal=(event)=>{
+        if(event.type!=='keydown'||(event.key.length===1&&
+           !event.ctrlKey&&!event.altKey&&!event.metaKey)){
+          window.__qaHostShortcutCount++;
+          document.getElementById('prompt-textarea').focus();
+        }
+      };
+      for(const type of ['keydown','pointerdown','click','beforeinput','input'])
+        document.addEventListener(type,steal);
+    });
+    await input.click();
+    await input.sendKeys('HUD focus stays here');
+    const isolation=await driver.executeScript(() => {
+      const root=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      return {draft:root.getElementById('draft').value,
+        focused:root.activeElement===root.getElementById('draft'),
+        hostShortcutEvents:window.__qaHostShortcutCount,
+        siteDraft:document.getElementById('prompt-textarea').textContent};
+    });
+    assert.deepEqual(isolation,{draft:'HUD focus stays here',focused:true,
+      hostShortcutEvents:0,siteDraft:''},
+      'ChatGPT document-wide shortcuts must never redirect HUD typing into the site composer');
+    await input.clear();
+    // Site shortcuts must still function when the user genuinely types into
+    // the ChatGPT editor; only the extension-local interaction is shielded.
+    await driver.executeScript(() => {
+      document.getElementById('prompt-textarea').dispatchEvent(
+        new KeyboardEvent('keydown',{key:'x',bubbles:true}));
+    });
+    assert.equal(await driver.executeScript('return window.__qaHostShortcutCount'),1,
+      'Keyboard events originating in the website must remain website-owned');
     await input.sendKeys('Synthetic first message');await add.click();
     await input.sendKeys('Synthetic second message');await add.click();
     const count=await driver.executeScript(`return ${jsEl('count')}.textContent`);
