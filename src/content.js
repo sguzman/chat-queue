@@ -371,7 +371,10 @@
       lastDraftTheme=state.theme;
     }
     els.count.textContent = `${state.items.length} queued`;
-    els.status.textContent = `Signal: ${state.trusted ? state.signal : state.observedSignal+' (unverified)'} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
+    const signalLabel=state.trusted
+      ? state.signal+(state.trusted.origin==='restored'?' (historical)':'')
+      : state.observedSignal+' (unverified)';
+    els.status.textContent = `Signal: ${signalLabel} • ${state.running ? 'Running' : 'Paused'} • ${state.note}`;
     els.run.textContent = state.running ? 'Pause' : 'Start';
     els.clear.textContent=state.clearArmed ? 'Confirm clear' : 'Clear';
     els['backup-confirm'].hidden=!state.pendingImport;
@@ -2008,7 +2011,11 @@
   });
   els.run.addEventListener('click',async()=>{
     const response=await act(state.running?'pause':'start',null,true);
-    if(!response.ok)statusNote(response.error);
+    if(!response.ok)statusNote(
+      response.error==='authenticated-chat-signals-required'&&
+      state.trusted?.origin==='restored'
+        ? 'Historical response is not Send authorization; a new live Chat Signals epoch is required'
+        : response.error);
   });
   els['rules-toggle'].addEventListener('click',async()=>{
     if(state.rulesLoading||!state.initialized||state.routing)return;
