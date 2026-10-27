@@ -1111,6 +1111,44 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Re-enabling the control cannot revive the rejected dispatch');
 
+    stage='pre-click-failure-releases-hold-after-durable-uncertain-save';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/preclick-hold');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Recover after provably pre-click failure';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(
+      "document.querySelector('[data-testid=send-button]').disabled=true");
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Send button missing, disabled or ambiguous')`),11000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    // The app must keep the item uncertain until explicit human review, but
+    // the durable cross-tab hold was provably not a clicked Send.
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1);
+    const retryPreclick=await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('.item.uncertain [aria-label=\\\"Allow manually requested retry\\\"]')");
+    await retryPreclick.click();
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Retry marked pending; press Start separately')`),10000);
+    // Human independently reviews and clears text left by the aborted fill.
+    await driver.executeScript(() => {
+      document.getElementById('prompt-textarea').textContent='';
+      document.querySelector('[data-testid=send-button]').disabled=false;
+    });
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Recover after provably pre-click failure']);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Manual retry after pre-click failure must never duplicate Send');
+
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
     await ready();
