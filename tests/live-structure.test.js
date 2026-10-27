@@ -86,7 +86,7 @@ test('live structural probe disarms all Queue dispatch before any browser load',
     'Production must never include the QA-only dispatch interlock');
   assert.equal((qa.match(/send[.]click[(][)]/g)||[]).length,1,
     'The only known scripted Send click is unreachable behind the early return');
-  assert.throws(()=>disarmQueueDispatch(production.replace('      send.click(); clicked=true;',
+  assert.throws(()=>disarmQueueDispatch(production.replace('      clickStarted=true;send.click(); clicked=true;',
     '      alternateSendAction();')),/source contract changed/);
   assert.throws(()=>disarmQueueDispatch(production.replace(originalEntry,'  async function newDispatch() {')),
     /source contract changed/);
