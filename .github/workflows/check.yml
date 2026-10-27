@@ -122,6 +122,7 @@ jobs:
       - name: Headless FDE full browser shutdown and restored queue safety
         env:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+          CHAT_SIGNALS_PROVIDER_SOURCE: ${{ github.workspace }}/chat-signals-provider
         run: node tests/fde-browser-restart.cjs
       - name: Headless FDE scoped cross-extension API, deny and revocation
         env:
