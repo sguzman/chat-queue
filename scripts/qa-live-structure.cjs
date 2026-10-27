@@ -46,7 +46,7 @@ function inspectCounts(){
   // button may be disabled while the editor is empty; count its presence but
   // never click or enable it. Do not transfer account or prompt metadata.
   const editorSelector='#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
-  const sendSelector='button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
+  const sendSelector='button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i],button[aria-label="Send" i],button[type="submit"]';
   // Selenium serializes this function into the page's JS world, which cannot
   // access module-scope variables. Keep this route guard local and literal.
   const pageRoute=/^\/(?:c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|g\/[A-Za-z0-9_-]{1,128}\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
