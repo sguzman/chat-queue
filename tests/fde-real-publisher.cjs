@@ -276,14 +276,14 @@ async function main(){
       throw Error('Historical provider state not restored: '+JSON.stringify(details)+'; '+error.message);
     }
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('status')}?.textContent.includes('Signal: finished')`),12000);
+      `return ${hud('status')}?.textContent.includes('Signal: finished (historical)')`),12000);
     await driver.executeScript(`const d=${hud('draft')};d.value='Synthetic restored-epoch queued message';`);
     await driver.executeScript(`return ${hud('add')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='1 queued'`),9000);
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
-      `return ${hud('status')}.textContent.includes('authenticated-chat-signals-required')`),8000);
+      `return ${hud('status')}.textContent.includes('Historical response is not Send authorization')`),8000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'A historically restored terminal epoch cannot authorize a Queue Send');
     // A genuinely new user-response epoch is evidence of a fresh session.
