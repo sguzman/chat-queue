@@ -72,6 +72,35 @@ async function main(){
     const frame=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('isolated-draft-frame'));
+    // The editor lives in a separate extension-origin document: the host
+    // panel's CSS variables cannot cross this boundary. Verify explicit
+    // theme changes cross ONLY the already-private MessagePort.
+    stage='iframe-theme-light-dark-system';
+    for(const [theme,expectedColor] of [
+      ['light','rgb(255, 255, 255)'],
+      ['dark','rgb(21, 26, 32)'],
+      ['light','rgb(255, 255, 255)'],
+      ['system',null]
+    ]){
+      await driver.executeScript(value=>{
+        const sel=document.querySelector('#chat-queue-extension-root')
+          .shadowRoot.getElementById('theme');
+        sel.value=value;
+        sel.dispatchEvent(new Event('change',{bubbles:true}));
+      },theme);
+      await driver.switchTo().frame(frame);
+      await driver.wait(async()=>driver.executeScript((value,color)=>{
+        const root=document.documentElement;
+        const box=document.getElementById('draft');
+        return root.dataset.theme===value&&
+          (color===null||getComputedStyle(box).backgroundColor===color);
+      },theme,expectedColor),7000);
+      assert.equal(await driver.executeScript(
+        "return document.getElementById('draft').value"),'');
+      await driver.switchTo().defaultContent();
+    }
+    assert.equal(await driver.executeScript('return window.__sent'),0,
+      'A theme change must never Send or touch the ChatGPT composer');
     // Clipboard source is copied BEFORE arming the hostile site event handler.
     stage='copy';
     const src=await driver.findElement(By.id('synthetic-clipboard-source'));
