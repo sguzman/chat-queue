@@ -11,7 +11,7 @@ function runAudit(mutator=()=>{}) {
   try {
     for(const file of ['manifest.json','package.json'])
       fs.copyFileSync(path.join(root,file),path.join(temp,file));
-    for(const dir of ['src','options','scripts'])
+    for(const dir of ['src','options','scripts','ui'])
       fs.cpSync(path.join(root,dir),path.join(temp,dir),{recursive:true});
     mutator(temp);
     return spawnSync(process.execPath,[path.join(temp,'scripts/security-audit.mjs')],
