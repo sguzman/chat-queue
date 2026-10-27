@@ -116,7 +116,8 @@ if(draftTags.some(tag=>!draftAllowlist.has(tag))||
    !/<textarea\s+id="draft"(?:\s|>)/i.test(draftHtml)||
    /\bon[a-z][\w-]*\s*=/i.test(draftHtml)||
    /\bhttp-equiv\s*=/i.test(draftHtml)||
-   /@import\b|\burl\s*\(/i.test(draftHtml)||
+   /@import\b|\b(?:url|image-set|cross-fade|image)\s*\(/i.test(draftHtml)||
+   /(?:^|[\s\"'(])\/\/[a-z0-9.-]+/i.test(draftHtml)||
    /\b(?:href|srcset|action|formaction|background|poster)\s*=/i.test(draftHtml)||
    /\b(?:https?:|javascript:|data:)\/\//i.test(draftHtml))
   fail('isolated draft HTML contract changed');
