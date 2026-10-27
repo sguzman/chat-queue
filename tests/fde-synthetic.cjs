@@ -196,8 +196,8 @@ async function main(){
     await driver.executeScript(() => {
       window.__qaHostCaptureCount=0;
       window.__qaHostBubbleCount=0;
-      // Capturing listeners run BEFORE the Shadow DOM boundary. This is the
-      // class of global site shortcut that the first bubble-only fix missed.
+      // The actual ChatGPT failure: a document CAPTURE handler steals focus
+      // before any Shadow DOM listener can stop a keydown's propagation.
       const steal=(event)=>{
         if(event.key.length!==1||event.ctrlKey||event.altKey||event.metaKey)return;
         window.__qaHostCaptureCount++;
@@ -220,8 +220,8 @@ async function main(){
         siteDraft:document.getElementById('prompt-textarea').textContent};
     });
     assert.deepEqual(isolation,{draft:'HUD focus stays here',focused:true,
-      hostCaptureEvents:'HUD focus stays here'.length,hostBubbleEvents:0,siteDraft:''},
-      'Even a capture-phase site shortcut must not redirect HUD typing into ChatGPT');
+      hostCaptureEvents:0,hostBubbleEvents:0,siteDraft:''},
+      'Window capture must shield native textarea typing BEFORE ChatGPT document capture');
     await input.clear();
     // Site shortcuts must still function when the user genuinely types into
     // the ChatGPT editor; only the extension-local interaction is shielded.
@@ -229,8 +229,7 @@ async function main(){
       document.getElementById('prompt-textarea').dispatchEvent(
         new KeyboardEvent('keydown',{key:'x',bubbles:true}));
     });
-    assert.equal(await driver.executeScript('return window.__qaHostCaptureCount'),
-      'HUD focus stays here'.length+1,
+    assert.equal(await driver.executeScript('return window.__qaHostCaptureCount'),1,
       'Keyboard events originating in the website must remain website-owned');
     // Actual pointer navigation OUTSIDE the queue must also relinquish focus.
     await driver.executeScript(() => {

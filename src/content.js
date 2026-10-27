@@ -51,6 +51,19 @@
   host.style.setProperty('bottom','84px');
   host.style.setProperty('width','min(370px, calc(100vw - 32px))');
   const shadow = host.attachShadow({mode:'closed'});
+  // This listener must run on WINDOW CAPTURE: it precedes document capture,
+  // where ChatGPT can intercept a keystroke and focus its own composer.
+  // Blocking propagation is not cancelling the native textarea's default
+  // editing action. Never preventDefault or synthesize a keystroke.
+  // Apply only to a genuinely focused Queue textarea, not to the page,
+  // Queue control shortcuts, or normal Tab navigation out of the editor.
+  for(const type of ['keydown','keypress','keyup']){
+    window.addEventListener(type,event=>{
+      if(event.key==='Tab'||!event.composedPath().includes(host)||
+         !(shadow.activeElement instanceof HTMLTextAreaElement))return;
+      event.stopPropagation();
+    },true);
+  }
   // ChatGPT has page-wide keyboard/focus shortcuts. Shadow DOM retargets HUD
   // events but does NOT stop their propagation to document/window, where a
   // site shortcut may steal focus and direct typed text to its own composer.
