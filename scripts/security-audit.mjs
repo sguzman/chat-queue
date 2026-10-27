@@ -113,7 +113,7 @@ if(draftTags.some(tag=>!draftAllowlist.has(tag))||
    draftScripts.length!==1||
    !/^<script src="draft\.js">$/i.test(draftScripts[0][0])||
    !/<\/script\s*>/i.test(draftHtml)||
-   !/<textarea\s+id="draft"\b/i.test(draftHtml)||
+   !/<textarea\s+id="draft"(?:\s|>)/i.test(draftHtml)||
    /\bon[a-z][\w-]*\s*=/i.test(draftHtml)||
    /\bhttp-equiv\s*=/i.test(draftHtml)||
    /@import\b|\burl\s*\(/i.test(draftHtml)||
