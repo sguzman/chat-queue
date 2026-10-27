@@ -10,20 +10,53 @@ const http=require('node:http');
 const {Builder}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 
-const page='<!doctype html><html><body><form>'+
+const page='<!doctype html><html><body><main><form>'+
   '<div id="prompt-textarea" role="textbox" contenteditable="true"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
-  '</form><script>window.__sent=0</script></body></html>';
+  '</form></main><script>window.__sent=0</script></body></html>';
 const shadow="document.querySelector('#chat-queue-extension-root')?.shadowRoot";
 const el=id=>`${shadow}?.getElementById(${JSON.stringify(id)})`;
+const queueAddonId='chat-queue@sguzman.github';
+const signalsAddonId='chat-signals@sguzman.github';
+function patch(src,old,updated){
+  assert.equal(src.split(old).length,2,
+    'Exact QA-only fixture substitution required: '+old.slice(0,65));
+  return src.replace(old,updated);
+}
+function stageRealSignalsProvider(directory,source){
+  const manifest=JSON.parse(fs.readFileSync(path.join(source,'manifest.json'),'utf8'));
+  assert.equal(manifest.browser_specific_settings.gecko.id,signalsAddonId);
+  manifest.content_scripts[0].matches=['http://127.0.0.1/*'];
+  manifest.host_permissions=['http://127.0.0.1/*'];
+  fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify(manifest));
+  fs.cpSync(path.join(source,'src'),path.join(directory,'src'),{recursive:true});
+  if(fs.existsSync(path.join(source,'icons')))
+    fs.cpSync(path.join(source,'icons'),path.join(directory,'icons'),{recursive:true});
+  const colorFile=path.join(directory,'src/color.js');
+  fs.writeFileSync(colorFile,patch(fs.readFileSync(colorFile,'utf8'),
+    "if(u.protocol!=='https:'||u.hostname!=='chatgpt.com')return null;",
+    "if(u.protocol!=='http:'||u.hostname!=='127.0.0.1')return null;"));
+  const bgFile=path.join(directory,'src/background.js');
+  let bg=patch(fs.readFileSync(bgFile,'utf8'),
+    String.raw`!/^https:\/\/chatgpt\.com\//.test(sender.url||sender.tab.url||'')`,
+    String.raw`!/^http:\/\/127\.0\.0\.1:\d+\//.test(sender.url||sender.tab.url||'')`);
+  bg=patch(bg,"url.protocol==='https:'&&url.hostname==='chatgpt.com'?",
+    "url.protocol==='http:'&&url.hostname==='127.0.0.1'?");
+  fs.writeFileSync(bgFile,bg);
+}
 
 async function main(){
-  const binary=process.env.FDE_BINARY;
+  const binary=process.env.FDE_BINARY,providerSource=process.env.CHAT_SIGNALS_PROVIDER_SOURCE;
   if(!binary||!path.isAbsolute(binary)||!fs.existsSync(binary))
     throw Error('FDE_BINARY must identify Firefox Developer Edition');
+  if(!providerSource||!path.isAbsolute(providerSource)||
+     !fs.existsSync(path.join(providerSource,'manifest.json')))
+    throw Error('Pinned CHAT_SIGNALS_PROVIDER_SOURCE required for integrated crash test');
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'chat-queue-restart-'));
-  const addon=path.join(root,'addon'),profile=path.join(root,'profile');
-  fs.mkdirSync(addon);fs.mkdirSync(profile);
+  const addon=path.join(root,'addon'),profile=path.join(root,'profile'),
+    signalsAddon=path.join(root,'signals-addon');
+  fs.mkdirSync(addon);fs.mkdirSync(profile);fs.mkdirSync(signalsAddon);
+  stageRealSignalsProvider(signalsAddon,providerSource);
   const src=path.resolve(__dirname,'..');
   const server=http.createServer((_request,response)=>{
     response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
@@ -32,7 +65,7 @@ async function main(){
   let driver=null,stage='setup';
   try{
     const manifest=JSON.parse(fs.readFileSync(path.join(src,'manifest.json'),'utf8'));
-    manifest.browser_specific_settings.gecko.id='chat-queue-restart-qa@sguzman.github';
+    manifest.browser_specific_settings.gecko.id=queueAddonId;
     manifest.content_scripts[0].matches=['http://127.0.0.1/*'];
     fs.writeFileSync(path.join(addon,'manifest.json'),JSON.stringify(manifest));
     fs.cpSync(path.join(src,'src'),path.join(addon,'src'),{recursive:true});
@@ -47,6 +80,7 @@ async function main(){
     const qaHoldAnchor="  const UI_KEY='chatqueue:ui:v1';";
     assert.equal(qaContent.split(qaHoldAnchor).length,2);
     qaContent=qaContent.replace(qaHoldAnchor,qaHoldAnchor+"\n  window.addEventListener('message',async event=>{\n    if(event.source!==window||event.origin!==location.origin||\n       location.pathname!=='/c/full-browser-restart')return;\n    const data=event.data;\n    if(!data||!Number.isSafeInteger(data.nonce)||\n       !['qa-crash-hold-seed','qa-crash-hold-read'].includes(data.kind))return;\n    const key='chatqueue:send-hold:v1:full-browser-restart';\n    let record=null,ok=false;\n    try{\n      if(data.kind==='qa-crash-hold-seed')await api.storage.local.set({\n        [key]:{version:1,tabId:999,route:'/c/full-browser-restart',\n          holdId:'12345678-aaaa-4444-bbbb-555555555555'}\n      });\n      record=(await api.storage.local.get(key))[key]??null;\n      ok=true;\n    }catch{}\n    window.postMessage({kind:'qa-crash-hold-reply',nonce:data.nonce,ok,record},'*');\n  });\n");
+    qaContent=qaContent.replace(qaHoldAnchor,qaHoldAnchor+"\n  // QA ONLY: read a real production Queue-created hold after an actual Send\n  // invocation. This is a one-route metadata view, never a Send capability.\n  window.addEventListener('message',async event=>{\n    if(event.source!==window||event.origin!==location.origin||\n       location.pathname!=='/c/queue-click-crash'||\n       event.data?.kind!=='qa-real-hold-read'||\n       !Number.isSafeInteger(event.data.nonce))return;\n    const nonce=event.data.nonce;\n    let record=null,ok=false;\n    try{\n      record=(await api.storage.local.get(\n        'chatqueue:send-hold:v1:queue-click-crash'))[\n        'chatqueue:send-hold:v1:queue-click-crash']??null;\n      ok=true;\n    }catch{}\n    window.postMessage({kind:'qa-real-hold-reply',nonce,ok,record},'*');\n  });\n");
     fs.writeFileSync(contentFile,qaContent);
     // The production background needs only a QA localhost origin substitution.
     const bgFile=path.join(addon,'src/background.js');
