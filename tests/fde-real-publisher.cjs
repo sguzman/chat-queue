@@ -330,6 +330,8 @@ async function main(){
     await driver.executeScript(`return ${hud('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       'return window.__sendCount===1'),12000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Waiting for confirmed response completion')`),9000);
     // Explicitly pause while a genuine attributed response is generating:
     // the in-flight response still completes, but pending item 2 cannot Send.
     await driver.executeScript(`return ${hud('run')}.click()`);
