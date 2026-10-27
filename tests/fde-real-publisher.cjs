@@ -30,7 +30,7 @@ function stageQueue(dir,root){
   // The production 15-second freshness guard stays unchanged.
   qaQueueContent=patch(qaQueueContent,
     'performance.now()-state.trustedAt<15000',
-    "performance.now()-state.trustedAt<(routeKey()==='/c/expired-provider'?1000:15000)");
+    "performance.now()-state.trustedAt<(['/c/expired-provider','/c/expired-finished'].includes(routeKey())?1000:15000)");
   // QA-only: simulate loss of Queue's background registry after first
   // completion in a two-message conversation. The real publisher and browser
   // remain independent, and only the disposable localhost fixture gets this
@@ -396,6 +396,42 @@ async function main(){
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+    stage='expired-fresh-finished-revalidated-on-Start';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/expired-finished');
+    await ready();
+    await driver.executeScript(
+      "document.getElementById('prompt-textarea').textContent='Manual preceding response';"+
+      "document.querySelector('[data-testid=send-button]').click()");
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.chatSignalsState==='generating'"),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Signal: finished')`),12000);
+    assert.equal(await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('(historical)')`),false,
+      'Unreloaded current reply must have a fresh response epoch');
+    await driver.executeScript(
+      `const d=${hud('draft')};d.value='Queue after expired live finish';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    // This observed finished state is expired, but NOT historical. A single
+    // explicit Start should resync fresh independent publisher evidence.
+    await driver.sleep(1800);
+    const finishedBefore=Number(await driver.executeScript(
+      "return document.documentElement.dataset.qaPublishedSequence||0"));
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===2'),12000);
+    const finishedAfter=Number(await driver.executeScript(
+      "return document.documentElement.dataset.qaPublishedSequence||0"));
+    assert.ok(finishedAfter>finishedBefore,
+      'Expired current finished epoch must be revalidated through Chat Signals');
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Manual preceding response','Queue after expired live finish']);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),14000);
     stage='empty-prosemirror-break-must-not-be-treated-as-draft';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/empty-rich-editor');
     await ready();
