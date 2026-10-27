@@ -2,7 +2,7 @@
 
 Firefox Developer Edition first. Independent of [Chat Signals](https://github.com/sguzman/chat-signals) and [Jobflick Bridge](https://github.com/sguzman/jobflick-bridge). Work directly on `main`. No project color: emoji-marked workstreams.
 
-**Overall: 88/96 verified (92%) · █████████░ · 7 implemented awaiting acceptance.**
+**Overall: 88/96 verified (91%) · █████████░ · 7 implemented awaiting acceptance.**
 
 ## 📊 Progress evidence policy
 
@@ -145,7 +145,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M4-11` 🛑 Refuse automatic resumption after browser or event-page restart
 - [~] `M4-12` 🧪 Test duplicate avoidance, error recovery and wrong-conversation races _(implemented; acceptance pending)_
 
-**M4 acceptance:** 8/12 verified (67%) · ███████░░░ · 4 implemented but not accepted.
+**M4 acceptance:** 8/12 verified (66%) · ██████░░░░ · 4 implemented but not accepted.
 
 ### 🔌 M5 — External extension API
 
@@ -223,7 +223,7 @@ Firefox Developer Edition first. Independent of [Chat Signals](https://github.co
 - [x] `M7-11` 🪪 Establish Mozilla unlisted signing path without profile changes
 - [ ] `M7-12` 🏷️ Tag SemVer release only after all safety and FDE gates pass
 
-**M7 acceptance:** 9/12 verified (75%) · ████████░░ · 2 implemented but not accepted.
+**M7 acceptance:** 9/12 verified (75%) · ███████░░░ · 2 implemented but not accepted.
 
 ## 🛡️ Non-negotiable gates
 
