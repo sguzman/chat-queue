@@ -223,6 +223,48 @@ async function main(){
       hostCaptureEvents:0,hostBubbleEvents:0,siteDraft:''},
       'Window capture must shield native textarea typing BEFORE ChatGPT document capture');
     await input.clear();
+    // A browser-trusted Ctrl+V dispatches a separate ClipboardEvent. Mimic a
+    // hostile ChatGPT document-capture paste handler which moves focus to its
+    // composer and cancels native paste. Copy source bytes through Firefox's
+    // keyboard, then paste into the real extension-owned textarea.
+    qaStage='host-page-paste-capture-must-not-steal-native-clipboard';
+    await driver.executeScript(() => {
+      const source=document.createElement('textarea');
+      source.id='qa-clipboard-source';
+      source.value='Firefox clipboard stays with Queue';
+      document.body.append(source);
+      window.__qaPagePasteCount=0;
+      const steal=event=>{
+        window.__qaPagePasteCount++;
+        document.getElementById('prompt-textarea').focus();
+        event.preventDefault();
+      };
+      window.__qaPagePasteStealer=steal;
+      document.addEventListener('paste',steal,true);
+    });
+    const source=await driver.findElement(By.id('qa-clipboard-source'));
+    await source.click();
+    await source.sendKeys(Key.CONTROL,'a');
+    await source.sendKeys(Key.CONTROL,'c');
+    await input.click();
+    await input.sendKeys(Key.CONTROL,'v');
+    const pasteState=await driver.executeScript(() => {
+      const sh=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      const field=sh.getElementById('draft');
+      return {text:field.value,focused:sh.activeElement===field,
+        siteDraft:document.getElementById('prompt-textarea').textContent,
+        sitePasteEvents:window.__qaPagePasteCount};
+    });
+    assert.deepEqual(pasteState,{
+      text:'Firefox clipboard stays with Queue',focused:true,
+      siteDraft:'',sitePasteEvents:0
+    },'Native Firefox paste must insert only into the Queue textarea');
+    await input.clear();
+    await driver.executeScript(() => {
+      document.removeEventListener('paste',window.__qaPagePasteStealer,true);
+      delete window.__qaPagePasteStealer;
+      document.getElementById('qa-clipboard-source').remove();
+    });
     // Site shortcuts must still function when the user genuinely types into
     // the ChatGPT editor; only the extension-local interaction is shielded.
     await driver.executeScript(() => {

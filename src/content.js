@@ -57,9 +57,14 @@
   // editing action. Never preventDefault or synthesize a keystroke.
   // Apply only to a genuinely focused Queue textarea, not to the page,
   // Queue control shortcuts, or normal Tab navigation out of the editor.
-  for(const type of ['keydown','keypress','keyup']){
+  // Firefox issues a separate "paste" event AFTER Ctrl+V. A site listener
+  // capturing that event can redirect focus even when keydown is isolated.
+  // Stop propagation of both; never preventDefault(), so Firefox itself
+  // still inserts clipboard text into the original focused textarea.
+  for(const type of ['keydown','keypress','keyup','paste']){
     window.addEventListener(type,event=>{
-      if(event.key==='Tab'||!event.composedPath().includes(host)||
+      if((type!=='paste'&&event.key==='Tab')||
+         !event.composedPath().includes(host)||
          !(shadow.activeElement instanceof HTMLTextAreaElement))return;
       event.stopPropagation();
     },true);
@@ -70,7 +75,7 @@
   // Keep native textarea input/defaults and all internal HUD handlers intact:
   // only stop events from crossing the HUD's shadow boundary. Do not call
   // preventDefault(), which would break typing, IME or accessible controls.
-  for(const type of ['keydown','keypress','keyup','beforeinput','input',
+  for(const type of ['keydown','keypress','keyup','paste','beforeinput','input',
     'compositionstart','compositionupdate','compositionend',
     'pointerdown','mousedown','mouseup','click','focusin']){
     // Bubble-phase isolation is essential: stopping at capture would prevent
