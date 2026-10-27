@@ -202,6 +202,7 @@ async function main(){
           document.getElementById('prompt-textarea').focus();
         }
       };
+      window.__qaHostShortcutListener=steal;
       for(const type of ['keydown','pointerdown','click','beforeinput','input'])
         document.addEventListener(type,steal);
     });
@@ -226,6 +227,13 @@ async function main(){
     });
     assert.equal(await driver.executeScript('return window.__qaHostShortcutCount'),1,
       'Keyboard events originating in the website must remain website-owned');
+    // Remove the intentionally hostile site shortcut after this bounded test:
+    // subsequent native keyboard tests should run against their own fixture.
+    await driver.executeScript(() => {
+      for(const type of ['keydown','pointerdown','click','beforeinput','input'])
+        document.removeEventListener(type,window.__qaHostShortcutListener);
+      delete window.__qaHostShortcutListener;
+    });
     await input.sendKeys('Synthetic first message');await add.click();
     await input.sendKeys('Synthetic second message');await add.click();
     const count=await driver.executeScript(`return ${jsEl('count')}.textContent`);
