@@ -241,6 +241,15 @@ async function main(){
     assert.equal(await driver.executeScript(() =>
       document.activeElement===document.getElementById('prompt-textarea')),true,
       'Intentional outside interaction must not be trapped by focus recovery');
+    await input.click();
+    await driver.executeScript(() => {
+      document.querySelector('#chat-queue-extension-root')
+        .shadowRoot.getElementById('reset').click();
+      document.getElementById('prompt-textarea').focus();
+    });
+    assert.equal(await driver.executeScript(() =>
+      document.activeElement===document.getElementById('prompt-textarea')),true,
+      'A HUD control click must release focus protection even without button focus');
     // Remove hostile site listeners before the independent HUD workflows.
     await driver.executeScript(() => {
       document.removeEventListener('keydown',window.__qaHostShortcutListener,true);
