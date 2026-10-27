@@ -13,11 +13,19 @@ const PIN='d17117047f5e582591e514240c008b166bf96d8a';
 // the conservative UUID conversation restriction on both shapes.
 const QA_CONVERSATION_ROUTE=/^\/(?:c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|g\/[A-Za-z0-9_-]{1,128}\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
 function targetUrl(raw){
+  // URL() resolves encoded dot-segments BEFORE exposing pathname. Validate
+  // the original bytes first; /g/%2e%2e/c/<UUID> must never masquerade as
+  // the allowed /c/<UUID> route after URL normalization.
+  const origin='https://chatgpt.com';
+  if(typeof raw!=='string'||raw.length>250||!raw.startsWith(origin+'/')||
+     !QA_CONVERSATION_ROUTE.test(raw.slice(origin.length)))
+    throw Error('an exact private QA conversation URL is required');
   let u;
-  try{if(typeof raw!=='string'||raw.length>250)throw Error();u=new URL(raw);}
-  catch{throw Error('an exact private QA conversation URL is required');}
-  if(u.protocol!=='https:'||u.hostname!=='chatgpt.com'||u.port||u.username||
-     u.password||u.search||u.hash||!QA_CONVERSATION_ROUTE.test(u.pathname))
+  try{u=new URL(raw);}catch{
+    throw Error('an exact private QA conversation URL is required');
+  }
+  if(u.origin!==origin||u.search||u.hash||u.href!==raw||
+     !QA_CONVERSATION_ROUTE.test(u.pathname))
     throw Error('target must be one exact https ChatGPT conversation');
   return u.href;
 }
