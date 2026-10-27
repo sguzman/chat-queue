@@ -141,9 +141,9 @@ async function main(){
     const firefoxProfilePids=()=>{
       const matches=[];
       for(const name of fs.readdirSync('/proc')){
-        if(!/^\\d+$/.test(name))continue;
+        if(!/^\d+$/.test(name))continue;
         let args;
-        try{args=fs.readFileSync('/proc/'+name+'/cmdline','utf8').split('\\0');}
+        try{args=fs.readFileSync('/proc/'+name+'/cmdline','utf8').split('\0');}
         catch{continue;}
         const flag=args.findIndex((arg,index)=>['-profile','--profile'].includes(arg)&&
           args[index+1]===profile);
