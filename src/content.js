@@ -627,12 +627,25 @@
     state.ruleOffer=null;state.rulesEnabled=false;state.ruleLibrary=[];state.ruleSeen=[];
     state.rulesLoading=false;ruleReadId++;
     state.ruleCompleted=[];state.ruleConsentGeneration++;state.ruleClock=null;state.ruleClosedEpoch=null;
+    // Snapshot the interrupted work before erasing volatile authority.
+    // A completed, empty queue requires no manual resume. An in-flight
+    // response, however, may have reached ChatGPT without durable terminal
+    // attribution and must remain a deliberate transcript/hold review.
+    const hadInflightResponse=state.awaiting||state.awaitingUncertain||Boolean(state.attempting);
+    const queueEmpty=!pending()&&!uncertain();
+    const latestFinished=state.history[0]?.status==='finished';
     state.registrationGeneration=null;
     state.running=false;state.trusted=null;state.trustedAt=0;state.signal='unknown';
     state.waiting=null;state.awaiting=false;state.awaitingUncertain=false;state.busySeen=false;
     if(state.scheduler)clearTimeout(state.scheduler);
     state.scheduler=null;
-    state.note='Signal registry restarted; manually resume after reconnect';
+    state.note=hadInflightResponse
+      ? 'Signal registry restarted during a response; inspect transcript and Send hold'
+      : queueEmpty
+        ? latestFinished
+          ? 'Latest message finished; signal registry restarted; queue empty'
+          : 'Signal registry restarted; no queued messages to resume'
+        : 'Signal registry restarted; manually resume after reconnect';
     render();
     let restored=false;
     try{
