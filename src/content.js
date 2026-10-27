@@ -297,6 +297,43 @@
   const freshProvider = () => Boolean(state.trusted&&state.trusted.route===routeKey()&&
     state.trusted.origin==='fresh'&&state.trusted.confidence!=='unknown'&&
     performance.now()-state.trustedAt>=0&&performance.now()-state.trustedAt<15000);
+  // A deliberate Start can refresh a stale authenticated provider snapshot.
+  // This never publishes page-owned DOM attributes as Send authority.
+  let startRefresh=null;
+  function settleStartRefresh(accepted){
+    const pending=startRefresh;
+    if(!pending)return;
+    startRefresh=null;
+    clearTimeout(pending.timeout);
+    pending.resolve(Boolean(accepted));
+    render();
+  }
+  async function refreshProviderForStart(){
+    if(freshProvider())return true;
+    if(startRefresh||!validRegistrationGeneration(state.registrationGeneration))
+      return false;
+    const key=state.key,route=routeKey(),generation=routeGeneration;
+    const registration=state.registrationGeneration,revision=state.revision;
+    const previous=state.trusted;
+    let resolve;
+    const confirmation=new Promise(done=>{resolve=done;});
+    const pending={key,route,generation,registration,previous,resolve,timeout:null};
+    startRefresh=pending;
+    pending.timeout=setTimeout(()=>settleStartRefresh(false),4000);
+    statusNote('Checking authenticated Chat Signals');
+    try{
+      const response=await api.runtime.sendMessage({type:'chat-queue-internal/v1',
+        action:'sync-provider',route,registrationGeneration:registration});
+      if(!response?.ok&&startRefresh===pending)settleStartRefresh(false);
+    }catch{
+      if(startRefresh===pending)settleStartRefresh(false);
+    }
+    const accepted=await confirmation;
+    return accepted&&!state.destroyed&&!state.routing&&state.key===key&&
+      routeKey()===route&&routeGeneration===generation&&
+      state.registrationGeneration===registration&&state.revision===revision&&
+      state.trusted!==previous&&freshProvider();
+  }
   // Volatile fixed-schema outcomes: no prompt text, route, document token,
   // response epoch, timestamps, or cross-extension publication.
   function auditOffer(outcome,offer){
@@ -340,7 +377,7 @@
     els['recovery-confirm'].disabled=state.importing;
     els.clear.disabled=!state.items.length||Boolean(state.attempting)||state.importing;
     els.add.disabled=state.importing||state.adding;
-    els.run.disabled=state.importing;
+    els.run.disabled=state.importing||Boolean(startRefresh);
     els['rules-panel'].querySelector('summary').textContent=state.rulesEnabled?'Conditional proposals (on)':'Conditional proposals (off)';
     els['rules-toggle'].textContent=state.rulesLoading?'Loading rules':state.rulesEnabled?'Disable previews':'Enable previews';
     els['rules-toggle'].disabled=state.rulesLoading;
@@ -579,6 +616,7 @@
   async function recoverRegistry(){
     if(state.registryRecovering||!state.initialized||state.destroyed||
        state.routing||state.key!==storageKey())return;
+    settleStartRefresh(false);
     state.registryRecovering=true;
     const key=state.key,route=routeKey();
     // Re-registration is metadata-only. A restarted event page lost every
@@ -1276,6 +1314,7 @@
   }
   async function handleRouteChange() {
     if(!state.initialized)return;
+    settleStartRefresh(false);
     const newKey=storageKey();
     // Duplicate navigation notices must not invalidate an in-flight
     // restore after its route key was assigned but before registration ends.
@@ -1527,7 +1566,7 @@
         }
         return result;
       }
-      if (action==='pause') {state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
+      if (action==='pause') {settleStartRefresh(false);state.running=false;if(state.scheduler)clearTimeout(state.scheduler);state.scheduler=null;statusNote('Manually paused');return {ok:true};}
       if (action==='start') {
         // Pause during a delayed dispatch-check is not a new grant. The
         // earlier attempt must fully unwind before another Start can run.
@@ -1543,7 +1582,20 @@
         // home, shared links, GPT landing pages and temporary routes do not.
         if(!contract.assignedConversationRoute(routeKey()))
           return {ok:false,error:'conversation-not-assigned'};
-        if (!freshProvider())return {ok:false,error:'authenticated-chat-signals-required'};
+        if (startRefresh)return {ok:false,error:'signal-refresh-in-progress'};
+        if (state.running)return {ok:false,error:'already-running'};
+        if (!freshProvider()){
+          // No unattended Send: this refresh is initiated by exactly this
+          // Start gesture, is bounded, and requires a *new* verified message.
+          const confirmed=await refreshProviderForStart();
+          if(!confirmed)return {ok:false,error:'authenticated-chat-signals-required'};
+          // All mutable preflight conditions may have changed across await.
+          if(state.destroyed||state.routing||state.key!==storageKey()||
+             state.attempting||state.ruleOffer||state.storageFault||
+             state.pendingSaves>0||uncertain()||
+             (!pending()&&!state.awaiting)||state.running)
+            return {ok:false,error:'start-context-changed'};
+        }
         if (core.BLOCKED.has(state.signal))return {ok:false,error:`signal-${state.signal}`};
         state.running=true;statusNote('Waiting for safe control');
         if(!state.awaiting)planNext();return {ok:true};
@@ -1980,6 +2032,12 @@
       if(!state.initialized||!next||next.route!==routeKey()||
          !contract.advance(state.trusted,next))return Promise.resolve({ok:false,error:'invalid-signal'});
       state.trusted=next;state.trustedAt=performance.now();
+      if(startRefresh&&startRefresh.key===state.key&&
+         startRefresh.route===routeKey()&&
+         startRefresh.generation===routeGeneration&&
+         startRefresh.registration===state.registrationGeneration&&
+         state.trusted!==startRefresh.previous&&freshProvider())
+        settleStartRefresh(true);
       const offer=state.ruleOffer;
       if(offer&&(next.documentToken!==offer.documentToken||
          next.epoch!==offer.epoch||next.phase!==offer.phase||
