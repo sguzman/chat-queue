@@ -81,7 +81,7 @@ async function main(){
     fs.writeFileSync(path.join(root,'src/content.js'),content);
     // No provider and no real queue execution: just enough background for HUD registration.
     fs.writeFileSync(path.join(root,'qa-background.js'),
-      `let qaRegistryMissing=true,qaHeartbeatStates=0,qaStaleReplyPending=true;
+      `let qaRegistryMissing=true,qaHeartbeatStates=0,qaFinishedHeartbeatStates=0,qaStaleReplyPending=true;
       browser.runtime.onMessage.addListener((msg,sender)=>{
         if(msg?.type!=='chat-queue-internal/v1')return;
         if(msg.action==='register'){
@@ -120,13 +120,13 @@ async function main(){
                 .then(()=>({ok:true,tabId:sender.tab.id}));
             });
           }
-          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
+          if(msg.route==='/c/future-record'||msg.route==='/c/legacy-record'||msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'||msg.route==='/c/finished-heartbeat-loss'||msg.route==='/c/corrupt-record'||msg.route==='/c/metadata-corrupt'||msg.route==='/c/null-record'){
             const key='chatqueue:v1:tab:'+sender.tab.id+':'+msg.route;
             return browser.storage.local.get(key).then(saved=>{
               if(Object.hasOwn(saved,key))return {ok:true,tabId:sender.tab.id};
               const record=msg.route==='/c/future-record'
                 ? {version:99,items:[{id:'future0001',text:'Synthetic retained prompt',status:'pending'}]}
-                : msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'
+                : msg.route==='/c/history-record'||msg.route==='/c/history-fail-record'||msg.route==='/c/history-concurrent-fail'||msg.route==='/c/finished-heartbeat-loss'
                   ? {version:1,items:[],history:[{id:'historyfixture',text:'Synthetic completed prompt',status:'finished',at:1730000000000}]}
                   : msg.route==='/c/metadata-corrupt'
                     ? {version:1,items:[{id:'metadata01',text:'Retain historical metadata',status:'pending'}],
@@ -164,6 +164,10 @@ async function main(){
           if(sender.tab.url.includes('/c/heartbeat-loss') && msg.size===0){
             qaHeartbeatStates++;
             if(qaHeartbeatStates===2)return Promise.resolve({ok:false,error:'route-mismatch'});
+          }
+          if(sender.tab.url.includes('/c/finished-heartbeat-loss') && msg.size===0){
+            qaFinishedHeartbeatStates++;
+            if(qaFinishedHeartbeatStates===2)return Promise.resolve({ok:false,error:'route-mismatch'});
           }
           if(qaRegistryMissing && sender.tab.url.includes('/c/registry-loss') && msg.size===1){
             qaRegistryMissing=false;
@@ -1372,6 +1376,16 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('queue-empty')`),5000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    qaStage='finished-history-registry-restart-displays-completion';
+    await driver.get(`http://127.0.0.1:${server.address().port}/c/finished-heartbeat-loss`);
+    await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('run')})`),10000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('Latest message finished; signal registry restarted; queue empty')`),10000);
+    assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript(
+      `return ${jsEl('history')}.textContent.includes('finished: Synthetic completed prompt')`),true);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Completed history must not automatically resume after registry restart');
     qaStage='rapid-aba-conversation-navigation';
     await driver.get(`http://127.0.0.1:${server.address().port}/c/aba-home`);
     await driver.wait(async()=>await driver.executeScript(`return Boolean(${jsEl('draft')})`),12000);
