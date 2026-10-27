@@ -18,14 +18,14 @@ jobs:
       - name: Package only required Firefox add-on files
         run: |
           mkdir -p dist
-          zip -q -r dist/chat-queue-fde-qa-unsigned.zip manifest.json src options
+          zip -q -r dist/chat-queue-fde-qa-unsigned.zip manifest.json src options ui
           unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx manifest.json
           unzip -Z1 dist/chat-queue-fde-qa-unsigned.zip | grep -qx src/signal.js
       - name: Mozilla web-ext source and manifest lint
         run: |
           mkdir -p dist/extension
           cp manifest.json dist/extension/
-          cp -R src options dist/extension/
+          cp -R src options ui dist/extension/
           npm exec --yes --package=web-ext@10.8.0 -- web-ext lint --source-dir dist/extension --self-hosted --warnings-as-errors --boring
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -67,6 +67,10 @@ jobs:
           FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
           CQ_QA_SCREENSHOT_DIR: ${{ runner.temp }}/chat-queue-hud-qa
         run: node tests/fde-synthetic.cjs
+      - name: Headless FDE extension-origin isolated draft, physical keyboard and paste
+        env:
+          FDE_BINARY: ${{ steps.fde.outputs.firefox-path }}
+        run: node tests/fde-isolated-draft.cjs
       - name: Archive synthetic HUD screenshots for visual QA
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
