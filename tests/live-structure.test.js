@@ -109,7 +109,8 @@ test('read-only QA addon includes only the audited production files',()=>{
     assert.deepEqual(selected.sort(),[
       'manifest.json','src/background.js','src/content.js','src/core.js',
       'src/grants.js','src/rule-store.js','src/rules.js','src/signal.js',
-      'options/options.html','options/options.js','options/rule-preview.js'
+      'options/options.html','options/options.js','options/rule-preview.js',
+       'ui/draft.html','ui/draft.js'
     ].sort());
     const bad=fs.mkdtempSync(path.join(os.tmpdir(),'cq-src-fail-'));
     try{

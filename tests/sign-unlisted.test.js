@@ -79,7 +79,7 @@ test('fake local signing tool proves ordered gates and secret isolation without 
    fs.copyFileSync(path.join(root,'scripts',file),path.join(temp,'scripts',file));
   for(const file of ['manifest.json','progress.json'])
    fs.copyFileSync(path.join(root,file),path.join(temp,file));
-  for(const dir of ['src','options'])
+  for(const dir of ['src','options','ui'])
    fs.cpSync(path.join(root,dir),path.join(temp,dir),{recursive:true});
   const ledgerFile=path.join(temp,'progress.json');
   const ledger=JSON.parse(fs.readFileSync(ledgerFile,'utf8'));
