@@ -67,7 +67,7 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(routeKey()==='/c/trusted-human-edit-during-seal'){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
     "await new Promise(resolve=>setTimeout(resolve,2400));"+
     "}"+
@@ -1373,6 +1373,42 @@ async function main(){
       'Interrupted preparation stays uncertain, never silently retries');
     await driver.sleep(500);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    stage='trusted-human-site-Send-during-Queue-seal-no-second-click';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/trusted-human-click-during-seal');
+    await ready();
+    await driver.executeScript(() => {
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      shadow.getElementById('draft').value='Human click while Queue waiting';
+      shadow.getElementById('add').click();
+    });
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9000);
+    await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('run').click());
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes'),10000);
+    // This must be a REAL browser-generated user click, NOT executeScript
+    // invoking element.click(). It races with the pending Queue seal.
+    await driver.findElement(By.css('[data-testid="send-button"]')).click();
+    await driver.wait(async()=>driver.executeScript(()=>
+      window.__sendCount===1),9000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Human click while Queue waiting']);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length===1),12000);
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Queue must not issue a SECOND site click after the human already clicked');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent),'1 queued');
+    await driver.executeScript('window.qaFinish()');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'A terminal provider event cannot retry the human-submitted prompt');
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
     await ready();
