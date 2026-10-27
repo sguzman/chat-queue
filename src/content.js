@@ -75,6 +75,10 @@
     activeHudEditor=event.target instanceof HTMLTextAreaElement
       ?event.target:null;
   },true);
+  shadow.addEventListener('click',event=>{
+    if(activeHudEditor&&event.target!==activeHudEditor)
+      activeHudEditor=null;
+  });
   document.addEventListener('pointerdown',event=>{
     // An intentional pointer action outside the HUD releases focus normally.
     if(!event.composedPath().includes(host))activeHudEditor=null;
