@@ -43,6 +43,15 @@ function stageQueue(dir,root){
     "routeKey()!=='/c/sequence-after-registry-loss')return;"+
     "void recoverRegistry();"+
     "});\n  function publish() {");
+  // QA-only: the page's native click handler accepts Send, then the caller
+  // faults before .click() returns. This must preserve the durable hold even
+  // though the ordinary clicked=true statement is never reached. No fault
+  // injection is present in the production content script.
+  qaQueueContent=patch(qaQueueContent,
+    "      clickStarted=true;send.click(); clicked=true;",
+    "      clickStarted=true;send.click();"+
+    "if(routeKey()==='/c/postclick-throws')throw new Error('QA fault after Send invocation');"+
+    "clicked=true;");
   // QA-only: distinguish optimistic HUD count from completed storage write.
   qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
     "    void write.then(()=>{"+
@@ -1099,6 +1108,39 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Restored provider idle cannot retry an unconfirmed previous click');
 
+    stage='send-click-returns-with-error-never-releases-durable-hold';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/postclick-throws');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Post-click exception must not replay';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return window.__sendCount===1"),11000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('QA fault after Send invocation')`),11000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Post-click exception must not replay']);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'Exception after the actual Send invocation must keep the item uncertain');
+    await driver.sleep(750);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'No automatic retry after the click path threw');
+    await driver.navigate().refresh();
+    await driver.wait(async()=>await driver.executeScript(
+      `return Boolean(${hud('status')}) && ${hud('count')}?.textContent==='1 queued'`),13000);
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'Uncertain journal must survive real document reload');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Restored registration must never replay the already-clicked item');
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Check the ChatGPT transcript for a prior Send')`),9000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A surviving durable hold must require explicit second review before release');
     stage='real-provider-hidden-composer-never-sends';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/hidden-composer');
     await ready();
