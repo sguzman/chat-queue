@@ -64,6 +64,37 @@
     // the event from reaching its OWN textarea/button/keyboard handler.
     shadow.addEventListener(type,event=>event.stopPropagation());
   }
+  // The page can register CAPTURE-PHASE keyboard handlers before this
+  // document_idle extension starts. Bubble isolation alone cannot stop those
+  // handlers from focusing ChatGPT's composer before a HUD textarea sees its
+  // own key. Restore the actively edited HUD field synchronously on an
+  // unsolicited page focus change, without cancelling native keystrokes.
+  let activeHudEditor=null;
+  let restoringHudFocus=false;
+  shadow.addEventListener('focusin',event=>{
+    activeHudEditor=event.target instanceof HTMLTextAreaElement
+      ?event.target:null;
+  },true);
+  document.addEventListener('pointerdown',event=>{
+    // An intentional pointer action outside the HUD releases focus normally.
+    if(!event.composedPath().includes(host))activeHudEditor=null;
+  },true);
+  document.addEventListener('keydown',event=>{
+    // Do not trap Tab: users can leave the queue with the keyboard.
+    if(event.key==='Tab'&&event.composedPath().includes(host))
+      activeHudEditor=null;
+  },true);
+  document.addEventListener('focusin',event=>{
+    const editor=activeHudEditor;
+    if(!editor||restoringHudFocus||event.composedPath().includes(host))return;
+    if(!editor.isConnected){activeHudEditor=null;return;}
+    // An earlier ChatGPT key-capture handler may have stolen focus while the
+    // user was typing in Queue. Do NOT preventDefault(), modify the event,
+    // inject text into ChatGPT, or infer user intent from site content.
+    restoringHudFocus=true;
+    try{editor.focus({preventScroll:true});}
+    finally{restoringHudFocus=false;}
+  },true);
   const style = document.createElement('style');
   style.textContent = `
     :host{color-scheme:light;contain:style;--panel:#fff;--text:#192432;--border:#bcc7d1;--header:#f4f6f9;--status:#f8fafc;--item:#f5f7fa;--button:#e6ecf3;--button-hover:#d9e4ed;--button-border:#9eafbf;--muted:#4c6074;--input:#fff;--accent:#204f8c;--accent-text:#fff;--focus:#1773bb;--shadow:#0002;--warning:#8c4e1b}
