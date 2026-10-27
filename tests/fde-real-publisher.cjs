@@ -52,6 +52,16 @@ function stageQueue(dir,root){
     "      clickStarted=true;send.click();"+
     "if(routeKey()==='/c/postclick-throws')throw new Error('QA fault after Send invocation');"+
     "clicked=true;");
+  // QA ONLY: widen the interval immediately before sealed Send authority
+  // so WebDriver can perform a genuinely trusted edit to ChatGPT's composer.
+  // This latency is present on one localhost route and never in production.
+  qaQueueContent=patch(qaQueueContent,
+    "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
+    "      if(routeKey()==='/c/trusted-human-edit-during-seal'){"+
+    "document.documentElement.dataset.qaSealDelay='yes';"+
+    "await new Promise(resolve=>setTimeout(resolve,2400));"+
+    "}"+
+    "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',");
   // QA-only: distinguish optimistic HUD count from completed storage write.
   qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
     "    void write.then(()=>{"+
@@ -1295,6 +1305,32 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'Manual retry after pre-click failure must never duplicate Send');
 
+    stage='trusted-human-edit-during-sealed-preclick-never-sends';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/trusted-human-edit-during-seal');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Original Queue submission';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      "return document.documentElement.dataset.qaSealDelay==='yes'"),10000);
+    const siteEditor=await driver.findElement(By.id('prompt-textarea'));
+    await siteEditor.sendKeys(' USER ADDED');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Dispatch context changed; no send attempted')`),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A human physically typing before sealed Send authority must cancel Queue');
+    assert.equal(await driver.executeScript(
+      "return document.getElementById('prompt-textarea').textContent.includes('USER ADDED')"),true,
+      'Queue must preserve the human change rather than replacing the site draft');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent`),'1 queued');
+    assert.equal(await driver.executeScript(
+      "return document.querySelector('#chat-queue-extension-root').shadowRoot.querySelectorAll('.item.uncertain').length"),1,
+      'Interrupted preparation stays uncertain, never silently retries');
+    await driver.sleep(500);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
     await ready();
