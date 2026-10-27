@@ -134,8 +134,63 @@ async function main(){
       `return ${shadow}.querySelectorAll('.item.uncertain').length`),1);
     assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
     assert.equal(await driver.executeScript('return window.__sent'),0);
-    console.log('Full Firefox Developer Edition restart: original queue paused, reused-tab-key='+reusedTabKey+
-      ', project-alias second tab explicit recovery uncertain and durable, no Send');
+    // Unlike driver.quit(), an abrupt process death does not flush Firefox's
+    // session via the normal shutdown lifecycle. Restrict SIGKILL to exactly
+    // this disposable -profile process, never another browser or geckodriver.
+    stage='unexpected-browser-process-death';
+    const firefoxProfilePids=()=>{
+      const matches=[];
+      for(const name of fs.readdirSync('/proc')){
+        if(!/^\\d+$/.test(name))continue;
+        let args;
+        try{args=fs.readFileSync('/proc/'+name+'/cmdline','utf8').split('\\0');}
+        catch{continue;}
+        const flag=args.findIndex((arg,index)=>['-profile','--profile'].includes(arg)&&
+          args[index+1]===profile);
+        if(flag<0||args.some(arg=>arg==='-contentproc'))continue;
+        matches.push(Number(name));
+      }
+      return matches;
+    };
+    const targetPids=firefoxProfilePids();
+    assert.equal(targetPids.length,1,
+      'Refuse to kill Firefox unless one browser owns the exact disposable profile: '+
+      JSON.stringify(targetPids));
+    process.kill(targetPids[0],'SIGKILL');
+    try{await driver.quit();}catch{/* Browser has deliberately crashed. */}
+    driver=null;
+    stage='relaunch-after-unexpected-process-death';
+    driver=await open();
+    assert.equal(await driver.installAddon(addon,true),
+      manifest.browser_specific_settings.gecko.id);
+    await driver.get(url);
+    await driver.wait(async()=>driver.executeScript(
+      `return Boolean(${el('count')})`),15000);
+    const afterCrash=await driver.executeScript(`return ${el('count')}.textContent`);
+    assert.ok(['0 queued','1 queued'].includes(afterCrash),
+      'Unrecognized queue state after abrupt shutdown: '+afterCrash);
+    if(afterCrash==='0 queued'){
+      // A new browser tab key never adopts another tab's private prompts
+      // automatically, even after a crash. Recovery is a deliberate copy.
+      await driver.executeScript(
+        `document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;${el('recovery-find')}.click()`);
+      await driver.wait(async()=>driver.executeScript(
+        `return ${el('recovery-confirm')}?.hidden===false`),11000);
+      await driver.executeScript(`return ${el('recovery-confirm')}.click()`);
+      await driver.wait(async()=>driver.executeScript(
+        `return /^\\d+ queued$/.test(${el('count')}.textContent)&&${el('count')}.textContent!=='0 queued'`),11000);
+      assert.equal(await driver.executeScript(`return [...${shadow}.querySelectorAll('.item')].every(
+        item=>item.classList.contains('uncertain'))`),true,
+        'Only uncertain manual review is permitted when copying after crash');
+    }
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
+    assert.equal(await driver.executeScript('return window.__sent'),0);
+    await driver.executeScript(`return ${el('run')}.click()`);
+    await new Promise(resolve=>setTimeout(resolve,900));
+    assert.equal(await driver.executeScript('return window.__sent'),0,
+      'Unexpected Firefox process death must not authorize or replay any Send');
+    console.log('Full Firefox Developer Edition restart: graceful shutdown and SIGKILL, '+
+      'relaunch retained or explicitly recovered private prompts, paused, zero Send');
   }catch(error){
     throw new Error(stage+': '+error.message);
   }finally{
