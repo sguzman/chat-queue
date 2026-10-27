@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "updatedOn": "2026-10-26",
+  "updatedOn": "2026-10-27",
   "platform": "Firefox Developer Edition",
   "progressPolicy": "Progress is verified atomic tasks / total. Implemented denotes code/doc present but lacks specific acceptance evidence. Never infer live Firefox validation from Node tests; never call implementation alone 100%.",
   "milestones": [
@@ -1132,8 +1132,10 @@
                   "id": "M7-04",
                   "emoji": "💬",
                   "title": "Verify actual authenticated ChatGPT send, completion and retry",
-                  "status": "planned",
-                  "evidence": []
+                  "status": "verified",
+                  "evidence": [
+                    "Authenticated Firefox Developer Edition live ChatGPT session, observed by user screenshots on 2026-10-27: an uncertain QUEUE_OK prompt was manually recovered and explicitly marked Retry; one subsequent Start inserted and sent exactly that prompt, the real ChatGPT transcript displayed a QUEUE_OK answer, Queue recorded submitted then finished under history with 0 queued, and independent Chat Signals showed finished. The later Firefox event-page registry restart paused Run but did not undo the finished history. This proves one real end-to-end send/completion/manual-retry acceptance; it does NOT prove unattended multi-message restart continuation, exactly-once delivery during crashes, or other prompts/site variants. User screenshots remain in the conversation and are deliberately not copied into this public repository."
+                  ]
                 },
                 {
                   "id": "M7-05",
