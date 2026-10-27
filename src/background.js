@@ -8,6 +8,36 @@
   const PREFIX = 'chat-queue/v1';
   const PROTOCOL_VERSION = 1;
   const TABS = new Map();
+  // Firefox event pages may suspend during long responses, even when a
+  // content script sends a periodic state frame. While a browser-authenticated
+  // tab is Running or awaiting a response, a single 8-second *session-only*
+  // storage change keeps the event page active via Firefox's own extension
+  // event handling. No prompt, route, tab ID or provider token is persisted.
+  // This is NOT Send authority: an unexpected shutdown still loses the
+  // volatile provider ledger and requires the ordinary fail-closed recovery.
+  const ACTIVE_PULSE_KEY='chatqueue:active-eventpage-pulse';
+  let activePulseTimer=null,activePulseCounter=0;
+  function updateActivePulse(){
+    // Node/browser fixtures without session storage retain conservative
+    // restart behavior, never substitute durable local-storage writes.
+    if(!api.storage?.session||typeof setInterval!=='function')return;
+    const active=[...TABS.values()].some(tab=>tab.running||tab.awaiting);
+    if(active&&!activePulseTimer){
+      activePulseTimer=setInterval(()=>{
+        if(![...TABS.values()].some(tab=>tab.running||tab.awaiting)){
+          clearInterval(activePulseTimer);activePulseTimer=null;return;
+        }
+        try{
+          const promise=api.storage.session.set({
+            [ACTIVE_PULSE_KEY]:++activePulseCounter});
+          if(promise&&typeof promise.catch==='function')
+            void promise.catch(()=>{});
+        }catch{/* session storage is optional; never grant Send on failure */}
+      },8000);
+    }else if(!active&&activePulseTimer){
+      clearInterval(activePulseTimer);activePulseTimer=null;
+    }
+  }
   // Authenticated provider envelopes never enter public tab metadata, API
   // snapshots, subscription events or persistent browser storage.
   const SIGNALS = new Map();
@@ -236,6 +266,7 @@
           DOCUMENT_IDS.delete(tab.id);
         }
         TABS.set(tab.id, { phase: 'unknown', size: 0, running: false, awaiting: false, revision: 0 });
+        updateActivePulse();
         SIGNALS.delete(tab.id);
         return {ok:true,tabId:tab.id,registrationGeneration};
       });
@@ -438,6 +469,7 @@
           revision: Number.isSafeInteger(message.revision) ? message.revision : 0
         };
         TABS.set(tab.id,next);
+        updateActivePulse();
         // Public tab metadata deliberately omits the private leasePending
         // bit. A paused in-flight or unconfirmed click still owns the route;
         // otherwise another tab could send before its manual review.
@@ -751,6 +783,7 @@
     if(!preservePending)REGISTER_ATTEMPTS.delete(tabId);
     if(!ROUTES.has(tabId))return;
     ROUTES.delete(tabId);ORIGINS.delete(tabId);TABS.delete(tabId);SIGNALS.delete(tabId);STATE_SEQUENCES.delete(tabId);REGISTRATIONS.delete(tabId);STRICT_STATE_REGISTRATIONS.delete(tabId);DOCUMENT_IDS.delete(tabId);
+    updateActivePulse();
     notify(tabId,null);
   }
   api.tabs.onRemoved.addListener(tabId => invalidate(tabId));
