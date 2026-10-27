@@ -26,6 +26,11 @@ function stageQueue(dir,root){
   const cp=path.join(dir,'src/content.js');
   let qaQueueContent=patch(fs.readFileSync(cp,'utf8'),
     "attachShadow({mode:'closed'})","attachShadow({mode:'open'})");
+  // QA-only: expire idle authority quickly on a dedicated test route.
+  // The production 15-second freshness guard stays unchanged.
+  qaQueueContent=patch(qaQueueContent,
+    'performance.now()-state.trustedAt<15000',
+    "performance.now()-state.trustedAt<(routeKey()==='/c/expired-provider'?1000:15000)");
   // QA-only: distinguish optimistic HUD count from completed storage write.
   qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
     "    void write.then(()=>{"+
@@ -298,7 +303,34 @@ async function main(){
       throw new Error('Verified source idle missing: '+JSON.stringify(diagnostic)+'; '+error.message);
     }
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    stage='expired-idle-revalidated-by-deliberate-start';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/expired-provider');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='Resynced authenticated idle reply';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    // There is NO provider heartbeat. Start must ask the real extension
+    // publisher for a new verified snapshot instead of treating this expired
+    // prior idle as durable Send authority or forcing the user to race.
+    await driver.sleep(1800);
+    const priorSequence=Number(await driver.executeScript(
+      "return document.documentElement.dataset.qaPublishedSequence||0"));
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    const nextSequence=Number(await driver.executeScript(
+      "return document.documentElement.dataset.qaPublishedSequence||0"));
+    assert.ok(nextSequence>priorSequence,
+      'Start after stale idle must receive an authenticated new publisher event');
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'An authenticated refresh must authorize at most one actual synthetic Send');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
     stage='three-epochs-no-stale-terminal-advancement';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
+    await ready();
     const exactMessages=['Synthetic first message','  Síntesis — العربية 😀  ','Synthetic third message'];
     for(const [i,text] of exactMessages.entries()){
       await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
