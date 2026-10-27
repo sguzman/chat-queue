@@ -72,6 +72,17 @@ async function main(){
     const frame=await driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('isolated-draft-frame'));
+    stage='real-extension-origin-accessible-editor';
+    assert.equal(await frame.getAccessibleName(),'Add queued message',
+      'Screen readers must receive a name for the cross-origin editor frame');
+    await driver.switchTo().frame(frame);
+    const accessibleField=await driver.findElement(By.id('draft'));
+    assert.equal(await accessibleField.getAriaRole(),'textbox',
+      'Firefox must expose the actual isolated input as a textbox');
+    assert.equal(await accessibleField.getAccessibleName(),'Add queued message',
+      'The real child textarea, not only the hidden HUD mirror, needs a label');
+    assert.equal(await accessibleField.getAttribute('maxlength'),'10000');
+    await driver.switchTo().defaultContent();
     // The editor lives in a separate extension-origin document: the host
     // panel's CSS variables cannot cross this boundary. Verify explicit
     // theme changes cross ONLY the already-private MessagePort.
