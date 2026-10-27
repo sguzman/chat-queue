@@ -735,13 +735,30 @@
       (editor instanceof HTMLInputElement&&['text','search'].includes(editor.type));
     return actionableControl(editor)&&(textControl||editor.isContentEditable===true);
   }
+  // Contenteditable innerText may be "\\n" for an actually empty ProseMirror
+  // paragraph (<p><br></p>). Treat *only* known structural line-break
+  // placeholders as empty: any text node (even whitespace or invisible text)
+  // or embedded/non-paragraph element must preserve the user's draft.
+  // This is preflight only; never relax exact text verification after insertion.
+  function composerHasDraft(editor) {
+    if(editor instanceof HTMLTextAreaElement||editor instanceof HTMLInputElement)
+      return editor.value.length>0;
+    if(!editor.isContentEditable)return true;
+    if(editor.textContent.length>0)return true;
+    for(const element of editor.querySelectorAll('*')){
+      if(!['P','DIV','BR'].includes(element.tagName))return true;
+      if(element.tagName==='BR'&&element.hasAttribute('contenteditable')&&
+         element.getAttribute('contenteditable')==='false')return true;
+    }
+    return false;
+  }
   function findComposer() {
     const found=[...document.querySelectorAll(editorSelector)].filter(usableComposer);
     if (found.length !== 1) throw new Error('Composer is missing or ambiguous');
     const editor=found[0];
     const form=editor.closest('form');
     if (!form || !form.contains(editor)) throw new Error('Composer form is missing');
-    if (editorValue(editor).length) throw new Error('Composer contains a draft; preserved it');
+    if (composerHasDraft(editor)) throw new Error('Composer contains a draft; preserved it');
     if ([...form.querySelectorAll('input[type="file"]')].some(input=>input.files?.length))
       throw new Error('Composer has attachments');
     return {editor,form};
