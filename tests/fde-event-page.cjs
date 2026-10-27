@@ -185,8 +185,20 @@ async function main(){
    assert.equal(installed,manifest.browser_specific_settings.gecko.id);
    await driver.get('http://127.0.0.1:'+server.address().port+'/c/real-event-page');
    stage='queue-registration';
-   await driver.wait(async()=>await driver.executeScript(
-     "return Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('run'))"),15000);
+   try{
+     await driver.wait(async()=>await driver.executeScript(
+       "return Boolean(document.querySelector('#chat-queue-extension-root')?.shadowRoot?.getElementById('run'))"),15000);
+   }catch{
+     // Synthetic localhost only: distinguish injection from registration
+     // with boolean-only evidence, never private URLs, prompts or account data.
+     const marker=await driver.executeScript(()=>{
+       const host=document.querySelector('#chat-queue-extension-root');
+       return {hostMounted:Boolean(host),shadowAvailable:Boolean(host?.shadowRoot),
+         runButton:Boolean(host?.shadowRoot?.getElementById('run')),
+         docReady:document.readyState};
+     }).catch(()=>({browserUnavailable:true}));
+     throw Error('queue registration not ready: '+JSON.stringify(marker));
+   }
    await driver.executeScript(
      "const d=document.querySelector('#chat-queue-extension-root').shadowRoot.getElementById('draft');"+
      "d.value='Synthetic retained across actual event-page idle';");
