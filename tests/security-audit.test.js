@@ -126,6 +126,8 @@ test('isolated private draft rejects unreviewed resource, navigation and script 
   for(const [scenario,injection] of [
     ['remote CSS import','<style>@import url(https://bad.invalid/style.css);</style>'],
     ['CSS image URL','<style>textarea{background:url(https://bad.invalid/pixel)}</style>'],
+    ['CSS image-set protocol relative','<style>textarea{background:image-set("//bad.invalid/pixel" 1x)}</style>'],
+    ['CSS image-set remote','<style>textarea{background:image-set("https://bad.invalid/pixel" 1x)}</style>'],
     ['remote linked stylesheet','<link rel="stylesheet" href="https://bad.invalid/style.css">'],
     ['image pixel','<img src="https://bad.invalid/pixel">'],
     ['form submission','<form action="https://bad.invalid/collect"></form>'],
