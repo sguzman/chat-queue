@@ -1041,6 +1041,10 @@
       state.key===attemptKey&&storageKey()===attemptKey;
     statusNote('Preparing next message');
     let clicked=false;
+    // Set this BEFORE invoking click(): a handler may submit and then throw.
+    // Only an attempt that never entered the click path can safely release
+    // its own pre-click Send hold without any submission evidence.
+    let clickStarted=false;
     // The confirmation/history write can fail AFTER one real Send click.
     // In that case preserve the cross-tab response lease while permitting
     // explicit uncertain-item review; never claim history was persisted.
@@ -1166,7 +1170,7 @@
       proof={key:attemptKey,generation:attemptGeneration,baseline,editor,busy:null};
       state.inflightProof=proof;
       // This initiates exactly one send attempt. We never click again after uncertainty.
-      send.click(); clicked=true;
+      clickStarted=true;send.click(); clicked=true;
       statusNote('Verifying submission');
       let accepted=false;
       for (let i=0;i<12;i++) {
@@ -1221,9 +1225,20 @@
         // conservative manual resolution is required in either case.
         if(!state.items.some(entry=>entry.id===item.id))state.items.unshift(item);
         try{await save();}catch{}
-        statusNote(acceptedHistoryWritePending
-          ? 'Submission record could not be saved; review uncertain message'
-          : error.message || 'Dispatch failed');
+        // This document is the authenticated owner of its saved hold.
+        // A failed pre-click editor/Send check cannot have submitted anything.
+        // Retain the uncertain item for manual draft review, but don't leave
+        // a stale cross-reload hold that blocks that explicit Retry forever.
+        // Never release here once the Send click call was entered, even if
+        // its event handler throws before returning.
+        let preClickReleaseFailed=false;
+        if(!clickStarted&&state.durableHoldId)
+          preClickReleaseFailed=!await releaseDurableHold();
+        statusNote(preClickReleaseFailed
+          ? 'No Send click attempted; prior Send hold needs separate review'
+          : acceptedHistoryWritePending
+            ? 'Submission record could not be saved; review uncertain message'
+            : error.message || 'Dispatch failed');
       }
     } finally {
       if(state.inflightProof===proof)state.inflightProof=null;
