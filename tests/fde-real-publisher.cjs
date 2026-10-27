@@ -31,6 +31,18 @@ function stageQueue(dir,root){
   qaQueueContent=patch(qaQueueContent,
     'performance.now()-state.trustedAt<15000',
     "performance.now()-state.trustedAt<(routeKey()==='/c/expired-provider'?1000:15000)");
+  // QA-only: simulate loss of Queue's background registry after first
+  // completion in a two-message conversation. The real publisher and browser
+  // remain independent, and only the disposable localhost fixture gets this
+  // narrowly guarded message bridge. The production content script has none.
+  qaQueueContent=patch(qaQueueContent,
+    "  function publish() {",
+    "  window.addEventListener('message',event=>{"+
+    "if(event.source!==window||event.origin!==location.origin||"+
+    "event.data?.kind!=='qa-force-queue-registry-loss'||"+
+    "routeKey()!=='/c/sequence-after-registry-loss')return;"+
+    "void recoverRegistry();"+
+    "});\n  function publish() {");
   // QA-only: distinguish optimistic HUD count from completed storage write.
   qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
     "    void write.then(()=>{"+
@@ -303,6 +315,57 @@ async function main(){
       throw new Error('Verified source idle missing: '+JSON.stringify(diagnostic)+'; '+error.message);
     }
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    stage='two-message-manual-continuation-after-registry-loss';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/sequence-after-registry-loss');
+    await ready();
+    for(const message of ['First provider-authenticated queue item','Second provider-authenticated queue item']){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,message);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+    }
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='2 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    // Explicitly pause while a genuine attributed response is generating:
+    // the in-flight response still completes, but pending item 2 cannot Send.
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Paused')`),7000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('history')}.textContent.includes('finished: First provider-authenticated queue item')`),13000);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),8000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['First provider-authenticated queue item']);
+    await driver.sleep(500);
+    // The callback below executes exactly the production registry-loss
+    // recovery path, without spoofing provider authorization or touching a
+    // browser profile. Real event-page restart is separately tested.
+    await driver.executeScript(
+      "window.postMessage({kind:'qa-force-queue-registry-loss'},location.origin)");
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Signal registry restarted; manually resume after reconnect')`),8000);
+    await driver.sleep(850);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Registry recovery must not auto-send the remaining message');
+    assert.equal(await driver.executeScript(
+      `return ${hud('count')}.textContent`),'1 queued',
+      'Pending second item must survive registration recovery');
+    // Only a subsequent explicit Start, reauthenticated with the real Chat
+    // Signals publisher, can dispatch the second queued message.
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===2'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['First provider-authenticated queue item','Second provider-authenticated queue item'],
+      'Two messages must be sent in exact order exactly once');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),14000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2,
+      'No duplicate Send after completing the two-message recovery');
     stage='expired-idle-revalidated-by-deliberate-start';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/expired-provider');
     await ready();
