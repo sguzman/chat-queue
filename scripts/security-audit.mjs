@@ -90,7 +90,8 @@ for(const p of new Set(allJs)){
 const html=read('options/options.html');
 if(/\b(?:src|href|action|formaction)\s*=\s*["'](?:https?:|\/\/)/i.test(html)||
    /@import\b/i.test(html)||
-   /\burl\s*\(\s*['"]?\s*(?:https?:|\/\/)/i.test(html)||
+   /\b(?:url|image-set|cross-fade|image)\s*\(/i.test(html)||
+   /(?:^|[\s"'(])\/\/[a-z0-9.-]+/i.test(html)||
    /<script\b(?![^>]*\bsrc\s*=)/i.test(html)||
    /\bon(?:load|error|click|submit|change)\s*=/i.test(html))
   fail('remote assets or inline executable Options HTML');
