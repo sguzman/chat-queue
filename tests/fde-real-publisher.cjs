@@ -328,6 +328,33 @@ async function main(){
     await driver.executeScript('window.qaFinish()');
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),12000);
+    stage='empty-prosemirror-break-must-not-be-treated-as-draft';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/empty-rich-editor');
+    await ready();
+    const emptyShape=await driver.executeScript(() => {
+      const editor=document.getElementById('prompt-textarea');
+      editor.innerHTML='<p><br class="ProseMirror-trailingBreak"></p>';
+      return {textContent:editor.textContent,innerText:editor.innerText,
+        structure:editor.querySelectorAll('p > br.ProseMirror-trailingBreak').length};
+    });
+    assert.equal(emptyShape.textContent,'');
+    assert.equal(emptyShape.structure,1);
+    assert.ok(emptyShape.innerText.length>0,
+      'Native Firefox should reproduce nonempty innerText from an empty ProseMirror break');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(`const d=${hud('draft')};d.value='Empty rich-text paragraph must permit Send';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Empty rich-text paragraph must permit Send']);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
     stage='three-epochs-no-stale-terminal-advancement';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     await ready();
