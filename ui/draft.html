@@ -1,9 +1,19 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:transparent}
+<style>
+:root{color-scheme:light;--input:#fff;--text:#192432;--focus:#1773bb}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-theme="dark"]){
+    color-scheme:dark;--input:#151a20;--text:#f6f7fb;--focus:#86b6e8
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;--input:#151a20;--text:#f6f7fb;--focus:#86b6e8
+}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:transparent}
 *{box-sizing:border-box}
 textarea{display:block;width:100%;height:100%;padding:9px;resize:none;border:0;outline:0;
-background:#151a20;color:#f6f7fb;font:13px/1.45 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif}
-textarea:focus-visible{outline:2px solid #86b6e8;outline-offset:-2px}</style></head>
+background:var(--input);color:var(--text);font:13px/1.45 'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,sans-serif}
+textarea:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}</style></head>
 <body><textarea id="draft" aria-label="Add queued message" placeholder="Message to send when control returns" spellcheck="true" maxlength="10000"></textarea>
 <script src="draft.js"></script></body></html>
