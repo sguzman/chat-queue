@@ -8,12 +8,16 @@ const os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..');
 const PIN='d17117047f5e582591e514240c008b166bf96d8a';
+// Only explicitly named conversations are eligible for a live read-only
+// probe. Project routes are part of the existing Queue route contract; keep
+// the conservative UUID conversation restriction on both shapes.
+const QA_CONVERSATION_ROUTE=/^\/(?:c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|g\/[A-Za-z0-9_-]{1,128}\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
 function targetUrl(raw){
   let u;
   try{if(typeof raw!=='string'||raw.length>250)throw Error();u=new URL(raw);}
   catch{throw Error('an exact private QA conversation URL is required');}
   if(u.protocol!=='https:'||u.hostname!=='chatgpt.com'||u.port||u.username||
-     u.password||u.search||u.hash||!/^\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(u.pathname))
+     u.password||u.search||u.hash||!QA_CONVERSATION_ROUTE.test(u.pathname))
     throw Error('target must be one exact https ChatGPT conversation');
   return u.href;
 }
@@ -67,7 +71,7 @@ function inspectCounts(){
   const attachments=Boolean(form&&[...form.querySelectorAll('input[type="file"]')]
     .some(input=>input.files?.length));
   return {
-    exactRoute:/^\/c\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(location.pathname),
+    exactRoute:QA_CONVERSATION_ROUTE.test(location.pathname),
     composerCandidates:editors.length,formPresent:Boolean(form),
     sendCandidates:controls.length,
     sendDisabled:controls.length===1?Boolean(controls[0].disabled||

@@ -7,11 +7,18 @@ const {targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProdu
 test('live read-only QA only accepts exact existing conversation URLs',()=>{
   const good='https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc';
   assert.equal(targetUrl(good),good);
+  const project='https://chatgpt.com/g/g-p-example123/c/12345678-1234-1234-1234-123456789abc';
+  assert.equal(targetUrl(project),project,
+    'the supported exact project-conversation route must be eligible for read-only QA');
   for(const x of [undefined,'','https://chatgpt.com/',
     'https://chatgpt.com/c/short','https://chatgpt.com/c/1234567890123456',
     'https://not-chatgpt.com/c/12345678-1234-1234-1234-123456789abc',
     'http://chatgpt.com/c/12345678-1234-1234-1234-123456789abc',
     good+'?prompt=private',good+'#private',
+    project+'?private=1',project+'#private',project+'/extra',
+    'https://chatgpt.com/g/g-p-synthetic123/c/short',
+    'https://chatgpt.com/g/g-p-synthetic123/not-a-conversation/12345678-1234-1234-1234-123456789abc',
+    'https://chatgpt.com/g/%2e%2e/c/12345678-1234-1234-1234-123456789abc',
     'https://me:secret@chatgpt.com/c/12345678-1234-1234-1234-123456789abc'
   ])assert.throws(()=>targetUrl(x));
 });
