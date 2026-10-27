@@ -15,7 +15,9 @@
   const UI_KEY='chatqueue:ui:v1';
   const uiValid=x=>x?.version===1&&Number.isSafeInteger(x.right)&&x.right>=0&&x.right<=10000&&Number.isSafeInteger(x.bottom)&&x.bottom>=0&&x.bottom<=10000&&typeof x.collapsed==='boolean';
   const editorSelector = '#prompt-textarea,[data-testid="prompt-textarea"],[contenteditable="true"][role="textbox"]';
-  const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i]';
+  // Exact label plus the composer's sole submit button cover the observed
+  // Firefox ChatGPT variants; never select unrelated retry/voice actions.
+  const sendSelector = 'button[data-testid="send-button"],button[data-testid="composer-submit-button"],#composer-submit-button,button[aria-label="Send prompt" i],button[aria-label="Send message" i],button[aria-label="Send" i],button[type="submit"]';
   const state = { tabId: null, key: '', items: [], history: [], running: false, awaiting: false, awaitingUncertain: false,
     busySeen: false, attempting: null, durableHoldId: null, unconfirmedClickLease: false, signal: 'unknown', observedSignal:'unknown',
     trusted: null, trustedAt: 0, waiting: null, note: 'Paused', initialized: false,
@@ -793,9 +795,57 @@
     if (value !== canonicalComposerText(text)) throw new Error('Composer did not accept the exact message');
   }
   function findSend(form) {
-    const buttons=[...form.querySelectorAll(sendSelector)].filter(actionableControl);
-    if (buttons.length !== 1) throw new Error('Send button missing, disabled or ambiguous');
+    const buttons=[...form.querySelectorAll(sendSelector)];
+    if(buttons.length!==1||!actionableControl(buttons[0]))
+      throw new Error('Send button missing, disabled or ambiguous');
     return buttons[0];
+  }
+  function moveHudIfCoveringSend(button) {
+    // The floating Queue HUD may cover ChatGPT's bottom-right Send button.
+    // elementFromPoint then sees our own host, not the button. Move the HUD
+    // rather than disabling the hit-test or clicking through an obstruction.
+    const bounds=button.getBoundingClientRect();
+    if(bounds.width<=0||bounds.height<=0)return;
+    const x=Math.max(0,Math.min(innerWidth,bounds.left+bounds.width/2));
+    const y=Math.max(0,Math.min(innerHeight,bounds.top+bounds.height/2));
+    const blocked=document.elementFromPoint(x,y);
+    if(blocked!==host&&!host.contains(blocked))return;
+    const original={...state.position};
+    const candidates=[
+      {right:20,bottom:innerHeight},
+      {right:innerWidth,bottom:innerHeight},
+      {right:innerWidth,bottom:16},
+      {right:20,bottom:16}
+    ];
+    for(const candidate of candidates){
+      state.position=candidate;
+      state.position=place();
+      const hit=document.elementFromPoint(x,y);
+      if(hit!==host&&!host.contains(hit)){
+        // This saves only HUD layout, never a queue write or Send consent.
+        void api.storage.local.set({[UI_KEY]:{version:1,
+          ...state.position,collapsed:state.collapsed}}).catch(()=>{});
+        return;
+      }
+    }
+    state.position=original;place();
+  }
+  async function waitForSend(form,stillSafe) {
+    // React/ProseMirror often enables or mounts Send in a later render
+    // after execCommand inserted exact text. This is ONE pre-click attempt,
+    // not a retry. Abort on any route, draft, signal or user-input change.
+    for(let attempt=0;attempt<20;attempt++){
+      if(!stillSafe())throw new Error('Dispatch context changed; no send attempted');
+      const candidates=[...form.querySelectorAll(sendSelector)];
+      if(candidates.length>1)
+        throw new Error('Send button missing, disabled or ambiguous');
+      if(candidates.length===1){
+        moveHudIfCoveringSend(candidates[0]);
+        if(actionableControl(candidates[0]))return candidates[0];
+      }
+      if(attempt<19)await delay(100);
+    }
+    throw new Error('Send button missing, disabled or ambiguous');
   }
   // Authenticated duration evidence: monotonic time from the FIRST fresh,
   // busy phase observed after consent through the first fresh terminal phase
@@ -1076,7 +1126,13 @@
       queueFilling=true;
       try{fillComposer(editor,item.text);}
       finally{queueFilling=false;}
-      send=findSend(current.form);
+      send=await waitForSend(current.form,()=>state.running&&sameAttempt()&&
+        !state.storageFault&&state.pendingSaves===0&&!humanTouched&&
+        freshProvider()&&state.trusted===baseline&&editor.isConnected&&
+        editor.closest('form')===composerForm&&
+        canonicalComposerText(editorValue(editor))===canonicalComposerText(item.text)&&
+        ![...composerForm.querySelectorAll('input[type="file"]')]
+          .some(input=>input.files?.length));
       // A user may switch to another editable field while the browser-owned
       // sealed authorization is pending. Real edits elsewhere on this page
       // also mean the user has resumed control and must cancel Queue Send.
