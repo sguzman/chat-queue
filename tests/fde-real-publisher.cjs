@@ -355,6 +355,62 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    stage='react-send-enables-after-input';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/react-late-send');
+    await ready();
+    await driver.executeScript(() => {
+      const editor=document.getElementById('prompt-textarea');
+      editor.addEventListener('input',()=>{
+        const send=document.querySelector('[data-testid="send-button"]');
+        send.disabled=true;
+        setTimeout(()=>{send.disabled=false;},400);
+      },{once:true});
+    });
+    await driver.executeScript(`const d=${hud('draft')};d.value='Wait for React enabled Send';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Wait for React enabled Send'],
+      'The same Start gesture must wait for exact Send readiness, without retry');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+
+    stage='queue-hud-obscures-site-send';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/queue-covers-send');
+    await ready();
+    const overlap=await driver.executeScript(() => {
+      const host=document.getElementById('chat-queue-extension-root');
+      const rect=host.getBoundingClientRect();
+      const button=document.querySelector('[data-testid="send-button"]');
+      button.style.position='fixed';
+      button.style.left=(rect.left+18)+'px';
+      button.style.top=(rect.top+80)+'px';
+      button.style.zIndex='1';
+      const bounds=button.getBoundingClientRect();
+      return {hostHit:document.elementFromPoint(
+        bounds.left+bounds.width/2,bounds.top+bounds.height/2)===host,
+        top:rect.top,sendTop:bounds.top};
+    });
+    assert.equal(overlap.hostHit,true,
+      'The production HUD must initially intercept the site Send pointer');
+    await driver.executeScript(`const d=${hud('draft')};d.value='Uncover the site Send button safely';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('count')}.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>await driver.executeScript(
+      'return window.__sendCount===1'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Uncover the site Send button safely']);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>await driver.executeScript(
+      `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
+
     stage='three-epochs-no-stale-terminal-advancement';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/provider-test-123');
     await ready();
