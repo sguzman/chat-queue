@@ -144,3 +144,15 @@ test('isolated private draft rejects unreviewed resource, navigation and script 
     assert.match(result.stderr,/isolated draft HTML contract changed/,scenario);
   }
 });
+
+test('Options HTML refuses image-set and protocol-relative CSS resource channels',()=>{
+  for(const injection of [
+    '<style>textarea{background:image-set("https://bad.invalid/pixel" 1x)}</style>',
+    '<style>textarea{background:image-set("//bad.invalid/pixel" 1x)}</style>'
+  ]){
+    const result=runAudit(dir=>fs.appendFileSync(
+      path.join(dir,'options/options.html'),injection));
+    assert.notEqual(result.status,0,'unreviewed resource channel must be denied');
+    assert.match(result.stderr,/remote assets or inline executable Options HTML/);
+  }
+});
