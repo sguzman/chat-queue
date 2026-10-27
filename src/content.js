@@ -60,7 +60,9 @@
   for(const type of ['keydown','keypress','keyup','beforeinput','input',
     'compositionstart','compositionupdate','compositionend',
     'pointerdown','mousedown','mouseup','click','focusin']){
-    shadow.addEventListener(type,event=>event.stopPropagation(),true);
+    // Bubble-phase isolation is essential: stopping at capture would prevent
+    // the event from reaching its OWN textarea/button/keyboard handler.
+    shadow.addEventListener(type,event=>event.stopPropagation());
   }
   const style = document.createElement('style');
   style.textContent = `
