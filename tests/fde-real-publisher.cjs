@@ -67,7 +67,7 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal'].includes(routeKey())){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
     "await new Promise(resolve=>setTimeout(resolve,2400));"+
     "}"+
@@ -112,7 +112,7 @@ function stageQueue(dir,root){
   bg=patch(bg,"  const grants = globalThis.ChatQueueGrants;",
     "  const grants = globalThis.ChatQueueGrants;\n"+
     "  void api.storage.local.set({[grants.KEY]:{version:2,grants:{"+
-    JSON.stringify(cid)+":['control']}}});");
+    JSON.stringify(cid)+":['control','append']}}});");
   // QA-only saved library. No rules are enabled without an explicit
   // per-conversation click on the real Queue preview opt-in control.
   bg=patch(bg,"  const RULE_PREFIX='chatqueue:external-rules:v1:';",
@@ -166,16 +166,20 @@ function stageAuthorizedClient(dir){
   fs.writeFileSync(path.join(dir,'manifest.json'),JSON.stringify(manifest));
   fs.writeFileSync(path.join(dir,'background.js'),
     "browser.runtime.onMessage.addListener((request,sender)=>{"+
-    "if(request?.type!=='qa-authorized-start'||!Number.isInteger(sender.tab?.id))"+
+    "if(!Number.isInteger(sender.tab?.id))"+
     "return {ok:false,error:'invalid-fixture-origin'};"+
+    "const action=request?.type==='qa-authorized-start'?'start':"+
+    "(request?.type==='qa-authorized-enqueue'?'enqueue':null);"+
+    "if(!action)return {ok:false,error:'invalid-fixture-action'};"+
     "return browser.runtime.sendMessage("+JSON.stringify(qid)+
-    ",{type:'chat-queue/v1',action:'start',tabId:sender.tab.id});"+
+    ",{type:'chat-queue/v1',action,tabId:sender.tab.id,"+
+    "...(action==='enqueue'?{payload:{text:request.text}}:{})});"+
     "});");
   fs.writeFileSync(path.join(dir,'content.js'),
     "window.addEventListener('message',event=>{"+
     "if(event.source!==window||event.origin!==location.origin||"+
-    "event.data?.kind!=='qa-authorized-start')return;"+
-    "browser.runtime.sendMessage({type:'qa-authorized-start'})"+
+    "!['qa-authorized-start','qa-authorized-enqueue'].includes(event.data?.kind))return;"+
+    "browser.runtime.sendMessage({type:event.data.kind,text:event.data.text})"+
     ".then(result=>window.postMessage({kind:'qa-authorized-result',"+
     "nonce:event.data.nonce,result},'*'))"+
     ".catch(()=>window.postMessage({kind:'qa-authorized-result',"+
@@ -662,6 +666,75 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('status')}.textContent.includes('Queue completed')`),13000);
     assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    stage='authorized-peer-append-during-sealed-send-rejected';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/authorized-append-during-seal');
+    await ready();
+    await driver.executeScript(() => {
+      window.__qaControlResults=[];
+      window.addEventListener('message',e=>{
+        if(e.source!==window||e.origin!==location.origin||
+           e.data?.kind!=='qa-authorized-result')return;
+        window.__qaControlResults.push(e.data);
+      });
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      shadow.getElementById('draft').value='First authorized-append race item';
+      shadow.getElementById('add').click();
+    });
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes'),10000);
+    // A real separately installed, Firefox-authenticated peer submits the
+    // Append while Queue is holding the durable uncertainty journal and
+    // waiting for its sealed Send authorization. It must not mutate the
+    // queue record or cause a second Send while the first attempt is active.
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-authorized-enqueue',nonce:2,
+        text:'Rejected peer write during Send seal'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      window.__qaControlResults.some(x=>x.nonce===2)),10000);
+    assert.deepEqual(await driver.executeScript(()=>
+      window.__qaControlResults.find(x=>x.nonce===2).result),
+      {ok:false,error:'dispatch-in-progress'},
+      'Authorized peer cannot append during the in-flight Send journal');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A concurrent rejected Append must not induce an early Send');
+    await driver.wait(async()=>driver.executeScript('return window.__sendCount===1'),12000);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Waiting for confirmed response completion')),11000);
+    // Once Queue has committed the first Send and is waiting for its real
+    // publisher-confirmed terminal event, the same authorized peer may
+    // enqueue a NEW item, but never send it before that event.
+    stage='authorized-peer-append-while-generating-waits-for-completion';
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-authorized-enqueue',nonce:3,
+        text:'Peer appended during first response'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      window.__qaControlResults.some(x=>x.nonce===3)),10000);
+    assert.equal(await driver.executeScript(()=>
+      window.__qaControlResults.find(x=>x.nonce===3).result?.ok),true,
+      'Authorized peer must be able to append after the Send journal settles');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9000);
+    await driver.sleep(650);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['First authorized-append race item'],
+      'The peer item must wait for the first response to finish');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>driver.executeScript('return window.__sendCount===2'),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['First authorized-append race item','Peer appended during first response'],
+      'Only the authorized post-journal peer item may be sent next, in order');
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Queue completed')),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),2,
+      'No hidden replay after consecutive provider-confirmed responses');
     await driver.uninstallAddon(cid);
     stage='real-provider-success-conditional-review';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/conditional-real-success');
