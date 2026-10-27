@@ -143,6 +143,9 @@ async function main(){
     // Unlike driver.quit(), an abrupt process death does not flush Firefox's
     // session via the normal shutdown lifecycle. Restrict SIGKILL to exactly
     // this disposable -profile process, never another browser or geckodriver.
+    // The seed/read bridge is deliberately restricted to this direct route.
+    await driver.switchTo().window(originalWindow);
+    await driver.wait(async()=>driver.executeScript(`return Boolean(${el('count')})`),8000);
     stage='seed-potentially-clicked-send-hold-before-crash';
     const holdRequest=kind=>driver.executeAsyncScript((eventKind,done)=>{
       const nonce=Math.floor(Math.random()*1e9);
