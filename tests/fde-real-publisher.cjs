@@ -318,9 +318,12 @@ async function main(){
     stage='two-message-manual-continuation-after-registry-loss';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/sequence-after-registry-loss');
     await ready();
-    for(const message of ['First provider-authenticated queue item','Second provider-authenticated queue item']){
+    for(const [index,message] of ['First provider-authenticated queue item',
+      'Second provider-authenticated queue item'].entries()){
       await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,message);
       await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>await driver.executeScript(
+        `return ${hud('count')}.textContent===arguments[0]+' queued'`,index+1),9000);
     }
     await driver.wait(async()=>await driver.executeScript(
       `return ${hud('count')}.textContent==='2 queued'`),9000);
