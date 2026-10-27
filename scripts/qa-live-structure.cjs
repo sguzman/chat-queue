@@ -125,12 +125,29 @@ function copyProductionBundle(destination,sourceRoot){
     throw Error('production manifest files changed; revise QA allowlist');
   for(const relative of PRODUCTION_FILES){
     const input=path.join(sourceRoot,relative);
-    const stat=fs.lstatSync(input);
-    if(!stat.isFile()||stat.isSymbolicLink())
-      throw Error('unsafe production bundle source');
     const output=path.join(destination,relative);
-    fs.mkdirSync(path.dirname(output),{recursive:true,mode:0o700});
-    fs.copyFileSync(input,output);
+    // Parent-directory symlinks bypass an lstat() on the final file.
+    // Reject them before opening, and read from the SAME no-follow descriptor
+    // rather than reopening a pathname that may change after inspection.
+    let fd;
+    try{
+      for(const part of relative.split('/').slice(0,-1)){
+        const dir=path.join(sourceRoot,part);
+        const st=fs.lstatSync(dir);
+        if(!st.isDirectory()||st.isSymbolicLink())
+          throw Error('unsafe live probe source directory');
+      }
+      fd=fs.openSync(input,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+      if(!fs.fstatSync(fd).isFile())
+        throw Error('not a regular live probe source');
+      fs.mkdirSync(path.dirname(output),{recursive:true,mode:0o700});
+      fs.writeFileSync(output,fs.readFileSync(fd),{flag:'wx',mode:0o600});
+    }catch{
+      // User-visible failures must never print private local source paths.
+      throw Error('unsafe production bundle source');
+    }finally{
+      if(fd!==undefined)fs.closeSync(fd);
+    }
   }
 }
 function pinnedProvider(dir){

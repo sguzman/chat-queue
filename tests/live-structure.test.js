@@ -109,6 +109,45 @@ test('read-only QA addon includes only the audited production files',()=>{
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
 
+test('live probe rejects a symlinked source directory before staging private source',()=>{
+  const root=path.resolve(__dirname,'..');
+  const fake=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-dir-symlink-'));
+  const target=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-dir-target-'));
+  try{
+    fs.copyFileSync(path.join(root,'manifest.json'),path.join(fake,'manifest.json'));
+    fs.symlinkSync(path.join(root,'src'),path.join(fake,'src'),'dir');
+    fs.mkdirSync(path.join(fake,'options'));
+    assert.throws(()=>copyProductionBundle(target,fake),
+      /unsafe production bundle source/);
+    assert.equal(fs.existsSync(path.join(target,'src/background.js')),false,
+      'source from a symlinked directory must not be staged');
+  }finally{
+    fs.rmSync(fake,{recursive:true,force:true});
+    fs.rmSync(target,{recursive:true,force:true});
+  }
+});
+
+test('live probe refuses source symlinks and never stages their private bytes',()=>{
+  const root=path.resolve(__dirname,'..');
+  const fake=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-file-symlink-'));
+  const target=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-file-target-'));
+  const privateFile=path.join(fake,'private-canary.txt');
+  try{
+    fs.copyFileSync(path.join(root,'manifest.json'),path.join(fake,'manifest.json'));
+    fs.mkdirSync(path.join(fake,'src'));fs.mkdirSync(path.join(fake,'options'));
+    fs.writeFileSync(privateFile,'QA-PRIVATE-CANARY-MUST-NOT-BE-STAGED');
+    fs.symlinkSync(privateFile,path.join(fake,'src/background.js'));
+    assert.throws(()=>copyProductionBundle(target,fake),
+      /unsafe production bundle source/);
+    assert.equal(fs.existsSync(path.join(target,'src/background.js')),false);
+    assert.equal(fs.readFileSync(path.join(target,'manifest.json'),'utf8')
+      .includes('QA-PRIVATE-CANARY-MUST-NOT-BE-STAGED'),false);
+  }finally{
+    fs.rmSync(fake,{recursive:true,force:true});
+    fs.rmSync(target,{recursive:true,force:true});
+  }
+});
+
 test('read-only selector probe tracks production editor and Send selectors',()=>{
   const production=fs.readFileSync(path.join(__dirname,'../src/content.js'),'utf8');
   const probe=inspectCounts.toString();
