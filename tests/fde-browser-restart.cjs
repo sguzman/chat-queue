@@ -11,7 +11,7 @@ const {Builder}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 
 const page='<!doctype html><html><body><main><form>'+
-  '<div id="prompt-textarea" role="textbox" contenteditable="true"></div>'+
+  '<div id="prompt-textarea" role="textbox" contenteditable="true" style="display:block;min-height:44px;width:280px"></div>'+
   '<button type="button" data-testid="send-button" onclick="window.__sent++">Send</button>'+
   '</form></main><script>window.__sent=0</script></body></html>';
 const shadow="document.querySelector('#chat-queue-extension-root')?.shadowRoot";
@@ -265,8 +265,88 @@ async function main(){
     await new Promise(resolve=>setTimeout(resolve,900));
     assert.equal(await driver.executeScript('return window.__sent'),0,
       'Unexpected Firefox process death must not authorize or replay any Send');
-    console.log('Full Firefox Developer Edition restart: graceful shutdown and SIGKILL, '+
-      'relaunch retained or explicitly recovered private prompts, paused, zero Send');
+
+    // Actual Queue-initiated Send: unlike the preceding seeded composition,
+    // this hold must be created by the production dispatch-check reserve.
+    stage='authenticated-queue-click-before-second-process-death';
+    assert.equal(await driver.installAddon(signalsAddon,true),signalsAddonId);
+    const clickUrl='http://127.0.0.1:'+server.address().port+'/c/queue-click-crash';
+    await driver.get(clickUrl);
+    await driver.wait(async()=>driver.executeScript(
+      `return ${el('status')}?.textContent.includes('Signal: idle') &&
+        !${el('status')}.textContent.includes('(unverified)')`),16000);
+    await driver.executeScript(
+      `const d=${el('draft')};d.value='Queue-controlled Send before actual SIGKILL';
+        ${el('add')}.click()`);
+    await driver.wait(async()=>driver.executeScript(
+      `return ${el('count')}?.textContent==='1 queued'`),9000);
+    await driver.executeScript(`return ${el('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(
+      'return window.__sent===1'),12000);
+    // The site records one click but never emits a busy response. Terminate
+    // before Queue's confirmation timeout can run or orderly shutdown occurs.
+    stage='kill-firefox-during-actual-queue-submission-verification';
+    const actualSendPids=firefoxProfilePids();
+    assert.equal(actualSendPids.length,1,
+      'Refuse crash injection unless exactly our disposable Firefox remains');
+    process.kill(actualSendPids[0],'SIGKILL');
+    try{await driver.quit();}catch{}
+    driver=null;
+    stage='relaunch-after-actual-queue-click';
+    driver=await open();
+    assert.equal(await driver.installAddon(addon,true),queueAddonId);
+    assert.equal(await driver.installAddon(signalsAddon,true),signalsAddonId);
+    await driver.get(clickUrl);
+    await driver.wait(async()=>driver.executeScript(
+      `return Boolean(${el('count')})`),15000);
+    const actualHold=await driver.executeAsyncScript(done=>{
+      const nonce=123456789;
+      const timer=setTimeout(()=>{
+        window.removeEventListener('message',onReply);
+        done({ok:false,reason:'metadata-read-timeout'});
+      },6000);
+      function onReply(event){
+        if(event.source!==window||event.origin!==location.origin||
+           event.data?.kind!=='qa-real-hold-reply'||
+           event.data.nonce!==nonce)return;
+        clearTimeout(timer);window.removeEventListener('message',onReply);
+        done(event.data);
+      }
+      window.addEventListener('message',onReply);
+      window.postMessage({kind:'qa-real-hold-read',nonce},location.origin);
+    });
+    assert.equal(actualHold.ok,true,'Private hold metadata read after crash');
+    assert.equal(actualHold.record?.version,1);
+    assert.equal(actualHold.record?.route,'/c/queue-click-crash');
+    assert.ok(Number.isInteger(actualHold.record.tabId)&&actualHold.record.tabId>=0);
+    assert.match(actualHold.record.holdId,
+      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i,
+      'Production Queue-created hold, not QA-seeded metadata');
+    assert.notEqual(actualHold.record.holdId,
+      '12345678-aaaa-4444-bbbb-555555555555');
+    const replayCount=await driver.executeScript(`return ${el('count')}.textContent`);
+    assert.ok(['0 queued','1 queued'].includes(replayCount),
+      'No automatic queue adoption after process crash');
+    if(replayCount==='0 queued'){
+      await driver.executeScript(
+        `document.querySelector('#chat-queue-extension-root').shadowRoot.querySelector('details').open=true;
+          ${el('recovery-find')}.click()`);
+      await driver.wait(async()=>driver.executeScript(
+        `return ${el('recovery-confirm')}?.hidden===false`),11000);
+      await driver.executeScript(`return ${el('recovery-confirm')}.click()`);
+      await driver.wait(async()=>driver.executeScript(
+        `return ${el('count')}.textContent==='1 queued'`),11000);
+    }
+    assert.equal(await driver.executeScript(
+      `return ${shadow}.querySelectorAll('.item.uncertain').length`),1,
+      'A crashed Queue-originated Send must be retained for uncertain review');
+    assert.match(await driver.executeScript(`return ${el('status')}.textContent`),/Paused/);
+    await driver.executeScript(`return ${el('run')}.click()`);
+    await new Promise(resolve=>setTimeout(resolve,850));
+    assert.equal(await driver.executeScript('return window.__sent'),0,
+      'Never replay the Queue-initiated click after process crash');
+    console.log('Full FDE restart: graceful recovery, seeded hold crash and '+
+      'actual independent-provider Queue Send interrupted by SIGKILL, no replay');
   }catch(error){
     throw new Error(stage+': '+error.message);
   }finally{
