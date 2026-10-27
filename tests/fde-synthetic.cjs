@@ -1365,6 +1365,9 @@ async function main(){
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('Signal registry restarted')`),10000);
     assert.equal(await driver.executeScript(`return ${jsEl('count')}.textContent`),'0 queued');
+    assert.equal(await driver.executeScript(
+      `return ${jsEl('status')}.textContent.includes('no queued messages to resume')`),true,
+      'A Firefox registry restart must not tell an empty queue to resume');
     await driver.executeScript(`return ${jsEl('run')}.click()`);
     await driver.wait(async()=>await driver.executeScript(
       `return ${jsEl('status')}.textContent.includes('queue-empty')`),5000);
