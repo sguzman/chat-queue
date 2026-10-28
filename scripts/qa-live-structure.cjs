@@ -81,6 +81,22 @@ function inspectCounts(){
     .filter(e=>actionable(e,false)):[];
   const attachments=Boolean(form&&[...form.querySelectorAll('input[type="file"]')]
     .some(input=>input.files?.length));
+  // Match production composerHasDraft exactly: trimming silently discards
+  // user whitespace and embedded, nontext draft content. The read-only QA
+  // probe must NEVER qualify such a composer as empty. Only known empty
+  // structural ProseMirror <p><br></p> placeholders are acceptable.
+  const hasDraft=editor=>{
+    if(editor instanceof HTMLTextAreaElement||editor instanceof HTMLInputElement)
+      return editor.value.length>0;
+    if(!editor.isContentEditable)return true;
+    if(editor.textContent.length>0)return true;
+    for(const element of editor.querySelectorAll('*')){
+      if(!['P','DIV','BR'].includes(element.tagName))return true;
+      if(element.tagName==='BR'&&element.hasAttribute('contenteditable')&&
+         element.getAttribute('contenteditable')==='false')return true;
+    }
+    return false;
+  };
   return {
     exactRoute:pageRoute.test(location.pathname),
     composerCandidates:editors.length,formPresent:Boolean(form),
@@ -88,7 +104,7 @@ function inspectCounts(){
     sendDisabled:controls.length===1?Boolean(controls[0].disabled||
       controls[0].getAttribute('aria-disabled')==='true'):null,
     attachmentPresent:attachments,
-    draftOccupied:editors.length===1?Boolean((editors[0].value??editors[0].textContent??'').trim()):null,
+    draftOccupied:editors.length===1?hasDraft(editors[0]):null,
     queueMounted:Boolean(document.getElementById('chat-queue-extension-root')),
     signalPagePresent:typeof document.documentElement.dataset.chatSignalsState==='string'
   };
