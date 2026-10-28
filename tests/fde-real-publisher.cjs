@@ -74,6 +74,17 @@ function stageQueue(dir,root){
     "(routeKey()==='/c/route-aba-after-journal'?7600:2400)));"+
     "}"+
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',");
+  // QA-only: hold after Queue filled the real editor and RESERVED its
+  // durable Send marker but BEFORE waitForSend can locate a ready button.
+  // This creates the asynchronous gap where an earlier direct listener on
+  // the Send button could miss a competing site click or requestSubmit().
+  qaQueueContent=patch(qaQueueContent,
+    "      send=await waitForSend(current.form,()=>state.running&&sameAttempt()&&",
+    "      if(['/c/page-click-before-send-ready','/c/page-submit-before-send-ready'].includes(routeKey())){"+
+    "document.documentElement.dataset.qaSendReadyGap='yes';"+
+    "await new Promise(resolve=>setTimeout(resolve,2400));"+
+    "}"+
+    "      send=await waitForSend(current.form,()=>state.running&&sameAttempt()&&");
   // Localhost fixture only: privately inspect whether a real metadata-only
   // Send hold was committed, without sending its UUID or stored prompts to
   // the page. Production Queue never offers this inspection bridge.
@@ -237,7 +248,7 @@ document.querySelector('[data-testid="send-button"]').addEventListener('click',(
   if(location.pathname!=='/c/queue-own-form-submit')qaSiteSend();
 });
 document.querySelector('main form').addEventListener('submit',event=>{
-  if(!['/c/page-form-submit-during-seal','/c/queue-own-form-submit'].includes(location.pathname))return;
+  if(!['/c/page-form-submit-during-seal','/c/page-submit-before-send-ready','/c/queue-own-form-submit'].includes(location.pathname))return;
   event.preventDefault();
   window.__submitCount=(window.__submitCount||0)+1;
   qaSiteSend();
@@ -1616,6 +1627,64 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Inspecting persisted Send hold never dispatches either prompt');
 
+    // Queue had already filled its intended text and persisted a Send
+    // hold. A competing site action arrives BEFORE React's send-button
+    // readiness promise is allowed to settle; neither button.click() nor
+    // form.requestSubmit() may release the potentially accepted Send hold.
+    for(const kind of ['click','submit']){
+      stage='foreign-'+kind+'-during-pre-send-readiness';
+      const raceRoute='/c/page-'+kind+'-before-send-ready';
+      await driver.get('http://127.0.0.1:'+server.address().port+raceRoute);
+      await ready();
+      const first='Synthetic pre-ready '+kind+' payload';
+      for(const [index,text] of [first,'Keep second item pending'].entries()){
+        await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+        await driver.executeScript(`return ${hud('add')}.click()`);
+        await driver.wait(async()=>driver.executeScript(expected=>
+          document.querySelector('#chat-queue-extension-root').shadowRoot
+            .getElementById('count').textContent===expected,
+          (index+1)+' queued'),10000);
+      }
+      await driver.executeScript(`return ${hud('run')}.click()`);
+      await driver.wait(async()=>driver.executeScript(()=>
+        document.documentElement.dataset.qaSendReadyGap==='yes' &&
+        document.getElementById('prompt-textarea').innerText.length>0),11000);
+      if(kind==='click'){
+        await driver.executeScript(()=>
+          document.querySelector('[data-testid="send-button"]').click());
+      }else{
+        await driver.executeScript(()=>
+          document.querySelector('main form').requestSubmit());
+        assert.equal(await driver.executeScript('return window.__submitCount'),1);
+      }
+      assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),[first]);
+      await driver.wait(async()=>driver.executeScript(()=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot
+          .getElementById('status').textContent.includes(
+            'Another Send may have submitted this prompt; review uncertain message')),12000);
+      assert.equal(await driver.executeScript('return window.__sendCount'),1,
+        'The pre-ready foreign '+kind+' must not cause Queue to Send twice');
+      assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+      assert.equal(await driver.executeScript(()=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot
+          .querySelectorAll('.item.uncertain').length),1);
+      await driver.executeScript(()=>
+        window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+      await driver.wait(async()=>driver.executeScript(()=>
+        document.documentElement.dataset.qaDurableHold==='true'),10000);
+      await driver.executeScript('window.qaFinish()');
+      await driver.sleep(550);
+      assert.equal(await driver.executeScript('return window.__sendCount'),1);
+      await driver.navigate().refresh();
+      await driver.wait(async()=>driver.executeScript(()=>
+        document.querySelector('#chat-queue-extension-root')?.shadowRoot
+          ?.getElementById('count')?.textContent==='2 queued'),13000);
+      assert.equal(await driver.executeScript('return window.__sendCount'),0);
+      await driver.executeScript(()=>
+        window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+      await driver.wait(async()=>driver.executeScript(()=>
+        document.documentElement.dataset.qaDurableHold==='true'),10000);
+    }
     stage='page-requestSubmit-during-sealed-Queue-preflight';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/page-form-submit-during-seal');
     await ready();
