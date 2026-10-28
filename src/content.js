@@ -1074,16 +1074,27 @@
     let acceptedHistoryWritePending=false;
     let acceptedHistoryBefore=null;
     let editor,send,proof,composerForm;
-    let humanTouched=false,queueFilling=false;
-    // Any *other* activation of the exact Send control can have caused a
-    // remote submission, including page-script .click() events (untrusted
-    // in Firefox). Distinguish ONLY Queue's one own synchronous .click().
+    let humanTouched=false,queueFilling=false,queueTextExposed=false;
+    // A competing Send button, native form submit or keyboard shortcut
+    // can have caused remote submission. Exempt only Queue's own click.
     let foreignSubmission=false,ownSendClickObserved=false;
     // Start observing at the FIRST asynchronous dispatch boundary, not
     // after filling the composer. A real user may type and then erase text
     // during provider authorization or journal storage; a later empty editor
     // is not evidence the user has relinquished control.
-    const onHumanInput=event=>{if(event.isTrusted&&!queueFilling)humanTouched=true;};
+    const onHumanInput=event=>{
+      if(!event.isTrusted||queueFilling)return;
+      humanTouched=true;
+      // The site can handle Enter as a React shortcut and send directly,
+      // without clicking its Send button OR emitting a native submit event.
+      // Once Queue text has reached the composer, a real Enter in that
+      // editor may have sent it; do not release the already-persisted hold.
+      // Shift+Enter alone normally inserts a newline, not a Send.
+      if(queueTextExposed&&event.type==='keydown'&&event.key==='Enter'&&
+         (!event.shiftKey||event.ctrlKey||event.metaKey)&&editor&&
+         (event.target===editor||editor.contains(event.target)))
+        foreignSubmission=true;
+    };
     const onSendClick=event=>{
       // Attach at the composer FORM before async journal/hold operations:
       // the actual Send button may be mounted only after React updates.
@@ -1185,7 +1196,7 @@
       if(humanTouched)
         throw new Error('Human interaction before composer handoff; no Send attempted');
       queueFilling=true;
-      try{fillComposer(editor,item.text);}
+      try{fillComposer(editor,item.text);queueTextExposed=true;}
       finally{queueFilling=false;}
       send=await waitForSend(current.form,()=>state.running&&sameAttempt()&&
         !state.storageFault&&state.pendingSaves===0&&!humanTouched&&
@@ -1280,9 +1291,9 @@
         // This document is the authenticated owner of its saved hold.
         // A failed pre-click editor/Send check without ANY observed Send
         // activation cannot have submitted by Queue or another known actor.
-        // A competing Send click OR form submission is different: the site
-        // may have accepted it, so retain the hold for explicit review even
-        // though Queue itself never entered its .click() path.
+        // A competing click, form submit or Enter-to-send shortcut is
+        // potentially accepted: keep the hold for deliberate human review
+        // even if Queue itself never entered its .click() path.
         let preClickReleaseFailed=false;
         if(!clickStarted&&!foreignSubmission&&state.durableHoldId)
           preClickReleaseFailed=!await releaseDurableHold();
