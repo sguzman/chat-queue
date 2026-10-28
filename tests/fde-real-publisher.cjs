@@ -1518,7 +1518,7 @@ async function main(){
       'A terminal provider event cannot retry the human-submitted prompt');
     // A human Send also may have reached the network, even though Queue
     // itself never entered the scripted .click() path.
-    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;review.click();`);
     await driver.wait(async()=>driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
@@ -1569,7 +1569,7 @@ async function main(){
     await driver.sleep(650);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'Late authenticated terminal cannot resume the abandoned Queue attempt');
-    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;review.click();`);
     await driver.wait(async()=>driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
@@ -1580,7 +1580,7 @@ async function main(){
       document.querySelector('#chat-queue-extension-root')?.shadowRoot
         ?.getElementById('count')?.textContent==='2 queued'),14000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
-    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;review.click();`);
     await driver.wait(async()=>driver.executeScript(()=>
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
