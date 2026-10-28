@@ -221,7 +221,9 @@ test('read-only QA addon includes only the audited production files',()=>{
       const newManifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
       newManifest.background.scripts.push('src/unreviewed.js');
       fs.writeFileSync(path.join(bad,'manifest.json'),JSON.stringify(newManifest));
-      assert.throws(()=>copyProductionBundle(temp,bad),/manifest files changed/);
+      assert.throws(()=>copyProductionBundle(temp,bad),
+        /live probe manifest privilege contract changed/,
+        'Unreviewed scripts must be refused at the earliest manifest policy gate');
     }finally{fs.rmSync(bad,{recursive:true,force:true});}
     const bogus=fs.mkdtempSync(path.join(os.tmpdir(),'cq-src-link-'));
     try{
