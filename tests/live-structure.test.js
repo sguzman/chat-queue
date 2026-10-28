@@ -238,6 +238,41 @@ test('read-only QA addon includes only the audited production files',()=>{
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
 
+test('live read-only QA independently refuses expanded addon privileges and resources',()=>{
+  const root=path.resolve(__dirname,'..');
+  const good=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+  const source=fs.mkdtempSync(path.join(os.tmpdir(),'cq-live-policy-'));
+  try{
+    for(const mutate of [
+      manifest=>manifest.permissions.push('tabs'),
+      manifest=>{manifest.host_permissions=['https://example.invalid/*'];},
+      manifest=>manifest.content_scripts[0].matches.push('https://example.invalid/*'),
+      manifest=>{manifest.content_scripts[0].all_frames=true;},
+      manifest=>{manifest.content_scripts[0].world='MAIN';},
+      manifest=>manifest.web_accessible_resources[0].resources.push('src/background.js'),
+      manifest=>manifest.web_accessible_resources[0].matches.push('https://example.invalid/*'),
+      manifest=>{manifest.externally_connectable={matches:['https://example.invalid/*']};},
+      manifest=>{manifest.content_security_policy={
+        extension_pages:'script-src \'self\' https://example.invalid'
+      };},
+      manifest=>{manifest.browser_specific_settings.gecko.data_collection_permissions.required=['technicalAndInteraction'];},
+      manifest=>{manifest.options_ui.open_in_tab=false;}
+    ]){
+      const temp=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-staged-policy-'));
+      const changed=structuredClone(good);
+      mutate(changed);
+      fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(changed));
+      try{
+        assert.throws(()=>copyProductionBundle(temp,source),
+          /live probe manifest privilege contract changed/,
+          'Live probe must fail closed even when CI security-audit was not invoked');
+        assert.deepEqual(fs.readdirSync(temp),[],
+          'An unreviewed manifest must never stage source into the temporary addon');
+      }finally{fs.rmSync(temp,{recursive:true,force:true});}
+    }
+  }finally{fs.rmSync(source,{recursive:true,force:true});}
+});
+
 test('live probe rejects a symlinked source directory before staging private source',()=>{
   const root=path.resolve(__dirname,'..');
   const fake=fs.mkdtempSync(path.join(os.tmpdir(),'cq-qa-dir-symlink-'));
