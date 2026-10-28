@@ -67,7 +67,7 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal'].includes(routeKey())){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
     "await new Promise(resolve=>setTimeout(resolve,2400));"+
     "}"+
@@ -1514,6 +1514,59 @@ async function main(){
     await driver.sleep(650);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'A terminal provider event cannot retry the human-submitted prompt');
+    stage='real-provider-route-change-during-sealed-send';
+    const originalSealedRoute='/c/route-change-during-seal';
+    const destinationSealedRoute='/g/g-p-route-race/c/other-sealed-conversation';
+    await driver.get('http://127.0.0.1:'+server.address().port+originalSealedRoute);
+    await ready();
+    await driver.executeScript(() => {
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      shadow.getElementById('draft').value='Never dispatch across sealed route change';
+      shadow.getElementById('add').click();
+    });
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9000);
+    await driver.executeScript(()=>document.querySelector('#chat-queue-extension-root')
+      .shadowRoot.getElementById('run').click());
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes'),10000);
+    // Production Queue has already committed its uncertainty journal and
+    // acquired the durable hold. While the final browser-owned Send check
+    // is delayed ONLY in this disposable fixture, simulate a React SPA chat
+    // switch without discarding the document or forging a provider envelope.
+    await driver.executeScript(route=>{
+      history.pushState({},'',route);
+      document.getElementById('prompt-textarea').textContent='';
+      document.getElementById('response-turns').replaceChildren();
+    },destinationSealedRoute);
+    await driver.wait(async()=>driver.executeScript(route=>
+      location.pathname===route &&
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='0 queued',destinationSealedRoute),12000);
+    await driver.sleep(2650);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Queued text prepared for a previous chat must not Send in destination');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent),'0 queued',
+      'Destination must never inherit original conversation queue contents');
+    stage='real-provider-return-to-sealed-source-remains-uncertain';
+    await driver.executeScript(route=>history.pushState({},'',route),originalSealedRoute);
+    await driver.wait(async()=>driver.executeScript(route=>
+      location.pathname===route &&
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='1 queued' &&
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length===1,originalSealedRoute),12000);
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Returning to original route cannot reactivate an obsolete Send grant');
+    assert.match(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent),/Paused|Conversation changed/,
+      'Original queue must remain paused for deliberate uncertainty review');
+
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
     await ready();
