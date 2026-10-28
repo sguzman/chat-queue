@@ -2,7 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const vm=require('node:vm');
-const {targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProductionBundle}=
+const {targetUrl,exactLoadedTarget,profilePath,qualify,inspectCounts,
+  disarmQueueDispatch,copyProductionBundle}=
   require('../scripts/qa-live-structure.cjs');
 test('live read-only QA only accepts exact existing conversation URLs',()=>{
   const good='https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc';
@@ -22,6 +23,32 @@ test('live read-only QA only accepts exact existing conversation URLs',()=>{
     'https://me:secret@chatgpt.com/c/12345678-1234-1234-1234-123456789abc'
   ])assert.throws(()=>targetUrl(x));
 });
+test('read-only QA refuses route drift at browser-owned URL checks',()=>{
+  const target='https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc';
+  const other='https://chatgpt.com/c/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const project='https://chatgpt.com/g/g-p-QA123/c/12345678-1234-1234-1234-123456789abc';
+  assert.equal(exactLoadedTarget(target,target),true);
+  assert.equal(exactLoadedTarget(project,project),true);
+  for(const observed of [
+    other,
+    target+'?view=other',target+'#fragment',
+    'https://chatgpt.com/c/12345678-1234-1234-1234-123456789abc/',
+    'https://chatgpt.com/g/g-p-QA123/c/12345678-1234-1234-1234-123456789abc',
+    'https://chatgpt.com/', 'https://evil.example/c/12345678-1234-1234-1234-123456789abc',
+    'not-a-url',null,undefined
+  ])assert.equal(exactLoadedTarget(observed,target),false,
+    'Another valid conversation or URL decoration must not qualify this QA target');
+  assert.equal(exactLoadedTarget(target,project),false,
+    'A direct conversation does not silently become its project alias');
+  assert.equal(exactLoadedTarget(target,target+'?unsafe=1'),false,
+    'A malformed requested QA URL must never qualify');
+  const source=fs.readFileSync(path.join(__dirname,'../scripts/qa-live-structure.cjs'),'utf8');
+  assert.match(source,/const stayedOnTarget=exactLoadedTarget\(await driver\.getCurrentUrl\(\),target\)/,
+    'Probe must recheck the browser-owned actual URL after extension readiness');
+  assert.match(source,/const verdict=stayedOnTarget\?qualify\(result\)/,
+    'Route drift must override otherwise successful composer observations');
+});
+
 test('live QA reports count-only structure and preserves draft',()=>{
   const txt=inspectCounts.toString();
   for(const forbidden of ['outerHTML','innerHTML','document.cookie',
