@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
-const {Builder,By}=require('selenium-webdriver');
+const {Builder,By,Key}=require('selenium-webdriver');
 const firefox=require('selenium-webdriver/firefox');
 const qid='chat-queue@sguzman.github',sid='chat-signals@sguzman.github';
 const cid='qa-queue-control@sguzman.github';
@@ -80,7 +80,7 @@ function stageQueue(dir,root){
   // the Send button could miss a competing site click or requestSubmit().
   qaQueueContent=patch(qaQueueContent,
     "      send=await waitForSend(current.form,()=>state.running&&sameAttempt()&&",
-    "      if(['/c/page-click-before-send-ready','/c/page-submit-before-send-ready'].includes(routeKey())){"+
+    "      if(['/c/page-click-before-send-ready','/c/page-submit-before-send-ready','/c/keyboard-enter-before-send-ready','/c/keyboard-shift-enter-before-send-ready'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSendReadyGap='yes';"+
     "await new Promise(resolve=>setTimeout(resolve,2400));"+
     "}"+
@@ -224,6 +224,7 @@ const page=`<!doctype html><html><head><title>Provider Fixture</title></head><bo
 <script>
 window.__sendCount=0;
 window.__sentPayloads=[];
+window.__buttonClicks=0;
 function qaSiteSend(){
   const editor=document.getElementById('prompt-textarea');
   window.__sentPayloads.push(editor.innerText||editor.textContent||'');
@@ -243,9 +244,20 @@ function qaSiteSend(){
   document.getElementById('prompt-textarea').textContent='';
 }
 document.querySelector('[data-testid="send-button"]').addEventListener('click',()=>{
+  window.__buttonClicks++;
   // This route models a native <button type=submit>: the actual submit
   // handler owns the send, not a separate click callback.
   if(location.pathname!=='/c/queue-own-form-submit')qaSiteSend();
+});
+// Browser-trusted keyboard shortcut: a React-style host may call its
+// own Send routine without firing click OR submit. This must not be
+// confused with a provably safe pre-click failure by the extension.
+document.getElementById('prompt-textarea').addEventListener('keydown',event=>{
+  if(location.pathname!=='/c/keyboard-enter-before-send-ready'||
+     event.key!=='Enter'||event.shiftKey||!event.isTrusted)return;
+  event.preventDefault();
+  window.__trustedShortcutSend=(window.__trustedShortcutSend||0)+1;
+  qaSiteSend();
 });
 document.querySelector('main form').addEventListener('submit',event=>{
   if(!['/c/page-form-submit-during-seal','/c/page-submit-before-send-ready','/c/queue-own-form-submit'].includes(location.pathname))return;
@@ -1685,6 +1697,89 @@ async function main(){
       await driver.wait(async()=>driver.executeScript(()=>
         document.documentElement.dataset.qaDurableHold==='true'),10000);
     }
+    stage='trusted-Enter-shortcut-during-pre-ready-retains-durable-hold';
+    await driver.get('http://127.0.0.1:'+server.address().port+
+      '/c/keyboard-enter-before-send-ready');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic keyboard shortcut Send',
+      'Never follow an ambiguous keyboard Send'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>driver.executeScript(expected=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot
+          .getElementById('count').textContent===expected,
+        (index+1)+' queued'),10000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSendReadyGap==='yes' &&
+      document.getElementById('prompt-textarea').innerText.length>0),11000);
+    // A REAL WebDriver-generated Enter, not dispatchEvent(new KeyboardEvent)
+    // or a fabricated page Signal. This fixture's page handler calls its
+    // Send routine without any button click or native submit event.
+    await driver.findElement(By.id('prompt-textarea')).sendKeys(Key.ENTER);
+    assert.equal(await driver.executeScript('return window.__trustedShortcutSend'),1,
+      'A trusted browser keyboard event must invoke the synthetic site shortcut');
+    assert.equal(await driver.executeScript('return window.__buttonClicks'),0);
+    assert.equal(await driver.executeScript('return window.__submitCount||0'),0);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Synthetic keyboard shortcut Send']);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes(
+          'Another Send may have submitted this prompt; review uncertain message')),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Queue must not add a second Send after a trusted keyboard shortcut');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),1);
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='2 queued'),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
+
+    stage='trusted-Shift-Enter-pre-ready-does-not-create-false-Send-hold';
+    await driver.get('http://127.0.0.1:'+server.address().port+
+      '/c/keyboard-shift-enter-before-send-ready');
+    await ready();
+    await driver.executeScript(`const d=${hud('draft')};d.value='A human inserts a newline';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),10000);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSendReadyGap==='yes' &&
+      document.getElementById('prompt-textarea').innerText.length>0),11000);
+    await driver.findElement(By.id('prompt-textarea'))
+      .sendKeys(Key.chord(Key.SHIFT,Key.ENTER));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes(
+          'Dispatch context changed; no send attempted')),12000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Shift+Enter is normal editing: it must never authorize a Queue Send');
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaDurableHold==='false'),10000);
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'1 queued');
+
     stage='page-requestSubmit-during-sealed-Queue-preflight';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/page-form-submit-during-seal');
     await ready();
