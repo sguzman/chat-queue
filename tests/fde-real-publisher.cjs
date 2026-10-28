@@ -67,9 +67,11 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal'].includes(routeKey())){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal','/c/route-aba-after-journal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
-    "await new Promise(resolve=>setTimeout(resolve,2400));"+
+    "document.documentElement.dataset.qaSealStarted=String(performance.now());"+
+    "await new Promise(resolve=>setTimeout(resolve,"+
+    "(routeKey()==='/c/route-aba-after-journal'?7600:2400)));"+
     "}"+
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',");
   // QA-only: distinguish optimistic HUD count from completed storage write.
@@ -1566,6 +1568,66 @@ async function main(){
       document.querySelector('#chat-queue-extension-root').shadowRoot
         .getElementById('status').textContent),/Paused|Conversation changed/,
       'Original queue must remain paused for deliberate uncertainty review');
+
+    stage='real-provider-aba-route-switch-after-uncertain-journal';
+    const abaOriginal='/c/route-aba-after-journal';
+    const abaOther='/g/g-p-aba-test/c/route-aba-other';
+    await driver.get('http://127.0.0.1:'+server.address().port+abaOriginal);
+    await ready();
+    await driver.executeScript(() => {
+      const shadow=document.querySelector('#chat-queue-extension-root').shadowRoot;
+      shadow.getElementById('draft').value='Old sealed authorization must not survive ABA';
+      shadow.getElementById('add').click();
+    });
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9000);
+    await driver.executeScript(()=>document.querySelector('#chat-queue-extension-root')
+      .shadowRoot.getElementById('run').click());
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes' &&
+      Number.isFinite(Number(document.documentElement.dataset.qaSealStarted))),10000);
+    const sealedStart=Number(await driver.executeScript(
+      'return document.documentElement.dataset.qaSealStarted'));
+    // The old dispatch has already journaled uncertainty, reserved a real
+    // durable hold, and filled the page. Leave and REENTER the exact original
+    // URL while its deliberately held browser-owned seal is unresolved.
+    await driver.executeScript(route=>{
+      history.pushState({},'',route);
+      document.getElementById('prompt-textarea').textContent='';
+      document.getElementById('response-turns').replaceChildren();
+    },abaOther);
+    await driver.wait(async()=>driver.executeScript(route=>
+      location.pathname===route &&
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='0 queued',abaOther),12000);
+    await driver.executeScript(route=>history.pushState({},'',route),abaOriginal);
+    await driver.wait(async()=>driver.executeScript(route=>
+      location.pathname===route &&
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='1 queued' &&
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length===1,abaOriginal),12000);
+    assert.ok(await driver.executeScript(
+      'return performance.now()-arguments[0]<7600',sealedStart),
+      'Return to the same route must occur BEFORE the old sealed permission resolves');
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.wait(async()=>driver.executeScript(start=>
+      performance.now()-start>=8000,sealedStart),11000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A/B/A route reuse cannot restore the earlier attempt Send authorization');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),1,
+      'The prior uncertainty journal must survive ABA navigation unchanged');
+    assert.match(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent),/Conversation changed; manually start queue/,
+      'The revoked old attempt cannot overwrite the current route status');
+    stage='real-provider-aba-source-never-autoresumes';
+    await driver.sleep(600);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'A new verified provider state after ABA cannot automatically retry');
 
     stage='real-provider-transparent-send-never-clicks';
     await driver.get('http://127.0.0.1:'+server.address().port+'/c/transparent-send');
