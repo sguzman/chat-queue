@@ -41,6 +41,83 @@ test('live QA reports count-only structure and preserves draft',()=>{
   assert.equal(qualify({...ok,sendCandidates:0}).qualified,false);
   assert.equal(qualify({...ok,queueMounted:false}).qualified,false);
 });
+test('live read-only QA refuses hidden whitespace and embedded composer drafts',()=>{
+  // Exercise the actual Selenium-serialized function in an isolated JS
+  // realm. Never inspect, edit or serialize a real ChatGPT account or draft.
+  const source='('+inspectCounts.toString()+')';
+  const rect=x=>({left:x,right:x+80,top:10,bottom:45,width:80,height:35});
+  const makeControl=x=>({
+    isConnected:true,parentElement:null,disabled:false,readOnly:false,
+    getClientRects:()=>[{}],getBoundingClientRect:()=>rect(x),
+    closest:()=>null,getAttribute:()=>null,
+    contains:()=>false
+  });
+  const send=makeControl(240);
+  const form={parentElement:null,querySelectorAll:selector=>
+    selector.includes('send-button')?[send]:[]};
+  class MockTextarea {
+    constructor(value){
+      Object.assign(this,makeControl(40));
+      this.value=value;
+      this.closest=selector=>selector==='form'?form:null;
+    }
+  }
+  class MockInput {}
+  class MockEditable {
+    constructor(textContent,children){
+      Object.assign(this,makeControl(40));
+      this.textContent=textContent;
+      this.isContentEditable=true;
+      this.closest=selector=>selector==='form'?form:null;
+      this.querySelectorAll=()=>children;
+    }
+  }
+  const inspect=editor=>{
+    const doc={
+      querySelectorAll:selector=>selector.includes('#prompt-textarea')?[editor]:[],
+      getElementById:()=>({}),
+      elementFromPoint:x=>x<200?editor:send,
+      documentElement:{dataset:{chatSignalsState:'idle'}}
+    };
+    const context=vm.createContext({
+      document:doc,
+      location:{pathname:'/c/12345678-1234-1234-1234-123456789abc'},
+      HTMLTextAreaElement:MockTextarea,HTMLInputElement:MockInput,
+      innerWidth:900,innerHeight:600,
+      getComputedStyle:()=>({
+        visibility:'visible',display:'block',opacity:'1',pointerEvents:'auto'
+      })
+    });
+    return vm.runInContext(source,context)();
+  };
+  const empty=inspect(new MockTextarea(''));
+  assert.equal(empty.draftOccupied,false);
+  assert.equal(qualify(empty).qualified,true);
+  for(const value of [' ','  \\n','\\t','\\u200b']){
+    const observed=inspect(new MockTextarea(value));
+    assert.equal(observed.draftOccupied,true,
+      'Nonempty text controls preserve even invisible user data');
+    assert.equal(qualify(observed).qualified,false);
+  }
+  const placeholder=inspect(new MockEditable('',[
+    {tagName:'P'},{tagName:'BR',hasAttribute:()=>false}
+  ]));
+  assert.equal(placeholder.draftOccupied,false,
+    'Known empty ProseMirror paragraph must remain eligible');
+  assert.equal(qualify(placeholder).qualified,true);
+  for(const [text,children] of [
+    ['  ',[]],['\\u200b',[]],['',[{tagName:'IMG'}]],
+    ['',[{tagName:'SPAN'}]],
+    ['',[{tagName:'BR',hasAttribute:name=>name==='contenteditable',
+      getAttribute:()=> 'false'}]]
+  ]){
+    const observed=inspect(new MockEditable(text,children));
+    assert.equal(observed.draftOccupied,true,
+      'Whitespace, embedded nodes and noneditable boundaries preserve drafts');
+    assert.equal(qualify(observed).qualified,false);
+  }
+});
+
 test('serialized Selenium probe is self-contained on direct and project pages',()=>{
   const source='('+inspectCounts.toString()+')';
   assert.equal(source.includes('QA_CONVERSATION_ROUTE'),false,
