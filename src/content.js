@@ -1084,7 +1084,14 @@
     // during provider authorization or journal storage; a later empty editor
     // is not evidence the user has relinquished control.
     const onHumanInput=event=>{if(event.isTrusted&&!queueFilling)humanTouched=true;};
-    const onSendClick=()=>{
+    const onSendClick=event=>{
+      // Attach at the composer FORM before async journal/hold operations:
+      // the actual Send button may be mounted only after React updates.
+      // Ignore unrelated buttons; only a matching Send-like control can
+      // count as a competing irreversible submission.
+      const button=event.target instanceof Element
+        ? event.target.closest(sendSelector):null;
+      if(!button||!composerForm?.contains(button))return;
       if(clickStarted&&!clicked&&!ownSendClickObserved){
         ownSendClickObserved=true;return; // Our own one synchronous click.
       }
@@ -1130,6 +1137,12 @@
           ? 'Human interaction before composer handoff; no Send attempted'
           : 'Dispatch context changed before composer handoff');
       const found=findComposer();
+      composerForm=found.form;
+      // Delegated capture starts before ANY awaited journal/hold write or
+      // React send-button readiness wait. A page-owned click or form
+      // requestSubmit() during those gaps may have already submitted text.
+      composerForm.addEventListener('click',onSendClick,true);
+      composerForm.addEventListener('submit',onFormSubmit,true);
       // Journal uncertainty BEFORE exposing queue text in the page composer.
       // A human click during async preflight must not send unjournaled text.
       item.status='uncertain';
@@ -1181,12 +1194,6 @@
         canonicalComposerText(editorValue(editor))===canonicalComposerText(item.text)&&
         ![...composerForm.querySelectorAll('input[type="file"]')]
           .some(input=>input.files?.length));
-      // A user may switch to another editable field while the browser-owned
-      // sealed authorization is pending. Real edits elsewhere on this page
-      // also mean the user has resumed control and must cancel Queue Send.
-      // Synthetic page events are untrusted and cannot trip this guard.
-      send.addEventListener('click',onSendClick,true);
-      composerForm.addEventListener('submit',onFormSubmit,true);
       // A real file-picker change can happen after the click without any
       // input event on the editor or Send button. Treat it as user interference.
       composerForm.addEventListener('change',onHumanInput,true);
@@ -1294,7 +1301,7 @@
       document.removeEventListener('change',onHumanInput,true);
       document.removeEventListener('pointerdown',onHumanInput,true);
       document.removeEventListener('keydown',onHumanInput,true);
-      if(send)send.removeEventListener('click',onSendClick,true);
+      if(composerForm)composerForm.removeEventListener('click',onSendClick,true);
       if(composerForm)composerForm.removeEventListener('submit',onFormSubmit,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
