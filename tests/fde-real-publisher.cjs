@@ -67,7 +67,7 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal','/c/route-aba-after-journal'].includes(routeKey())){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal','/c/route-aba-after-journal','/c/site-script-click-during-seal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
     "document.documentElement.dataset.qaSealStarted=String(performance.now());"+
     "await new Promise(resolve=>setTimeout(resolve,"+
@@ -1516,6 +1516,77 @@ async function main(){
     await driver.sleep(650);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'A terminal provider event cannot retry the human-submitted prompt');
+    // A human Send also may have reached the network, even though Queue
+    // itself never entered the scripted .click() path.
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+    // Browser page-owned Send triggers an isTrusted=false click. The
+    // competing activation can have remote effects even though it is not
+    // a browser-trusted human gesture. Preserve uncertainty and metadata.
+    stage='page-script-send-click-during-sealed-preflight';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/site-script-click-during-seal');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic page-script-initiated first Send',
+      'Synthetic second item must never silently follow'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>driver.executeScript(expected=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot
+          .getElementById('count').textContent===expected,
+        (index+1)+' queued'),10000);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes'),10000);
+    const pageClickTrusted=await driver.executeScript(() => {
+      const send=document.querySelector('[data-testid="send-button"]');
+      let trusted=null;
+      send.addEventListener('click',event=>{trusted=event.isTrusted;},{once:true});
+      send.click(); // Script-origin click, not Selenium WebDriver user input.
+      return trusted;
+    });
+    assert.equal(pageClickTrusted,false,
+      'The test must demonstrate an untrusted script-initiated Send click');
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes(
+          'Another Send may have submitted this prompt; review uncertain message')),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Synthetic page-script-initiated first Send'],
+      'A separate script click may submit exactly one site message');
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Queue must not click a second time after the page script');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),1);
+    await driver.executeScript('window.qaFinish()');
+    await driver.sleep(650);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Late authenticated terminal cannot resume the abandoned Queue attempt');
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+    // Confirm the UUID hold was persisted rather than merely held in memory.
+    // No hold-release confirmation or Retry is invoked by this test.
+    await driver.navigate().refresh();
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='2 queued'),14000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(`return ${hud('hold-review')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0,
+      'Inspecting persisted Send hold never dispatches either prompt');
+
     stage='real-provider-route-change-during-sealed-send';
     const originalSealedRoute='/c/route-change-during-seal';
     const destinationSealedRoute='/g/g-p-route-race/c/other-sealed-conversation';
