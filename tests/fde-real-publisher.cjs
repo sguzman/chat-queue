@@ -74,6 +74,24 @@ function stageQueue(dir,root){
     "(routeKey()==='/c/route-aba-after-journal'?7600:2400)));"+
     "}"+
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',");
+  // Localhost fixture only: privately inspect whether a real metadata-only
+  // Send hold was committed, without sending its UUID or stored prompts to
+  // the page. Production Queue never offers this inspection bridge.
+  qaQueueContent=patch(qaQueueContent,
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.",
+    "  window.addEventListener('message',event=>{"+
+    "if(event.source!==window||event.origin!==location.origin||"+
+    "event.data?.kind!=='qa-inspect-durable-hold')return;"+
+    "const id=contract.assignedConversationId(routeKey());"+
+    "const key='chatqueue:send-hold:v1:'+id;"+
+    "void api.storage.local.get(key).then(data=>{"+
+    "const h=data[key];"+
+    "document.documentElement.dataset.qaDurableHold=String(Boolean("+
+    "h&&h.version===1&&h.route===routeKey()&&"+
+    "typeof h.holdId==='string'&&/^[a-f0-9-]{36}$/i.test(h.holdId)));"+
+    "}).catch(()=>{document.documentElement.dataset.qaDurableHold='error';});"+
+    "});\n"+
+    "  // Unsaved HUD drafts must not migrate into another ChatGPT conversation.");
   // QA-only: distinguish optimistic HUD count from completed storage write.
   qaQueueContent=patch(qaQueueContent,"    void write.then(()=>{",
     "    void write.then(()=>{"+
@@ -1518,11 +1536,10 @@ async function main(){
       'A terminal provider event cannot retry the human-submitted prompt');
     // A human Send also may have reached the network, even though Queue
     // itself never entered the scripted .click() path.
-    const reviewButton1=await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;return review;`);
-    await reviewButton1.click();
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
     await driver.wait(async()=>driver.executeScript(()=>
-      document.querySelector('#chat-queue-extension-root').shadowRoot
-        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
     // Browser page-owned Send triggers an isTrusted=false click. The
     // competing activation can have remote effects even though it is not
     // a browser-trusted human gesture. Preserve uncertainty and metadata.
@@ -1570,11 +1587,10 @@ async function main(){
     await driver.sleep(650);
     assert.equal(await driver.executeScript('return window.__sendCount'),1,
       'Late authenticated terminal cannot resume the abandoned Queue attempt');
-    const reviewButton2=await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;return review;`);
-    await reviewButton2.click();
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
     await driver.wait(async()=>driver.executeScript(()=>
-      document.querySelector('#chat-queue-extension-root').shadowRoot
-        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
     // Confirm the UUID hold was persisted rather than merely held in memory.
     // No hold-release confirmation or Retry is invoked by this test.
     await driver.navigate().refresh();
@@ -1582,11 +1598,10 @@ async function main(){
       document.querySelector('#chat-queue-extension-root')?.shadowRoot
         ?.getElementById('count')?.textContent==='2 queued'),14000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0);
-    const reviewButton3=await driver.executeScript(`const review=${hud('hold-review')};review.closest('details').open=true;return review;`);
-    await reviewButton3.click();
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
     await driver.wait(async()=>driver.executeScript(()=>
-      document.querySelector('#chat-queue-extension-root').shadowRoot
-        .getElementById('status').textContent.includes('Check the ChatGPT transcript')),10000);
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Inspecting persisted Send hold never dispatches either prompt');
 
