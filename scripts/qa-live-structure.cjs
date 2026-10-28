@@ -29,6 +29,15 @@ function targetUrl(raw){
     throw Error('target must be one exact https ChatGPT conversation');
   return u.href;
 }
+// The browser-owned current URL must still be the SAME exact target, not
+// merely another supported /c/<UUID> path after React SPA navigation.
+// Comparing the full normalized URL also rejects query or fragment drift.
+// Never return or print the URL itself in the QA report.
+function exactLoadedTarget(currentUrl,target){
+  if(typeof currentUrl!=='string'||typeof target!=='string')return false;
+  try{return new URL(currentUrl).href===targetUrl(target);}
+  catch{return false;}
+}
 function profilePath(dataDir){
   if(!path.isAbsolute(dataDir||''))throw Error('QA profile data directory must be absolute');
   const qa=path.resolve(dataDir,'chat-queue-fde-qa');
@@ -223,8 +232,7 @@ async function main(){
       throw Error('temporary add-on identity mismatch');
     await driver.get(target);
     // Do not expose even an account URL or an on-page selector failure.
-    const current=new URL(await driver.getCurrentUrl());
-    if(current.origin!=='https://chatgpt.com'||current.pathname!==new URL(target).pathname){
+    if(!exactLoadedTarget(await driver.getCurrentUrl(),target)){
       process.stdout.write(JSON.stringify({qualified:false,reason:'qa-login-or-route-not-ready',sendAttempted:false})+'\n');
       process.exitCode=1;return;
     }
@@ -236,7 +244,14 @@ async function main(){
       },10000);}catch{}
       result=await driver.executeScript(inspectCounts);
     }
-    const summary={...result,...qualify(result),sendAttempted:false,
+    // The site may SPA-navigate during the extension's up-to-10-second
+    // readiness wait. A shape-valid OTHER conversation is NOT acceptance
+    // evidence for the requested one. Recheck Firefox's browser-owned URL
+    // immediately after the observed structure, not just before the wait.
+    const stayedOnTarget=exactLoadedTarget(await driver.getCurrentUrl(),target);
+    const verdict=stayedOnTarget?qualify(result):
+      {qualified:false,reason:'qa-login-or-route-not-ready'};
+    const summary={...result,...verdict,sendAttempted:false,
       authenticatedSubmissionVerified:false};
     process.stdout.write('FDE read-only live-structure QA: '+JSON.stringify(summary)+'\n');
     if(!summary.qualified)process.exitCode=1;
@@ -245,7 +260,7 @@ async function main(){
     finally{fs.rmSync(addonDir,{recursive:true,force:true});}
   }
 }
-module.exports={targetUrl,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProductionBundle};
+module.exports={targetUrl,exactLoadedTarget,profilePath,qualify,inspectCounts,disarmQueueDispatch,copyProductionBundle};
 if(require.main===module)main().catch(()=>{
   // Browser exceptions often include session/profile URLs. Never print them.
   process.stderr.write('Read-only FDE QA blocked; details retained locally.\n');
