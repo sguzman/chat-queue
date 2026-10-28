@@ -154,6 +154,40 @@ const PRODUCTION_FILES=[
 ];
 function copyProductionBundle(destination,sourceRoot){
   const manifest=JSON.parse(fs.readFileSync(path.join(sourceRoot,'manifest.json'),'utf8'));
+  // A directly invoked live QA probe must enforce its OWN source
+  // privilege contract, even if the caller skipped the CI security audit.
+  // A new manifest permission, remote host, content-script context, page-
+  // accessible resource or external entrypoint must block loading the
+  // temporary QA add-on until separately reviewed.
+  const expectedPolicy={
+    manifest_version:3,
+    permissions:['storage'],
+    background:{scripts:[
+      'src/signal.js','src/grants.js','src/rules.js','src/background.js'
+    ]},
+    options_ui:{page:'options/options.html',open_in_tab:true},
+    content_scripts:[{
+      matches:['https://chatgpt.com/*'],
+      js:['src/core.js','src/signal.js','src/rules.js',
+        'src/rule-store.js','src/content.js'],
+      run_at:'document_idle',all_frames:false
+    }],
+    web_accessible_resources:[{
+      resources:['ui/draft.html','ui/draft.js'],matches:['https://chatgpt.com/*']
+    }],
+    browser_specific_settings:{gecko:{
+      id:'chat-queue@sguzman.github',
+      data_collection_permissions:{required:['none']}
+    }}
+  };
+  const actualPolicy=Object.fromEntries(
+    Object.keys(expectedPolicy).map(key=>[key,manifest[key]]));
+  const allowedTopLevel=new Set([...Object.keys(expectedPolicy),
+    'name','description','version']);
+  if(Object.keys(manifest).some(key=>!allowedTopLevel.has(key))||
+     !Object.keys(expectedPolicy).every(key=>
+       JSON.stringify(actualPolicy[key])===JSON.stringify(expectedPolicy[key])))
+    throw Error('live probe manifest privilege contract changed');
   const required=[
     ...(manifest.background?.scripts||[]),
     ...(manifest.content_scripts||[]).flatMap(c=>c.js||[]),
