@@ -1075,11 +1075,24 @@
     let acceptedHistoryBefore=null;
     let editor,send,proof,composerForm;
     let humanTouched=false,queueFilling=false;
+    // Any *other* activation of the exact Send control can have caused a
+    // remote submission, including page-script .click() events (untrusted
+    // in Firefox). Distinguish ONLY Queue's one own synchronous .click().
+    let foreignSendClick=false,ownSendClickObserved=false;
     // Start observing at the FIRST asynchronous dispatch boundary, not
     // after filling the composer. A real user may type and then erase text
     // during provider authorization or journal storage; a later empty editor
     // is not evidence the user has relinquished control.
     const onHumanInput=event=>{if(event.isTrusted&&!queueFilling)humanTouched=true;};
+    const onSendClick=()=>{
+      if(clickStarted&&!clicked&&!ownSendClickObserved){
+        ownSendClickObserved=true;return; // Our own one synchronous click.
+      }
+      // A person or page script may have already submitted this prompt.
+      // Synthetic page clicks are not trusted input, but their *effect*
+      // is just as irreversible as a browser-trusted human Send.
+      foreignSendClick=true;humanTouched=true;
+    };
     document.addEventListener('beforeinput',onHumanInput,true);
     document.addEventListener('input',onHumanInput,true);
     document.addEventListener('change',onHumanInput,true);
@@ -1164,7 +1177,7 @@
       // sealed authorization is pending. Real edits elsewhere on this page
       // also mean the user has resumed control and must cancel Queue Send.
       // Synthetic page events are untrusted and cannot trip this guard.
-      send.addEventListener('click',onHumanInput,true);
+      send.addEventListener('click',onSendClick,true);
       // A real file-picker change can happen after the click without any
       // input event on the editor or Send button. Treat it as user interference.
       composerForm.addEventListener('change',onHumanInput,true);
@@ -1236,7 +1249,7 @@
         // busy evidence never arrived. Hold this conversation's volatile
         // cross-tab lease until deliberate uncertain-item resolution; a
         // disconnected/late provider cannot certify that the click failed.
-        if(clicked&&!state.awaiting)state.unconfirmedClickLease=true;
+        if((clickStarted||foreignSendClick)&&!state.awaiting)state.unconfirmedClickLease=true;
         if(acceptedHistoryWritePending){
           // The remote response may still be generating. Hold the existing
           // owner lease until its attributable terminal or an explicit review
@@ -1249,19 +1262,21 @@
         if(!state.items.some(entry=>entry.id===item.id))state.items.unshift(item);
         try{await save();}catch{}
         // This document is the authenticated owner of its saved hold.
-        // A failed pre-click editor/Send check cannot have submitted anything.
-        // Retain the uncertain item for manual draft review, but don't leave
-        // a stale cross-reload hold that blocks that explicit Retry forever.
-        // Never release here once the Send click call was entered, even if
-        // its event handler throws before returning.
+        // A failed pre-click editor/Send check without ANY observed Send
+        // activation cannot have submitted by Queue or another known actor.
+        // A human OR page-script Send click is different: the site may have
+        // accepted it, so retain the durable hold for explicit review even
+        // though Queue itself never entered its .click() path.
         let preClickReleaseFailed=false;
-        if(!clickStarted&&state.durableHoldId)
+        if(!clickStarted&&!foreignSendClick&&state.durableHoldId)
           preClickReleaseFailed=!await releaseDurableHold();
         statusNote(preClickReleaseFailed
           ? 'No Send click attempted; prior Send hold needs separate review'
           : acceptedHistoryWritePending
             ? 'Submission record could not be saved; review uncertain message'
-            : error.message || 'Dispatch failed');
+            : foreignSendClick
+              ? 'Another Send may have submitted this prompt; review uncertain message'
+              : error.message || 'Dispatch failed');
       }
     } finally {
       if(state.inflightProof===proof)state.inflightProof=null;
@@ -1270,7 +1285,7 @@
       document.removeEventListener('change',onHumanInput,true);
       document.removeEventListener('pointerdown',onHumanInput,true);
       document.removeEventListener('keydown',onHumanInput,true);
-      if(send)send.removeEventListener('click',onHumanInput,true);
+      if(send)send.removeEventListener('click',onSendClick,true);
       if(composerForm)composerForm.removeEventListener('change',onHumanInput,true);
       if(state.attempting===attemptToken)state.attempting=null;
       render();publish();
