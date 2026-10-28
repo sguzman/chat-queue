@@ -67,7 +67,7 @@ function stageQueue(dir,root){
   // This latency is present on one localhost route and never in production.
   qaQueueContent=patch(qaQueueContent,
     "      const permission=await api.runtime.sendMessage({type:'chat-queue-internal/v1',",
-    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal','/c/route-aba-after-journal','/c/site-script-click-during-seal'].includes(routeKey())){"+
+    "      if(['/c/trusted-human-edit-during-seal','/c/trusted-human-click-during-seal','/c/authorized-append-during-seal','/c/route-change-during-seal','/c/route-aba-after-journal','/c/site-script-click-during-seal','/c/page-form-submit-during-seal'].includes(routeKey())){"+
     "document.documentElement.dataset.qaSealDelay='yes';"+
     "document.documentElement.dataset.qaSealStarted=String(performance.now());"+
     "await new Promise(resolve=>setTimeout(resolve,"+
@@ -213,7 +213,7 @@ const page=`<!doctype html><html><head><title>Provider Fixture</title></head><bo
 <script>
 window.__sendCount=0;
 window.__sentPayloads=[];
-document.querySelector('[data-testid="send-button"]').addEventListener('click',()=>{
+function qaSiteSend(){
   const editor=document.getElementById('prompt-textarea');
   window.__sentPayloads.push(editor.innerText||editor.textContent||'');
   window.__sendCount++;
@@ -230,6 +230,17 @@ document.querySelector('[data-testid="send-button"]').addEventListener('click',(
   assistant.dataset.messageAuthorRole='assistant';
   turn.append(assistant);document.getElementById('response-turns').append(turn);
   document.getElementById('prompt-textarea').textContent='';
+}
+document.querySelector('[data-testid="send-button"]').addEventListener('click',()=>{
+  // This route models a native <button type=submit>: the actual submit
+  // handler owns the send, not a separate click callback.
+  if(location.pathname!=='/c/queue-own-form-submit')qaSiteSend();
+});
+document.querySelector('main form').addEventListener('submit',event=>{
+  if(!['/c/page-form-submit-during-seal','/c/queue-own-form-submit'].includes(location.pathname))return;
+  event.preventDefault();
+  window.__submitCount=(window.__submitCount||0)+1;
+  qaSiteSend();
 });
 window.qaFinish=()=>{
   document.querySelector('[data-testid="stop-button"]')?.remove();
@@ -1605,6 +1616,84 @@ async function main(){
     assert.equal(await driver.executeScript('return window.__sendCount'),0,
       'Inspecting persisted Send hold never dispatches either prompt');
 
+    stage='page-requestSubmit-during-sealed-Queue-preflight';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/page-form-submit-during-seal');
+    await ready();
+    for(const [index,text] of [
+      'Synthetic form-submitted first prompt',
+      'Second form-race prompt must stay paused'
+    ].entries()){
+      await driver.executeScript(`const d=${hud('draft')};d.value=arguments[0];`,text);
+      await driver.executeScript(`return ${hud('add')}.click()`);
+      await driver.wait(async()=>driver.executeScript(expected=>
+        document.querySelector('#chat-queue-extension-root').shadowRoot
+          .getElementById('count').textContent===expected,
+        (index+1)+' queued'),9500);
+    }
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaSealDelay==='yes'),10000);
+    // requestSubmit() fires submit without a Send button click. This is
+    // a distinct site-owned submission channel, not the previous regression
+    // which exercises script-driven button.click().
+    await driver.executeScript(()=>document.querySelector('main form').requestSubmit());
+    assert.equal(await driver.executeScript('return window.__submitCount'),1);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Synthetic form-submitted first prompt']);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes(
+          'Another Send may have submitted this prompt; review uncertain message')),11000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Queue cannot issue a second click after a competing form submission');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'2 queued');
+    assert.equal(await driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .querySelectorAll('.item.uncertain').length),1);
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.sleep(700);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1);
+    await driver.navigate().refresh();
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root')?.shadowRoot
+        ?.getElementById('count')?.textContent==='2 queued'),14000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),0);
+    await driver.executeScript(()=>
+      window.postMessage({kind:'qa-inspect-durable-hold'},location.origin));
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.documentElement.dataset.qaDurableHold==='true'),10000);
+    stage='Queue-own-submit-button-does-not-trigger-foreign-submission';
+    await driver.get('http://127.0.0.1:'+server.address().port+'/c/queue-own-form-submit');
+    await ready();
+    await driver.executeScript(()=>{
+      document.querySelector('[data-testid="send-button"]').type='submit';
+    });
+    await driver.executeScript(`const d=${hud('draft')};d.value='Queue native submit button payload';`);
+    await driver.executeScript(`return ${hud('add')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('count').textContent==='1 queued'),9500);
+    await driver.executeScript(`return ${hud('run')}.click()`);
+    await driver.wait(async()=>driver.executeScript(()=>
+      window.__sendCount===1 && window.__submitCount===1),12000);
+    assert.deepEqual(await driver.executeScript('return window.__sentPayloads'),
+      ['Queue native submit button payload'],
+      'Queue-owned click must generate exactly one native submit event');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes(
+          'Waiting for confirmed response completion')),11000);
+    await driver.executeScript('window.qaFinish()');
+    await driver.wait(async()=>driver.executeScript(()=>
+      document.querySelector('#chat-queue-extension-root').shadowRoot
+        .getElementById('status').textContent.includes('Queue completed')),13000);
+    assert.equal(await driver.executeScript('return window.__sendCount'),1,
+      'Normal Queue submit must not be mistaken for a competing form submission');
+    assert.equal(await driver.executeScript(`return ${hud('count')}.textContent`),'0 queued');
     stage='real-provider-route-change-during-sealed-send';
     const originalSealedRoute='/c/route-change-during-seal';
     const destinationSealedRoute='/g/g-p-route-race/c/other-sealed-conversation';
